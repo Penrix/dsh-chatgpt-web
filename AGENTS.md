@@ -23,12 +23,13 @@ Treat this as the current working model until new experiments disprove it.
 
 Do not merge these concepts just because all of them participate in continuity:
 
-- **DSH canonical session** — long-lived session/history/context authority for the reasoning workflow.
+- **DSH canonical session** — long-lived live session/history and agent-loop authority.
+- **dsh-meow-memory** — structured cross-session memory, recall, reflection/dream, and post-compaction reinjection. Do not rebuild a competing generic memory engine here.
 - **ChatGPT Web** — high-quality reasoning provider; its managed conversation is disposable/cache-like, not canonical history.
 - **WebCodex** — durable local execution truth: files, Git, shell/processes, Jobs, Computer Use, Agent/ACP and effect reconciliation.
-- **Conversation DVR** — append-only original conversation evidence and cognition-formation history.
+- **Conversation DVR / raw DSH logs** — append-only original conversation evidence and cognition-formation history.
 
-A checkpoint, summary, Memory entry, Goal or Workflow Session is not a substitute for raw DVR evidence.
+A meow-memory entry, checkpoint, summary, Goal or Workflow Session is a derived/operational artifact and is not a substitute for raw DVR/session evidence.
 
 ## 3. DVR is first-class evidence
 
@@ -131,11 +132,11 @@ Do not merge repositories merely to reduce conceptual count. Extract interfaces 
 Prefer this order unless new evidence changes it:
 
 1. prove a minimal DSH → ChatGPT Web → DSH turn;
-2. preserve a canonical DSH session independently of the managed Web conversation;
-3. compare Web-conversation reuse / periodic rotation / fresh-per-inference strategies;
-4. integrate DVR retrieval for original evidence;
-5. integrate WebCodex as the durable effect/body layer;
-6. only then optimize retrieval/indexing and UX.
+2. implement DSH-Brain-Bridge-style final/action-proposal tool-loop semantics;
+3. verify meow-memory snapshots and memory_* tools survive the provider bridge;
+4. integrate WebCodex as the durable effect/body layer;
+5. integrate DVR/raw-log replay for original evidence where structured memory is insufficient;
+6. only then optimize retrieval/indexing, Web-conversation lifetime policy and UX.
 
 Do not begin by rebuilding WebCodex or inventing a universal memory system.
 
@@ -163,7 +164,8 @@ For cognition/architecture work, validate by replaying the decision chain:
 
 - Does the document still distinguish same-window decay from cross-window recovery?
 - Is DVR still first-class?
-- Is DSH described as canonical session host rather than a magic cognition store?
+- Is DSH described as canonical live session/agent-loop host rather than a magic cognition store?
+- Is meow-memory still the structured long-term memory layer rather than raw historical truth?
 - Is ChatGPT Web still the reasoning brain rather than the history authority?
 - Is WebCodex still the durable body/effect truth?
 - Are observations separated from hypotheses?
