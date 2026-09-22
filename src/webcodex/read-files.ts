@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { defineTool } from '@deepseek-ai/dsh-tools'
 
 export const WEBCODEX_READ_FILES_TOOL = 'webcodex_read_files'
 export const WEBCODEX_READ_FILES_ACTION_PATH = '/api/actions/read_files'
@@ -161,41 +161,6 @@ export async function invokeWebCodexReadFiles(
   )
 }
 
-const parameters: ToolDefinition['parameters'] = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    items: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          path: { type: 'string' },
-          start_line: { type: 'integer' },
-          limit: { type: 'integer' },
-          expected_read_revision: { type: 'integer' },
-        },
-        required: ['path'],
-      },
-    },
-    with_line_numbers: { type: 'boolean' },
-    max_result_bytes: { type: 'integer' },
-  },
-  required: ['items'],
-}
-
-const outputSchema: ToolDefinition['output']['schema'] = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    success: { type: 'boolean' },
-    output: {},
-    error: { type: 'string' },
-  },
-  required: ['success', 'output'],
-}
-
 /**
  * Register the first read-only DSH -> WebCodex durable-body seam.
  *
@@ -212,12 +177,37 @@ export function registerWebCodexReadFilesTool(
   requireNonEmpty(options.bearerToken, 'WebCodex bearerToken')
   actionUrl(options.baseUrl)
 
-  const definition: ToolDefinition = {
+  return ctx.tools.register(defineTool({
     name: WEBCODEX_READ_FILES_TOOL,
     description: 'Read bounded UTF-8 ranges from one operator-pinned WebCodex Project. The returned value is the canonical WebCodex ToolResult; its success field is authoritative, including structured failures/recovery data.',
-    parameters,
+    parameters: {
+      items: {
+        type: 'array',
+        required: true,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            path: { type: 'string', required: true },
+            start_line: { type: 'integer' },
+            limit: { type: 'integer' },
+            expected_read_revision: { type: 'integer' },
+          },
+        },
+      },
+      with_line_numbers: { type: 'boolean' },
+      max_result_bytes: { type: 'integer' },
+    },
     output: {
-      schema: outputSchema,
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          success: { type: 'boolean', required: true },
+          output: { type: 'json', required: true },
+          error: { type: 'string' },
+        },
+      },
       render: (_args, value) => [{
         type: 'text',
         text: JSON.stringify(value),
@@ -225,13 +215,7 @@ export function registerWebCodexReadFilesTool(
     },
     isConcurrencySafe: () => true,
     async execute(args, exec) {
-      return invokeWebCodexReadFiles(
-        options,
-        args as WebCodexReadFilesArguments,
-        exec.signal,
-      )
+      return invokeWebCodexReadFiles(options, args, exec.signal)
     },
-  }
-
-  return ctx.tools.register(definition)
+  }))
 }
