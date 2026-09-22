@@ -1,7 +1,7 @@
 # Windows M1 local acceptance
 
-> Active packet: `WEB-M1-LOCAL-002 rev 1`
-> Candidate branch: `web-m1-001-rev2`
+> Active packet: `WEB-M1-LIVE-008 rev 1`
+> Candidate branch: `web-m1-live-008`
 > Target: DSH Desktop 2.0.13; DSH packages 0.1.5-rc.2; Cordis 4.0.2; Schemastery 3.18.2.
 
 ## Safety model
@@ -166,20 +166,74 @@ If the third-party plugin prevents normal Host startup, use **DSH Desktop native
 
 Never restore the staged forensic backup by copying it over the live profile.
 
-## 7. Real M1 runtime acceptance — still reserved for Codex
+## 7. Real M1 runtime acceptance
 
-Only local execution can verify:
+After the exact candidate has passed staging/build checks, run the live harness from the same checkout:
 
-```text
-DSH Desktop loads candidate
-→ ChatGPT Web login/model selection
-→ harmless DSH tool proposal
-→ DSH executes tool
-→ durable tool/result
-→ second ChatGPT Web inference
-→ final answer
+```powershell
+npm run build
+node .\scripts\m1-live-echo.mjs
 ```
 
-Also exercise one ambiguous post-Send failure and verify there is no blind resend.
+The harness uses the **real** `ChatGptWebAdapter`, real DSH `LlmRuntime` / Session / ToolRuntime / AgentLoop, and one acceptance-only `echo(text)` DSH tool. It opens the provider's dedicated persistent browser profile in headed mode. On first use, sign in to ChatGPT inside that dedicated browser window; the provider waits for authenticated composer readiness.
 
-Until Codex actually runs these steps, installation, GUI load, ChatGPT Web transport and live tool-loop behavior remain **unverified**.
+Optional environment overrides:
+
+```powershell
+$env:M1_MODEL = 'chatgpt-web/high'
+$env:M1_PROFILE_DIR = "$HOME\.dsh-chatgpt-web-penrix\chrome-profile"
+$env:M1_CHROME_EXECUTABLE = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+$env:M1_LIVE_EVIDENCE = "$env:TEMP\m1-live-evidence.json"
+node .\scripts\m1-live-echo.mjs
+```
+
+Do not point `M1_PROFILE_DIR` at the user's ordinary Chrome profile. The default is already a dedicated provider-owned profile.
+
+A passing live run must prove all of these from the same canonical DSH Session:
+
+```text
+real ChatGPT Web inference #1
+→ assistant tool-call proposal
+→ exactly one DSH echo execution
+→ one tool/call Session event
+→ one tool/result Session event
+→ real ChatGPT Web inference #2
+→ final assistant message
+```
+
+The harness fails unless the Session contains exactly two assistant messages, exactly one tool call/result, exactly one local echo execution, and the persisted ordering is:
+
+```text
+assistant/message
+→ tool/call
+→ tool/result
+→ assistant/message
+```
+
+On success it prints:
+
+```text
+M1 live echo: PASS (real ChatGPT Web -> DSH echo -> second real inference)
+EVIDENCE: <absolute JSON path>
+```
+
+The evidence file contains the exact Session event sequence. Because the current production path asserts the exact Temporary Chat URL both after navigation/onboarding and immediately before the irreversible Send boundary, a successful live run also proves that both real sends crossed that guard. The existing post-Send uncertainty behavior remains fail-closed and is not converted into a retry by this harness.
+
+### Desktop installation evidence remains separate
+
+The live harness proves the real provider/tool-loop runtime. It does **not** replace the DSH Desktop packaging/install proof.
+
+For Desktop acceptance, still use:
+
+```powershell
+.\scripts\m1-local.ps1 -Action DesktopInstallPlan -OpenDesktop
+# Use DSH Desktop → Plugins → Add plugin with the printed PLUGIN SPEC.
+.\scripts\m1-local.ps1 -Action DesktopReadback
+```
+
+A complete M1 receipt should therefore contain both:
+
+1. Desktop install/readback evidence for the exact staged tarball; and
+2. the live harness evidence JSON proving the real two-inference DSH tool loop.
+
+If either path fails, preserve the first concrete error/evidence and stop rather than hand-editing the Desktop profile or blindly retrying a possibly-sent Web turn.
