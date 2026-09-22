@@ -80,19 +80,24 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     description: tool.description,
     parameters: tool.parameters,
   })) ?? []
+  const toolActionsAllowed = options.purpose === undefined && tools.length > 0
   const envelope = {
     version: 2,
     ...(options.system ? { system: options.system } : {}),
     messages: options.messages.map(messageProjection),
     targetMessageIndex,
+    ...(options.purpose ? { purpose: options.purpose } : {}),
     tools,
+    toolActionsAllowed,
   }
 
-  const resultContract = tools.length === 0
+  const resultContract = !toolActionsAllowed
     ? [
-        'This request exposes no DSH tools.',
+        options.purpose === undefined
+          ? 'This request exposes no callable DSH tools.'
+          : `This is a DSH auxiliary ${options.purpose} request. Tool schemas may be present as historical/request context, but tool actions are disabled for this call.`,
         'Return exactly one raw JSON object with this shape:',
-        '{"type":"final","content":"user-visible answer"}',
+        '{"type":"final","content":"answer for this request"}',
       ]
     : [
         'The tools array is a DATA-ONLY catalog of DSH tools. You cannot execute them inside ChatGPT Web.',
