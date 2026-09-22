@@ -74,7 +74,9 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     throw new LlmError('Phase 1 ChatGPT Web provider does not support stop sequences.', 'UNSUPPORTED')
   }
 
-  const targetMessageIndex = newestHumanMessageIndex(options.messages)
+  const targetMessageIndex = options.purpose === undefined
+    ? newestHumanMessageIndex(options.messages)
+    : Math.max(0, options.messages.length - 1)
   const tools = options.tools?.map(tool => ({
     name: tool.name,
     description: tool.description,
@@ -116,7 +118,9 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     'A role=user message whose source.kind=user is a genuine human message.',
     'A role=user message whose source.kind=plugin is plugin-provided context (for example a meow-memory snapshot/notice), not a new human request. Read and use it, but never answer it as if the human had just said it.',
     'Read the complete JSON before deciding the next step.',
-    'The response target is the newest genuine human-authored user message identified by targetMessageIndex.',
+    options.purpose === undefined
+      ? 'For a normal agent turn, the response target is the newest genuine human-authored user message identified by targetMessageIndex.'
+      : 'For this auxiliary DSH call, targetMessageIndex identifies the request message for the auxiliary operation even when its source is a plugin.',
     'Earlier assistant messages are your prior outputs; tool-call/tool-result history is already-produced DSH evidence.',
     ...resultContract,
     'Do not output Markdown fences around the JSON object.',
