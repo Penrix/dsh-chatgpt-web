@@ -23,6 +23,18 @@ Why REST rather than MCP for the first seam: WebCodex source proves the direct A
 
 Authentication: HTTP Bearer using an operator-supplied WebCodex credential. The token is registration configuration and is never model-visible.
 
+The installed root plugin exposes the seam only when `webcodexRead` is configured:
+
+```yaml
+config:
+  webcodexRead:
+    baseUrl: http://127.0.0.1:8080
+    bearerToken: <local WebCodex bearer credential>
+    project: <exact registered Project id>
+```
+
+The M1 plugin keeps only `llm` as a hard dependency. When this optional config exists it uses Cordis `ctx.inject(['tools'], ...)`, so the capability is registered when the real DSH ToolRuntime service is present and is absent otherwise.
+
 ## Exact read-only contract used
 
 The WebCodex request sent by this seam is:
@@ -47,9 +59,11 @@ Only `project` and `items` are required by the canonical contract. The seam deli
 
 The DSH-facing tool is `webcodex_read_files`. Its arguments are only the canonical read-only fields that remain after the pinned Project is injected:
 
-- `items`: 1..8 entries with `path`, optional `start_line`, `limit`, `expected_read_revision`;
+- `items`: canonical WebCodex contract is 1..8 entries with `path`, optional `start_line`, `limit`, `expected_read_revision`;
 - optional `with_line_numbers`;
 - optional `max_result_bytes`.
+
+DSH 0.1.5-rc.2's enforced raw tool-schema subset does not support numeric/array length keywords such as `minimum` or `minItems`. The DSH projection therefore validates the object/array/scalar shape and required fields through the official `defineTool(...)` path, while WebCodex remains authoritative for the exact 1..8/range/revision constraints. The bridge does not maintain a second validator that can drift from WebCodex.
 
 The returned DSH canonical value is the exact WebCodex ToolResult envelope:
 
