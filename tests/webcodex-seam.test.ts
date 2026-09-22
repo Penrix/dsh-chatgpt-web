@@ -117,11 +117,12 @@ describe('WebCodex read-only durable-body seam', () => {
     const authoritative = {
       success: false,
       output: {
-        code: 'project_not_found',
-        recovery_kind: 'fix_input',
-        requested_project: 'registered-project',
+        project: 'wc_project_resolved',
+        state_changed: false,
+        error_kind: 'runner_unavailable',
+        retry_guidance: 'retry read_files after the owning Runner is available',
       },
-      error: 'project not found',
+      error: 'read_files could not bind the read snapshot to an active Runner process; retry after the Runner is available',
     }
 
     let calls = 0
@@ -142,7 +143,9 @@ describe('WebCodex read-only durable-body seam', () => {
     if (result.isError) throw new Error('expected canonical WebCodex ToolResult value')
     expect(result.value).toEqual(authoritative)
     expect((result.value as typeof authoritative).success).toBe(false)
-    expect((result.value as typeof authoritative).output.recovery_kind).toBe('fix_input')
+    expect((result.value as typeof authoritative).output.error_kind).toBe('runner_unavailable')
+    expect((result.value as typeof authoritative).output.retry_guidance)
+      .toBe('retry read_files after the owning Runner is available')
   })
 
   it('surfaces a non-ToolResult authorization/HTTP error as a real DSH tool failure and never retries', async () => {
