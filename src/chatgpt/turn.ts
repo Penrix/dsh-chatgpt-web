@@ -2,15 +2,26 @@ import TurndownService from 'turndown'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import type { Page } from 'playwright-core'
 import { CompletionTracker } from './completion.ts'
+import { selectModelEffort } from './effort.ts'
+import {
+  CHATGPT_ASSISTANT_TURN_SELECTOR,
+  CHATGPT_COMPLETION_ACTION_SELECTOR,
+  CHATGPT_COMPOSER_SELECTOR,
+  CHATGPT_STOP_BUTTON_SELECTOR,
+  CHATGPT_TEMPORARY_CHAT_URL,
+  detectChatGptAccountCapabilities,
+} from './session.ts'
+import {
+  dismissTemporaryChatOnboarding,
+  throwIfRateLimitDialog,
+  throwIfSessionFailureAlert,
+  throwIfTerminalError,
+} from './guards.ts'
 
-const TEMPORARY_CHAT_URL = 'https://chatgpt.com/?temporary-chat=true'
-const COMPOSER = '#prompt-textarea, [data-testid="prompt-textarea"], [contenteditable="true"][role="textbox"]'
 const SEND = 'button[data-testid="send-button"], #composer-submit-button'
-const ASSISTANT = '[data-message-author-role="assistant"]'
-const COPY_ACTION = 'button[data-testid="copy-turn-action-button"]'
-const STOP = 'button[data-testid="stop-button"]'
 
 export interface TurnOptions {
+  model: string
   timeoutMs: number
   signal?: AbortSignal
 }
@@ -26,15 +37,8 @@ class PostSendFailure extends Error {
   }
 }
 
-async function dismissTemporaryChatOnboarding(page: Page): Promise<void> {
-  const dialog = page.locator('[role="dialog"]').filter({ hasText: /Not in history|Memory off|No model training/i }).last()
-  if (!await dialog.isVisible().catch(() => false)) return
-  const action = dialog.getByRole('button', { name: /Continue|Got it|继续|知道了/i }).last()
-  if (await action.isVisible().catch(() => false)) await action.click()
-}
-
 async function composer(page: Page) {
-  const node = page.locator(COMPOSER).first()
+  const node = page.locator(CHATGPT_COMPOSER_SELECTOR).filter({ visible: true }).last()
   await node.waitFor({ state: 'visible', timeout: 45_000 })
   return node
 }
@@ -46,7 +50,7 @@ async function sendButton(page: Page) {
 }
 
 async function markdownFromLastAssistant(page: Page): Promise<string> {
-  const assistant = page.locator(ASSISTANT).last()
+  const assistant = page.locator(CHATGPT_ASSISTANT_TURN_SELECTOR).last()
   const markdown = assistant.locator('.markdown').last()
   const html = await markdown.innerHTML().catch(async () => await assistant.innerHTML())
   const turndown = new TurndownService({ codeBlockStyle: 'fenced', bulletListMarker: '-' })
@@ -56,19 +60,23 @@ async function markdownFromLastAssistant(page: Page): Promise<string> {
 }
 
 async function stopGenerationBestEffort(page: Page): Promise<void> {
-  const stop = page.locator(STOP).filter({ visible: true }).first()
+  const stop = page.locator(CHATGPT_STOP_BUTTON_SELECTOR).filter({ visible: true }).first()
   if (await stop.isVisible().catch(() => false)) await stop.click().catch(() => {})
 }
 
 export async function runFreshTurn(page: Page, prompt: string, options: TurnOptions): Promise<TurnResult> {
   let sent = false
   try {
-    await page.goto(TEMPORARY_CHAT_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await page.goto(CHATGPT_TEMPORARY_CHAT_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 })
     await dismissTemporaryChatOnboarding(page)
+    await throwIfRateLimitDialog(page)
+    await throwIfSessionFailureAlert(page)
 
     const input = await composer(page)
-    const baselineAssistantCount = await page.locator(ASSISTANT).count()
-    const baselineCopyActionCount = await page.locator(COPY_ACTION).count()
+    const capabilities = await detectChatGptAccountCapabilities(page)
+    await selectModelEffort(page, options.model, capabilities)
+    const baselineAssistantCount = await page.locator(CHATGPT_ASSISTANT_TURN_SELECTOR).count()
+    const baselineCopyActionCount = await page.locator(CHATGPT_COMPLETION_ACTION_SELECTOR).count()
 
     if (options.signal?.aborted) throw new LlmError('ChatGPT turn aborted before Send.', 'ABORTED')
 
@@ -90,11 +98,11 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
         throw new PostSendFailure('ChatGPT turn timed out after Send.')
       }
 
-      const assistantCount = await page.locator(ASSISTANT).count()
-      const copyActionCount = await page.locator(COPY_ACTION).count()
-      const running = await page.locator(STOP).filter({ visible: true }).count().then(count => count > 0).catch(() => false)
+      const assistantCount = await page.locator(CHATGPT_ASSISTANT_TURN_SELECTOR).count()
+      const copyActionCount = await page.locator(CHATGPT_COMPLETION_ACTION_SELECTOR).count()
+      const running = await page.locator(CHATGPT_STOP_BUTTON_SELECTOR).filter({ visible: true }).count().then(count => count > 0).catch(() => false)
       const text = assistantCount > baselineAssistantCount
-        ? await page.locator(ASSISTANT).last().innerText().catch(() => '')
+        ? await page.locator(CHATGPT_ASSISTANT_TURN_SELECTOR).last().innerText().catch(() => '')
         : ''
 
       if (tracker.update({ assistantCount, copyActionCount, running, text })) {
@@ -103,9 +111,12 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
         return { text: final }
       }
 
-      const bodyText = await page.locator('body').innerText().catch(() => '')
-      if (/Something went wrong|There was an error generating a response/i.test(bodyText)) {
-        throw new PostSendFailure('ChatGPT reported a generation error after Send.')
+      await throwIfRateLimitDialog(page)
+      await throwIfSessionFailureAlert(page)
+      try {
+        await throwIfTerminalError(page)
+      } catch (error) {
+        throw new PostSendFailure(error instanceof Error ? error.message : String(error), error)
       }
 
       await page.waitForTimeout(500)
