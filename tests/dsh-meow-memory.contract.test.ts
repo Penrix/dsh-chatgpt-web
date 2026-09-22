@@ -33,10 +33,15 @@ const EXPECTED_MEMORY_TOOLS = [
   'memory_update',
 ] as const
 
-function schemaMap(ctx: Context): Map<string, JsonSchema> {
-  return new Map(ctx.tools.schemas().map(tool => [
+type CapturedToolSchema = {
+  name: string
+  parameters: JsonSchema
+}
+
+function schemaMap(schemas: readonly CapturedToolSchema[]): Map<string, JsonSchema> {
+  return new Map(schemas.map(tool => [
     tool.name,
-    tool.parameters as JsonSchema,
+    tool.parameters,
   ] as const))
 }
 
@@ -81,16 +86,31 @@ describe('meow-memory 0.27.0 sibling-plugin contract on DSH 0.1.5-rc.2', () => {
         dream: { enabled: false },
       })
 
-      const schemas = ctx.tools.schemas()
+      let schemas: CapturedToolSchema[] | undefined
+      await ctx.plugin({
+        name: 'm2-meow-memory-schema-probe',
+        inject: ['tools'],
+        apply(probeCtx: Context) {
+          schemas = probeCtx.tools.schemas().map(tool => ({
+            name: tool.name,
+            parameters: tool.parameters as JsonSchema,
+          }))
+        },
+      })
+
+      if (schemas === undefined) {
+        throw new Error('schema probe did not run with the tools service')
+      }
+
       const memoryNames = schemas
         .map(tool => tool.name)
         .filter(name => name.startsWith('memory_'))
         .sort()
 
       expect(memoryNames).toEqual(EXPECTED_MEMORY_TOOLS)
-      expect(memoryNames).toEqual(expect.arrayContaining(REQUIRED_TOOLS))
+      expect(memoryNames).toEqual(expect.arrayContaining([...REQUIRED_TOOLS]))
 
-      const byName = schemaMap(ctx)
+      const byName = schemaMap(schemas)
 
       const search = byName.get('memory_search')
       expect(search).toMatchObject({
