@@ -20,6 +20,8 @@ Relevant ADRs: ADR-0001, ADR-0002.
 
 ## Milestone 1 — DSH ↔ ChatGPT Web tool loop
 
+Execution issue: [#1](../../issues/1)
+
 Goal:
 
 ```text
@@ -45,6 +47,8 @@ Exit condition: a real DSH session can call a harmless test tool through ChatGPT
 
 ## Milestone 2 — meow-memory end-to-end
 
+Execution issue: [#2](../../issues/2)
+
 Required:
 
 - first-turn snapshot is treated as context, not user intent;
@@ -59,6 +63,8 @@ Exit condition: a fresh DSH session can recall, write and update durable memory 
 
 ## Milestone 3 — WebCodex body
 
+Execution issue: [#3](../../issues/3)
+
 Expose a minimal set of WebCodex capabilities through DSH without copying WebCodex's runtime.
 
 First targets:
@@ -72,6 +78,8 @@ First targets:
 Exit condition: ChatGPT Web can complete a small real code change through DSH → WebCodex and the resulting file/Git truth survives provider/thread death.
 
 ## Milestone 4 — raw evidence replay
+
+Execution issue: [#4](../../issues/4)
 
 Connect DSH to raw DSH session evidence and historical `Penrix/chatgpt-continuity` DVR evidence.
 
