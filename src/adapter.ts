@@ -10,6 +10,7 @@ import { ChatGptBrowser } from './chatgpt/browser.ts'
 import type { BrowserOptions } from './chatgpt/browser.ts'
 import { compilePrompt } from './chatgpt/prompt.ts'
 import { runFreshTurn } from './chatgpt/turn.ts'
+import { parseReasoningResult, reasoningResultChunks } from './reasoning-result.ts'
 
 export interface AdapterOptions extends BrowserOptions {
   composerMaxChars: number
@@ -93,17 +94,18 @@ export class ChatGptWebAdapter extends LlmAdapter {
           timeoutMs: this.options.turnTimeoutMs,
           ...(options.signal ? { signal: options.signal } : {}),
         })
-        yield { type: 'block-start', index: 0, blockType: 'text' }
-        yield { type: 'text-delta', index: 0, text: result.text }
-        yield { type: 'block-end', index: 0, block: { type: 'text', text: result.text } }
-        yield {
-          type: 'usage',
-          usage: {
-            inputTokens: Math.max(1, Math.ceil(compiled.text.length / 4)),
-            outputTokens: Math.max(1, Math.ceil(result.text.length / 4)),
-          },
+        const reasoning = parseReasoningResult(result.text)
+        const chunks = reasoningResultChunks(reasoning, options.tools)
+        const usage = {
+          inputTokens: Math.max(1, Math.ceil(compiled.text.length / 4)),
+          outputTokens: Math.max(1, Math.ceil(result.text.length / 4)),
         }
-        yield { type: 'finish', reason: { kind: 'stop' } }
+        for (const chunk of chunks) {
+          if (chunk.type === 'finish') {
+            yield { type: 'usage', usage }
+          }
+          yield chunk
+        }
       } finally {
         await page.close().catch(() => {})
       }
