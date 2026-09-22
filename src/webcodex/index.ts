@@ -6,6 +6,7 @@ export {
   registerWebCodexReadFilesTool,
 } from './read-files.ts'
 export type {
+  WebCodexJsonValue,
   WebCodexReadFilesArguments,
   WebCodexReadFilesItem,
   WebCodexReadFilesSeamOptions,
