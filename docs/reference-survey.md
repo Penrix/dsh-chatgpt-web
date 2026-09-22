@@ -45,6 +45,43 @@ This is an experiment default, not a permanent conclusion about the best convers
 
 # 2. Tier A — strongest direct references
 
+## 2.0 Phant0Meow/dsh-meow-memory — adopted dependency
+
+**License:** MIT  
+**Role:** structured cross-session memory layer for the DSH side of this system.
+
+This is no longer merely a reference project. The architecture adopts it directly rather than rebuilding generic memory in this repository.
+
+Borrow/use as-is:
+
+- seven memory layers: soul/user/project/fact/lesson/topic/rules;
+- first-turn stable memory snapshot;
+- later small keyword-hit injection;
+- explicit memory_search / memory_project / memory_read deep recall;
+- memory_remember / memory_update write-back;
+- reflection after substantial tool work;
+- idle dream consolidation;
+- post-compaction reinjection;
+- SQLite provenance including source_session and timestamps;
+- deterministic BM25/recency/importance retrieval before adding vectors.
+
+Important integration rule:
+
+```text
+role=user + source.kind=user
+= human request
+
+role=user + source.kind=plugin + plugin=meow-memory
+= memory context, not a new human request
+```
+
+Current v0.27.0 fixes several real 0.26.0 blockers (XML/string parameter coercion, duplicate reflection queueing, settings-layer application). Current main also correctly unwraps `agents.resume()` handles for post-restart auto-dream.
+
+Known non-blocking open edge to test: a user message intentionally sent with DSH steering while an automatic dream turn is running can be spliced into that dream turn (#20). This is a DSH busy-turn/steer interaction; do not treat it as a reason to fork the whole memory subsystem unless it materially harms our workflow.
+
+See `docs/meow-memory-integration.md`.
+
+
 ## 2.1 deepseek-ai/deepseek-harness
 
 **License:** MIT  
