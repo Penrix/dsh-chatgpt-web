@@ -59,7 +59,7 @@ switch ($Phase) {
 
     Write-Host ''
     Write-Host 'PREPARE COMPLETE.'
-    Write-Host 'Use DSH Desktop -> Plugins -> Add plugin with the PLUGIN SPEC printed above.'
+    Write-Host 'Install through DSH Desktop main app -> sidebar Plugins page (shared Web Plugin Manager) using the printed PLUGIN SPEC. Settings plugin inventory is read-only; do not use public dsh CLI against the reserved desktop profile.'
     Write-Host 'After the Plugin Manager finishes, run this script again with -Phase Live using the same StageRoot/ProfileDir.'
     break
   }
@@ -93,12 +93,6 @@ switch ($Phase) {
     $env:M2_LIVE_COMPOSITE_DIFF_STAT = 'WEB-WIN-LIVE-001 integrated branch'
     $env:M2_LIVE_COMPOSITE_PATHS = 'docs/windows-m1-acceptance.md,scripts/smoke-load.mjs,scripts/smoke-pack.mjs,tests/prompt.test.ts,src/chatgpt/turn.ts,tests/send-boundary.test.ts'
 
-    $null = Assert-Env 'WEBCODEX_BASE_URL'
-    $null = Assert-Env 'WEBCODEX_BEARER_TOKEN'
-    $null = Assert-Env 'WEBCODEX_PROJECT'
-    if (-not $env:WEBCODEX_LOCAL_ROOT) { $env:WEBCODEX_LOCAL_ROOT = $RepoRoot }
-    $env:WEBCODEX_LIVE_EVIDENCE = Join-Path $EvidenceRoot 'm3-live.json'
-
     Write-Host ''
     Write-Host '=== M1 live ChatGPT Web echo ==='
     Invoke-Checked node @('scripts/m1-live-echo.mjs')
@@ -106,6 +100,14 @@ switch ($Phase) {
     Write-Host ''
     Write-Host '=== M2 live meow-memory ==='
     Invoke-Checked node @('scripts/m2-live.mjs')
+
+    Write-Host ''
+    Write-Host '=== M3 prerequisite check ==='
+    $null = Assert-Env 'WEBCODEX_BASE_URL'
+    $null = Assert-Env 'WEBCODEX_BEARER_TOKEN'
+    $null = Assert-Env 'WEBCODEX_PROJECT'
+    if (-not $env:WEBCODEX_LOCAL_ROOT) { $env:WEBCODEX_LOCAL_ROOT = $RepoRoot }
+    $env:WEBCODEX_LIVE_EVIDENCE = Join-Path $EvidenceRoot 'm3-live.json'
 
     Write-Host ''
     Write-Host '=== M3 live WebCodex read-only seam ==='
