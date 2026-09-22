@@ -383,3 +383,16 @@ C. negative history
 # 一句话定义
 
 > **DSH 持有长期 session/context，DVR 保存原始认知演奏，ChatGPT Web 负责高质量推理，WebCodex 负责本地身体。窗口可以死，provider 可以换，但历史真相、执行现实和可回听的认知形成过程不能一起死。**
+
+
+---
+
+# 认知文档
+
+本仓库最重要的不是 README 里的架构图，而是下面三份“为什么”：
+
+- [docs/cognition.md](docs/cognition.md) — 当前已经成立的认知模型与边界。
+- [docs/formation-history.md](docs/formation-history.md) — 这几轮讨论里哪些判断被推翻、为什么被推翻；后续不要只读最终结论。
+- [docs/architecture.md](docs/architecture.md) — DSH、DVR、ChatGPT Web、WebCodex、Codex/ACP 的 authority 与接口边界。
+
+做架构工作前先读 `AGENTS.md`，再读 `docs/cognition.md` 和 `docs/formation-history.md`。
