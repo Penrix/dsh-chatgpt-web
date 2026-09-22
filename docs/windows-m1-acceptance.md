@@ -14,7 +14,7 @@ It deliberately separates four concerns:
 Stage candidate
 → optional isolated DSH install/rollback
 → Desktop install preflight + backup/readback
-→ actual Desktop mutation only through the official Plugins page
+→ actual Desktop mutation only through the main application's sidebar Plugins page / shared Web Plugin Manager; Settings plugin inventory is read-only and the public CLI must not mutate the reserved Desktop profile
 ```
 
 The script never writes `$DSH_HOME/profiles/desktop` and never edits the installed DSH Desktop application tree.
@@ -133,7 +133,7 @@ To open Desktop after the plan is created:
 
 ### Actual Desktop install — reserved for Codex
 
-Codex must use **DSH Desktop → Plugins → Add plugin** and supply the absolute tarball path printed as `PLUGIN SPEC` by the script.
+Codex must use **DSH Desktop main application → sidebar Plugins → install bundle** and supply the absolute tarball path printed as `PLUGIN SPEC` by the script.
 
 That official Plugin Manager owns pnpm, profile locking, bundle selection, installation errors and rollback of failed package operations. Do not hand-edit:
 
@@ -160,7 +160,7 @@ Prepare a read-only rollback report:
 .\scripts\m1-local.ps1 -Action DesktopRollbackPlan
 ```
 
-Normal rollback is owned by **DSH Desktop → Plugins**: disable/remove `@penrix/dsh-chatgpt-web`, restart when the manager requests it, then run `DesktopReadback` again.
+Normal rollback is owned by **DSH Desktop main application → sidebar Plugins**: disable/remove `@penrix/dsh-chatgpt-web`, restart when the manager requests it, then run `DesktopReadback` again.
 
 If the third-party plugin prevents normal Host startup, use **DSH Desktop native fatal recovery → disable third-party bundles**. Native recovery backs up the profile patch and preserves Harness conversations/product data and installed package files for repair.
 
@@ -227,7 +227,7 @@ For Desktop acceptance, still use:
 
 ```powershell
 .\scripts\m1-local.ps1 -Action DesktopInstallPlan -OpenDesktop
-# Use DSH Desktop → Plugins → Add plugin with the printed PLUGIN SPEC.
+# Use DSH Desktop main application → sidebar Plugins → install bundle with the printed PLUGIN SPEC.
 .\scripts\m1-local.ps1 -Action DesktopReadback
 ```
 
