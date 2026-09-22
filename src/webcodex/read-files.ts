@@ -161,51 +161,40 @@ export async function invokeWebCodexReadFiles(
   )
 }
 
-const parameters = {
+const parameters: ToolDefinition['parameters'] = {
   type: 'object',
   additionalProperties: false,
   properties: {
     items: {
       type: 'array',
-      minItems: 1,
-      maxItems: 8,
       items: {
         type: 'object',
         additionalProperties: false,
         properties: {
-          path: { type: 'string', minLength: 1 },
-          start_line: { type: 'integer', minimum: 0 },
-          limit: { type: 'integer', minimum: 0 },
-          expected_read_revision: {
-            type: 'integer',
-            minimum: 1,
-            maximum: 9_007_199_254_740_991,
-          },
+          path: { type: 'string' },
+          start_line: { type: 'integer' },
+          limit: { type: 'integer' },
+          expected_read_revision: { type: 'integer' },
         },
         required: ['path'],
       },
     },
     with_line_numbers: { type: 'boolean' },
-    max_result_bytes: { type: 'integer', minimum: 0 },
+    max_result_bytes: { type: 'integer' },
   },
   required: ['items'],
-} as const
+}
 
-const outputSchema = {
+const outputSchema: ToolDefinition['output']['schema'] = {
   type: 'object',
   additionalProperties: false,
   properties: {
     success: { type: 'boolean' },
-    output: {
-      anyOf: [
-        { type: 'object', additionalProperties: true },
-        { type: 'null' },
-      ],
-    },
+    output: {},
     error: { type: 'string' },
   },
   required: ['success', 'output'],
-} as const
+}
 
 /**
  * Register the first read-only DSH -> WebCodex durable-body seam.
