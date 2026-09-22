@@ -36,11 +36,11 @@ export const Config: z<Config> = z.object({
   composerMaxChars: z.number().step(1).min(1).default(180_000),
   contextWindow: z.number().step(1).min(1).default(90_000),
   maxTokens: z.number().step(1).min(1).default(16_384),
-  webcodexRead: z.object({
+  webcodexRead: z.union([z.object({
     baseUrl: z.string().required(),
     bearerToken: z.string().required(),
     project: z.string().required(),
-  }),
+  })]),
 })
 
 export function apply(ctx: Context, config: Config): void {
