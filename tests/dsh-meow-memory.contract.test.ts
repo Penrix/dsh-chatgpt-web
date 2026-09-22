@@ -85,7 +85,7 @@ describe('meow-memory 0.27.0 sibling-plugin contract on DSH 0.1.5-rc.2', () => {
       const memoryNames = schemas
         .map(tool => tool.name)
         .filter(name => name.startsWith('memory_'))
-        .toSorted()
+        .sort()
 
       expect(memoryNames).toEqual(EXPECTED_MEMORY_TOOLS)
       expect(memoryNames).toEqual(expect.arrayContaining(REQUIRED_TOOLS))
