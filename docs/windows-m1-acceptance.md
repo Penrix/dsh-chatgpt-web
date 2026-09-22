@@ -57,6 +57,8 @@ npm run smoke:pack
 npm pack --json
 ```
 
+The `npm run smoke:load` check imports the built candidate into a real in-process Cordis `Context`, mounts the real DSH `LlmRuntime`, applies this provider, and verifies provider/model registration plus package bundle metadata. That is an in-process load/registration check only: it does **not** prove DSH Desktop composition or installation, does not launch or authenticate a browser, and does not perform live ChatGPT Web inference or a real tool round-trip.
+
 It then:
 
 - writes the tarball under `%TEMP%\dsh-chatgpt-web-m1-stage` by default;
