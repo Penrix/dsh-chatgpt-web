@@ -5,6 +5,7 @@ import { createRequire } from 'node:module'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 
 type JsonSchema = {
   type?: string
@@ -67,6 +68,7 @@ describe('meow-memory 0.27.0 sibling-plugin contract on DSH 0.1.5-rc.2', () => {
 
     const ctx = new Context()
     try {
+      await ctx.plugin(SystemPrompt)
       await ctx.plugin(ToolRuntime)
 
       // Keep this a runtime import so the test exercises the installed package
