@@ -80,13 +80,16 @@ or, for a canonical business failure:
 {
   "success": false,
   "output": {
-    "recovery_kind": "fix_input"
+    "project": "<resolved Project id>",
+    "state_changed": false,
+    "error_kind": "runner_unavailable",
+    "retry_guidance": "retry read_files after the owning Runner is available"
   },
-  "error": "..."
+  "error": "read_files could not bind the read snapshot to an active Runner process; retry after the Runner is available"
 }
 ```
 
-A valid `ToolResult` is the authoritative business outcome. The DSH bridge invocation is considered transport-successful when it obtained that canonical value, so callers must branch on the returned `success` field. This is intentional: throwing on `success:false` would discard WebCodex's structured failure/recovery payload and replace machine truth with prose.
+A valid `ToolResult` is the authoritative business outcome. The DSH bridge invocation is considered transport-successful when it obtained that canonical value, so callers must branch on the returned `success` field. This is intentional: throwing on `success:false` would discard WebCodex's structured failure/recovery payload and replace machine truth with prose. The failure example above is copied from the real `read_files` Runner-unavailable path at the pinned WebCodex commit; it is not an invented bridge taxonomy.
 
 Non-`ToolResult` HTTP/auth/protocol failures become a DSH tool failure with stable code `WEBCODEX_HTTP_ERROR`. Network/transport failures become `WEBCODEX_TRANSPORT_ERROR`. The seam performs no retry.
 
