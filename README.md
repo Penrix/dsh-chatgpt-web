@@ -5,9 +5,10 @@
 ## Status
 
 - 建立：2026-09-22
-- 阶段：认知与架构定向
-- 当前第一目标：验证 **DSH canonical session + ChatGPT Web provider** 是否能显著改善高语义任务的长期连续性
+- 阶段：正式实现
+- 当前第一目标：完成 **ChatGPT Web ↔ DSH reasoning/tool bridge**，让 ChatGPT Web 作为 DSH 的推理大脑；长期记忆直接采用 `Phant0Meow/dsh-meow-memory`，本地身体采用 WebCodex
 - 相关项目：
+  - `Phant0Meow/dsh-meow-memory`：DSH 跨会话长期记忆层
   - `Penrix/webcodex`：本地身体 / durable execution runtime
   - `Penrix/chatgpt-continuity`：原始对话 DVR / evidence
   - `Penrix/codex-chatgpt-web`：ChatGPT Web provider 与浏览器自动化经验
@@ -133,33 +134,37 @@ DVR 的价值不是让模型永不衰减，而是在需要恢复或校准时，�
 目标结构：
 
 ```text
+        chatgpt-continuity / raw DVR
+                  │
+                  ▼
+          dsh-meow-memory
+      structured long-term memory
+                  │
+                  ▼
                  DSH
-        canonical cognitive/session host
-                 │
-                 │ context projection / LLM call
-                 ▼
+        canonical session / agent loop
+                  │
+                  │ LLM request
+                  ▼
            ChatGPT Web
         high-quality reasoning
-                 │
-                 ▼
+                  │
+          final / action proposal
+                  ▼
                  DSH
-                 │
-                 │ tool/effect intent
-                 ▼
-             WebCodex
-       durable local execution
-                 │
-                 ▼
-               Windows
-
-旁路证据：
-chatgpt-continuity
-→ raw DVR / branch graph / original cognition history
+           ┌──────┴──────┐
+           ▼             ▼
+      memory_* tools   WebCodex
+                       durable body
+                           │
+                           ▼
+                         Windows
 ```
 
 原则：
 
 - DSH 拥有 canonical session/history。
+- `dsh-meow-memory` 拥有结构化跨会话长期记忆与检索/重注入；本仓库不再另造通用 memory engine。
 - ChatGPT Web conversation 不拥有历史真相。
 - ChatGPT Web 不拥有任务身份。
 - ChatGPT Web conversation 可以被重建、轮换甚至丢弃。
@@ -183,7 +188,8 @@ ChatGPT Web = reasoning + session + memory + task container
 
 目标：
 ChatGPT Web = reasoning engine
-DSH = long-lived session/context host
+DSH = long-lived session / agent loop
+dsh-meow-memory = structured long-term memory
 WebCodex = body
 DVR = raw evidence
 ```
@@ -209,23 +215,27 @@ D. 每次 inference 都用 fresh conversation
 
 # HOW｜当前工程方向
 
-## 1. 先接通最小 DSH → ChatGPT Web provider
+## 1. 完成 DSH → ChatGPT Web reasoning/tool bridge
 
-第一阶段先证明：
+最小纯文本 provider 骨架已经进入开发分支。现在不再把“长期记忆是否可行”作为研究门槛；该方向已有 DSH 实践，且长期记忆直接采用 meow-memory。
+
+当前闭环目标：
 
 ```text
-DSH Session
-↓
-构造本轮 messages/context
+DSH Session + meow-memory 注入 + DSH tool schemas
 ↓
 ChatGPT Web
 ↓
-得到 assistant output
+final 或 structured action proposal
 ↓
-写回同一个 DSH Session
+DSH 校验并执行 tool
+↓
+tool result 回到 Session
+↓
+下一次 ChatGPT Web inference
 ```
 
-不要在第一步同时重做 WebCodex、DVR、向量检索和完整 UI。
+普通 DSH tools（尤其 memory_*）不依赖 ChatGPT-native MCP。
 
 ## 2. 再接 WebCodex 作为身体
 
@@ -266,17 +276,13 @@ WebCodex 的 Goal / Workflow Session / Job / Agent / ACP 等继续拥有它们�
 
 检索只是找到原始证据的位置，不能成为历史真相本身。
 
-## 4. Context Projection 是核心研究问题
+## 4. Context Projection 先复用 meow-memory 的现成策略
 
-即使 DSH 保存完整事件流，模型单次输入仍然有边界。
+即使 DSH 保存完整事件流，模型单次输入仍然有边界。但第一版不再自造 projection/memory 算法。
 
-所以真正要研究的是：
+meow-memory 已经提供：首轮 soul/user/rules/项目导引、后续 top-k 关键词命中、memory_search / memory_project 主动深入、compaction 后重注入、reflection/dream 整理。我们先完整保留这些语义，再用真实失败决定缺口。
 
-> **在不依赖 ChatGPT Web 隐式长对话记忆的前提下，每一轮应该从 canonical session + DVR 中投影什么给模型。**
-
-这不是普通“做摘要”。
-
-至少要保留三种不同东西：
+DVR 仍负责 meow-memory 无法替代的原始演奏证据。需要继续区分：
 
 ```text
 A. current task state
@@ -393,6 +399,7 @@ C. negative history
 
 - [docs/cognition.md](docs/cognition.md) — 当前已经成立的认知模型与边界。
 - [docs/formation-history.md](docs/formation-history.md) — 这几轮讨论里哪些判断被推翻、为什么被推翻；后续不要只读最终结论。
-- [docs/architecture.md](docs/architecture.md) — DSH、DVR、ChatGPT Web、WebCodex、Codex/ACP 的 authority 与接口边界。
+- [docs/architecture.md](docs/architecture.md) — DSH、meow-memory、DVR、ChatGPT Web、WebCodex、Codex/ACP 的 authority 与接口边界。
+- [docs/meow-memory-integration.md](docs/meow-memory-integration.md) — 为什么直接采用 meow-memory、它负责什么、与 DVR/DSH/provider/WebCodex 的边界。
 
 做架构工作前先读 `AGENTS.md`，再读 `docs/cognition.md` 和 `docs/formation-history.md`。
