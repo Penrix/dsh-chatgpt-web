@@ -1,10 +1,10 @@
 # AGENTS.md — dsh-chatgpt-web Repository Guide
 
-This repository is primarily a **cognition-preservation and architecture experiment** before it is an implementation project.
+This repository is now an **implementation project with cognition-preserving architecture**. The architecture is not background prose; it is part of the product contract.
 
 The purpose is not merely to connect DeepSeek Harness (DSH) to ChatGPT Web. The hard problem is to move long-lived session/context ownership outside ChatGPT Web while preserving access to the raw conversation evidence needed to recover high-semantic cognition.
 
-Read this file and `docs/cognition.md` before making architectural changes.
+Before implementation work, read this file and `docs/roadmap.md`. Before architectural changes, also read `docs/cognition.md`, `docs/formation-history.md`, and the relevant ADRs under `docs/adr/`.
 
 ## 1. Preserve the problem definition
 
@@ -171,3 +171,40 @@ For cognition/architecture work, validate by replaying the decision chain:
 - Are observations separated from hypotheses?
 
 If any of those become ambiguous, the documentation has regressed even if the code compiles.
+
+
+## 12. ADR and acceptance discipline
+
+For any change that alters:
+
+- authority ownership;
+- provider/session identity;
+- retry or outcome-unknown semantics;
+- memory ownership;
+- WebCodex integration boundaries;
+- the milestone order itself;
+
+do not merely edit README prose. Create or supersede an ADR under `docs/adr/`.
+
+Implementation is not considered done just because code exists. Check `docs/acceptance.md` and add focused tests for the invariant being changed.
+
+The hierarchy is:
+
+```text
+README
+= orientation
+
+AGENTS.md
+= operating rules
+
+ADR
+= durable decision + why
+
+roadmap / GitHub Issues
+= current execution plan
+
+acceptance + tests
+= executable memory
+```
+
+When these disagree, stop and reconcile them explicitly rather than choosing whichever file is convenient.
