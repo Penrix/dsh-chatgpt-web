@@ -115,7 +115,7 @@ Verified by repository inspection only:
 
 - default path stages/builds/packages before any Desktop mutation path is offered;
 - staged artifacts are bound to package name + exact tarball SHA-256;
-- source staging can be bound to an exact Git head with `-ExpectedHead`;
+- source staging can be bound to an exact Git head with `-ExpectedHead`; detached worktrees are accepted only with an explicit exact head;
 - replacing a staging directory requires this tool's existing stage marker and matching package owner;
 - isolated installation refuses the live DSH home and refuses non-TEMP targets;
 - isolated rollback requires the tool-owned marker;
@@ -124,7 +124,7 @@ Verified by repository inspection only:
 - actual Desktop mutation is delegated to the supported Plugins page/plugin manager, not direct filesystem writes;
 - package outputs used by the script match the candidate manifest: `lib/index.js`, `lib/index.d.ts`, `cordis.patch.yml`, npm tarball;
 - all commits pushed for this packet include `[skip ci]`;
-- no GitHub Actions workflow was triggered, rerun or waited on for this packet.
+- every commit pushed for this packet carries `[skip ci]`; no GitHub Actions workflow was intentionally triggered, rerun or waited on, and Actions are not used as delivery evidence.
 
 ### Unverified / reserved for Codex local execution
 
