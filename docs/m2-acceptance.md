@@ -28,10 +28,11 @@ Authoritative upstream evidence:
 `tests/dsh-meow-memory.contract.test.ts` deliberately mounts only the upstream hard dependency:
 
 ```text
-Cordis Context
+root Cordis Context
   -> real @deepseek-ai/dsh-tools 0.1.5-rc.2 ToolRuntime
   -> real installed meow-memory 0.27.0 plugin
-  -> ctx.tools.schemas()
+  -> probe plugin with inject: ['tools']
+  -> probe context reads ctx.tools.schemas()
 ```
 
 The test does not copy meow-memory schemas into a fake plugin. It dynamically imports the installed package at runtime and checks:
@@ -48,7 +49,7 @@ The test does not copy meow-memory schemas into a fake plugin. It dynamically im
    - `memory_search`
    - `memory_update`
 5. the five Issue #2 acceptance tools exist;
-6. representative raw JSON-Schema facts are read from `ctx.tools.schemas()`, including required fields, `additionalProperties: false`, string/array/integer shapes, and the `memory_update.status` enum.
+6. representative raw JSON-Schema facts are read from `ctx.tools.schemas()` inside a real Cordis probe plugin declaring `inject: ['tools']`, including required fields, `additionalProperties: false`, string/array/integer shapes, and the `memory_update.status` enum. The root `Context` never directly consumes the tools service.
 
 The test temporarily redirects `HOME` and `USERPROFILE` to a throwaway directory before importing the plugin, so meow-memory's diagnostic/index side effects cannot write into the developer's real home directory. Reflection, automatic migration, and automatic dream are disabled because they are outside this packet.
 
@@ -77,6 +78,8 @@ Raw DSH/DVR history remains original evidence. meow-memory remains derived struc
 ## Validation status for this packet
 
 GitHub Actions quota is exhausted by explicit project constraint, so no workflow was triggered, rerun, waited on, or used as evidence.
+
+Rev 2 also follows Cordis 4.0.2's service contract: `ctx.plugin()` returns an awaitable Fiber, while service consumers declare `inject`; the injected plugin context is where the required service is guaranteed ready. Source: `deepseek-ai/deepseek-harness@6af96785b528463b6ba9e7d1184658a0218fea8e`, `vendor/cordis/src/registry.ts` and `docs/cordis-tutorial/03-services.md`.
 
 Therefore these commands are **未验证** until run in an allowed local environment:
 
