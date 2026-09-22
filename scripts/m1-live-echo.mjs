@@ -116,6 +116,23 @@ try {
     `unexpected Session event order: ${eventTypes.join(' -> ')}`,
   )
 
+  const assistantEvents = events.filter(event => event.type === 'assistant/message')
+  const firstToolCall = assistantEvents[0]?.data.message.content.find(block => block.type === 'tool-call')
+  assert.equal(firstToolCall?.name, 'echo', 'first real inference must propose echo')
+  assert.deepEqual(
+    JSON.parse(firstToolCall?.arguments || '{}'),
+    { text: 'M1_LIVE_PING' },
+    'first real inference must propose the exact acceptance argument',
+  )
+
+  const finalText = assistantEvents[1]?.data.message.content
+    .filter(block => block.type === 'text')
+    .map(block => block.text)
+    .join('\n')
+    .trim() || ''
+  assert.match(finalText, /M1_LIVE_OK/, 'second real inference must include the acceptance marker')
+  assert.match(finalText, /echo:M1_LIVE_PING/, 'second real inference must use the exact DSH tool result')
+
   const evidence = {
     packet: 'WEB-M1-LIVE-008 rev 1',
     accepted: true,
@@ -130,6 +147,8 @@ try {
       toolResults: toolResultIndexes.length,
     },
     eventTypes,
+    firstToolCall: firstToolCall ? { name: firstToolCall.name, arguments: firstToolCall.arguments } : null,
+    finalText,
     events,
     completedAt: new Date().toISOString(),
   }
