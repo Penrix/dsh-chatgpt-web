@@ -91,10 +91,12 @@ describe('meow-memory 0.27.0 sibling-plugin contract on DSH 0.1.5-rc.2', () => {
         name: 'm2-meow-memory-schema-probe',
         inject: ['tools'],
         apply(probeCtx: Context) {
-          schemas = probeCtx.tools.schemas().map(tool => ({
-            name: tool.name,
-            parameters: tool.parameters as JsonSchema,
-          }))
+          schemas = probeCtx.tools.schemas()
+            .filter(tool => tool.name.startsWith('memory_'))
+            .map(tool => ({
+              name: tool.name,
+              parameters: tool.parameters as JsonSchema,
+            }))
         },
       })
 
