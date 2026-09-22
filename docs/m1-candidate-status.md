@@ -71,3 +71,73 @@ Do not interpret these static checks as install/build/runtime success. The execu
 - ambiguous post-Send reconciliation.
 
 See `docs/windows-m1-acceptance.md` for the isolated and real-Desktop paths.
+
+
+---
+
+## WEB-M1-LOCAL-002 rev 1 — local staging/install handoff
+
+Starting head for this packet: `e8d344846eb4136f6b71a502362b02438aa53f27`.
+
+### Added local operator entrypoint
+
+`scripts/m1-local.ps1` now owns the repeatable Windows handoff:
+
+- `Stage` — default path; validates exact Git branch/optional head, clean checkout and package shape, runs repository checks unless explicitly skipped, packs the candidate, validates required packed artifacts, records SHA-256 and captures a read-only Desktop-profile metadata snapshot.
+- `VerifyStage` — re-validates staged candidate ownership and SHA-256 without mutation.
+- `InstallIsolated` — optional install into an owned TEMP `DSH_HOME`; supports `-WhatIf`; refuses the live home and non-TEMP targets.
+- `RollbackIsolated` — deletes only an isolated home carrying this tool's ownership marker and supports `-WhatIf`.
+- `DesktopInstallPlan` — read-only Desktop preflight: validates the staged SHA, resolves the parameterized Desktop root, requires Desktop version `2.0.13`, snapshots live profile metadata, and emits the exact tarball path + rollback/readback plan. It never writes the reserved `desktop` profile.
+- `DesktopReadback` — read-only dependency/bundle-selection readback after Codex uses the official Desktop Plugins page.
+- `DesktopRollbackPlan` — read-only rollback instructions/state report. Actual normal rollback remains owned by the Desktop Plugins page; fatal rollback uses Desktop native recovery.
+
+Machine-specific paths are parameters or environment-derived defaults. No username is hard-coded.
+
+### Desktop mutation boundary
+
+The script intentionally does **not** install directly into `$DSH_HOME/profiles/desktop`.
+
+The real Desktop mutation path remains:
+
+```text
+staged tarball
+→ DesktopInstallPlan validates target + backup/readback evidence
+→ Codex uses DSH Desktop → Plugins → Add plugin
+→ Desktop plugin_manager owns package/profile mutation
+→ DesktopReadback verifies saved state
+```
+
+This preserves DSH Desktop's profile lock/package-manager ownership and avoids hand-editing the installed app or reserved profile.
+
+### Static/Web-verifiable acceptance
+
+Verified by repository inspection only:
+
+- default path stages/builds/packages before any Desktop mutation path is offered;
+- staged artifacts are bound to package name + exact tarball SHA-256;
+- source staging can be bound to an exact Git head with `-ExpectedHead`;
+- replacing a staging directory requires this tool's existing stage marker and matching package owner;
+- isolated installation refuses the live DSH home and refuses non-TEMP targets;
+- isolated rollback requires the tool-owned marker;
+- Desktop plan validates `DSH Desktop.exe` and expected Desktop version before Codex is told to install;
+- Desktop profile backup/readback is copy/read-only; documentation explicitly forbids copying those files back into the live profile;
+- actual Desktop mutation is delegated to the supported Plugins page/plugin manager, not direct filesystem writes;
+- package outputs used by the script match the candidate manifest: `lib/index.js`, `lib/index.d.ts`, `cordis.patch.yml`, npm tarball;
+- all commits pushed for this packet include `[skip ci]`;
+- no GitHub Actions workflow was triggered, rerun or waited on for this packet.
+
+### Unverified / reserved for Codex local execution
+
+The following remain **unverified** until Codex runs them on the user's Windows machine:
+
+- PowerShell parser/runtime execution of `scripts/m1-local.ps1`;
+- `npm install`, typecheck, tests, build, load smoke, pack smoke;
+- staging tarball creation/extraction on Windows;
+- isolated `dsh plugin --profile web add` and rollback;
+- DSH Desktop version readback on the installed machine;
+- Desktop Plugins-page installation/load;
+- real ChatGPT Web login/model selection/send/extract;
+- harmless DSH tool → tool result → second inference → final;
+- ambiguous post-Send recovery behavior in the installed runtime.
+
+Do not convert any of these items into pass/fail claims without actual local execution.
