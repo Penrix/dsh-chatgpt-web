@@ -20,14 +20,20 @@ For this project, long-lived truth is split by domain instead of being forced in
                     |  raw original evidence  |
                     +------------+------------+
                                  |
-                           retrieval/replay
+                           replay / evidence
+                                 |
+                                 v
+                    +-------------------------+
+                    |   dsh-meow-memory       |
+                    | structured cross-session|
+                    | memory / recall / dream |
+                    +------------+------------+
                                  |
                                  v
 +----------------+      +-------------------------+
 | user intent /  | ---> |          DSH            |
 | current input  |      | canonical session host  |
-+----------------+      | event/history authority |
-                        | context projection      |
++----------------+      | agent loop / tool truth |
                         +------------+------------+
                                      |
                                   LLM call
@@ -36,20 +42,21 @@ For this project, long-lived truth is split by domain instead of being forced in
                         +-------------------------+
                         |      ChatGPT Web        |
                         | high-quality reasoning  |
-                        | provider-side state     |
+                        | disposable inference    |
                         +------------+------------+
                                      |
-                          intent / decision / tool
+                           final / action proposal
                                      |
                                      v
                         +-------------------------+
-                        |        WebCodex         |
-                        | durable local body      |
-                        | effect authority        |
-                        +------------+------------+
-                                     |
-                                     v
-                                  Windows
+                        |          DSH            |
+                        | validate + execute tool |
+                        +------+------------+-----+
+                               |            |
+                        memory_* tools   WebCodex
+                                            |
+                                            v
+                                          Windows
 ```
 
 Codex/ACP may appear inside or beside WebCodex as a coding worker.
@@ -61,7 +68,8 @@ Codex/ACP may appear inside or beside WebCodex as a coding worker.
 | Domain | Authority | Not authoritative for |
 | --- | --- | --- |
 | Long-lived reasoning session | DSH | local filesystem effect truth; original pre-DSH Web DVR |
-| Raw conversation evidence | Conversation DVR | current task progress; filesystem state |
+| Structured cross-session memory | dsh-meow-memory | raw historical truth; local effect truth |
+| Raw conversation evidence | Conversation DVR / DSH raw session log | current task progress; filesystem state |
 | Web-model inference | ChatGPT Web | canonical history; durable task identity |
 | Local effects | WebCodex / Runner / underlying OS reality | artistic cognition |
 | Coding implementation context | Codex / ACP when delegated | full high-semantic artistic state |
@@ -71,9 +79,9 @@ The system should be reconstructible because each fact has a named owner.
 
 ---
 
-## 3. DSH session versus DVR
+## 3. DSH session, meow-memory and DVR
 
-Both preserve history, but they solve different problems.
+All three preserve different forms of continuity; none is a substitute for the others.
 
 ### DSH canonical session
 
@@ -89,6 +97,17 @@ For interactions that run through this architecture, DSH should durably retain t
 - provider correlation.
 
 Its purpose is to run the current reasoning workflow.
+
+### dsh-meow-memory
+
+meow-memory is the structured cross-session memory layer.
+
+It owns durable semantic entries such as user preferences, project decisions,
+corrections/lessons, rules, topics and project summaries. It injects a stable
+first-turn snapshot, small later keyword hits, exposes explicit memory tools,
+and re-injects memory after DSH compaction.
+
+It is derived memory, not original historical evidence.
 
 ### DVR
 
@@ -108,12 +127,16 @@ The purpose is not merely to continue the current task, but to make the actual c
 Therefore:
 
 ```text
-DSH event log
+DSH Session
+≠ meow-memory
 ≠ DVR
 
-DSH may reference DVR evidence.
-DSH may ingest selected DVR evidence.
-DSH must not silently rewrite DVR as a summary.
+DSH = live canonical workflow
+meow-memory = structured durable recall
+DVR/raw log = original evidence
+
+meow-memory may be rebuilt/corrected from raw evidence.
+No structured memory entry may silently replace the evidence it was derived from.
 ```
 
 If in the future one physical store implements both, the provenance/authority distinction still remains.
@@ -186,7 +209,13 @@ A future adaptive policy may exist, but do not add one before experiments establ
 
 ## 6. Context projection
 
-DSH should not simply replay the entire lifetime blindly and should not reduce everything to one summary.
+The first implementation must **reuse meow-memory's projection semantics** rather than invent a second memory engine.
+
+meow-memory already provides first-turn soul/user/rules/project guidance, later keyword hits, explicit search/project/read tools, and post-compaction re-injection.
+
+The provider's job is to faithfully transport those DSH plugin snapshot messages and preserve provenance. It must treat `source.kind=user` as the human request and `source.kind=plugin` as contextual material.
+
+For gaps beyond structured memory, DVR/raw-log replay remains available.
 
 A projected inference context may be assembled from typed components:
 
@@ -305,6 +334,8 @@ The following projects are relevant references:
   - hard-won browser automation, compaction and Web-provider experience.
 - `Penrix/webcodex`
   - local body / durable execution substrate.
+- `Phant0Meow/dsh-meow-memory`
+  - adopted structured long-term memory layer; do not duplicate it in this repository.
 - `Penrix/chatgpt-continuity`
   - DVR / original conversation evidence.
 
@@ -318,39 +349,44 @@ Do not merge source trees until ownership and interface boundaries are proven.
 
 ### Slice 1 — provider skeleton
 
-Prove:
+A minimal DSH → fresh ChatGPT Web → DSH text provider already exists on the development branch.
+
+### Slice 2 — DSH tool loop
+
+Add DSH-Brain-Bridge style semantics:
 
 ```text
-one DSH session
-→ one ChatGPT Web inference
-→ one response committed back to DSH
+GenerateOptions + exact DSH tool schemas
+→ fresh ChatGPT Web inference
+→ final OR one structured action proposal
+→ validate against exact tool schema
+→ emit normal DSH tool-call
+→ DSH executes
+→ tool result enters Session
+→ next inference
 ```
 
-No WebCodex required yet.
+This is required for meow-memory because its `memory_*` APIs are DSH tools.
 
-### Slice 2 — canonical-session recovery
+### Slice 3 — meow-memory compatibility
 
-Kill/rebuild the managed Web conversation and prove the same DSH session remains authoritative.
+Verify in a real DSH session:
 
-### Slice 3 — conversation lifetime experiment
+- first-turn memory snapshot reaches ChatGPT as context, not as the human request;
+- later keyword hits are preserved;
+- `memory_search/project/read/remember/update` can complete through the DSH tool loop;
+- compaction re-injection survives the provider bridge;
+- reflection/dream turns can use the ChatGPT Web provider.
 
-Run the same high-semantic workload under:
+### Slice 4 — WebCodex body
 
-- reuse;
-- periodic rotation;
-- fresh.
+Expose WebCodex capabilities through the DSH tool universe so the same agent loop can use durable local effects.
 
-Do not optimize before observing quality differences.
+### Slice 5 — DVR/raw evidence bridge
 
-### Slice 4 — DVR replay
+Link structured memory back to raw DSH logs and historical ChatGPT DVR when exact cognition formation needs to be replayed.
 
-Retrieve exact old evidence and include it as an explicit projection component.
-
-Compare with summary/checkpoint-only recovery.
-
-### Slice 5 — WebCodex body
-
-Connect structured tool/effect intent to WebCodex and return authoritative results into DSH.
+Conversation reuse/rotation/fresh policies remain tunable provider behavior, but are no longer the architectural gate.
 
 ---
 
