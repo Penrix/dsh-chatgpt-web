@@ -7,7 +7,7 @@ import {
   WEBCODEX_READ_FILES_TOOL,
   registerWebCodexReadFilesTool,
 } from '../src/webcodex/read-files.ts'
-import { apply as applyPlugin } from '../src/index.ts'
+import { Config as PluginConfig, apply as applyPlugin } from '../src/index.ts'
 
 const contexts: Context[] = []
 
@@ -39,6 +39,24 @@ function execute(ctx: Context, args: unknown) {
 }
 
 describe('WebCodex read-only durable-body seam', () => {
+  it('keeps webcodexRead truly optional in the installed Schemastery config', () => {
+    const absent = PluginConfig({})
+    expect(absent.webcodexRead).toBeUndefined()
+
+    const configured = PluginConfig({
+      webcodexRead: {
+        baseUrl: 'http://127.0.0.1:8080',
+        bearerToken: 'wc_pat_test_only',
+        project: 'registered-project',
+      },
+    })
+    expect(configured.webcodexRead).toEqual({
+      baseUrl: 'http://127.0.0.1:8080',
+      bearerToken: 'wc_pat_test_only',
+      project: 'registered-project',
+    })
+  })
+
   it('mounts the capability through the installed root plugin when webcodexRead is configured', async () => {
     const ctx = new Context()
     contexts.push(ctx)
