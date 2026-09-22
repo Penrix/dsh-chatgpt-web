@@ -59,7 +59,7 @@ async function createHarness(adapter: CandidateAdapter): Promise<Context> {
 
 const contexts: Context[] = []
 afterEach(async () => {
-  while (contexts.length > 0) await contexts.pop()?.dispose()
+  while (contexts.length > 0) await contexts.pop()?.fiber.dispose()
 })
 
 describe('DSH 0.1.5-rc.2 native tool-loop compatibility', () => {
