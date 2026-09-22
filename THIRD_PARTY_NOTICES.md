@@ -16,3 +16,18 @@ Important references:
 If implementation code is copied or substantially derived later, add the
 specific file-level copyright/license notice here and preserve the source
 license as required.
+
+
+## Imported Phase-1 selector code
+
+The following files are imported/adapted from
+`twilightt1/dsh-llm-chatgpt-web` under the MIT License:
+
+- `src/chatgpt/model.ts`
+- `src/chatgpt/session.ts`
+- `src/chatgpt/effort.ts`
+- `src/chatgpt/guards.ts`
+
+That upstream repository notes that portions of its ChatGPT session/model
+selector logic derive from `miuuyy/codex-chatgpt-web`, also MIT licensed.
+The upstream copyright/license notices are preserved in the source comments.
