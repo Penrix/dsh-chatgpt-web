@@ -29,7 +29,7 @@ function toolResultMessage(id: string, callId: string, text: string): Message {
   }
 }
 
-function pluginMessage(id: string, text: string, form: 'snapshot' | 'notice' | undefined = 'snapshot'): Message {
+function pluginMessage(id: string, text: string, form: 'snapshot' | 'notice'): Message {
   return {
     id: MessageId(id),
     role: 'user',
@@ -37,11 +37,21 @@ function pluginMessage(id: string, text: string, form: 'snapshot' | 'notice' | u
     source: {
       kind: 'plugin',
       plugin: 'meow-memory',
-      ...(form === undefined
-        ? {}
-        : form === 'snapshot'
-          ? { form, sections: [] }
-          : { form, summary: text.slice(0, 40) }),
+      ...(form === 'snapshot'
+        ? { form, sections: [] }
+        : { form, summary: text.slice(0, 40) }),
+    } as Message['source'],
+  }
+}
+
+function noFormPluginMessage(id: string, text: string): Message {
+  return {
+    id: MessageId(id),
+    role: 'user',
+    content: [{ type: 'text', text }],
+    source: {
+      kind: 'plugin',
+      plugin: 'meow-memory',
     } as Message['source'],
   }
 }
@@ -133,7 +143,7 @@ describe('compilePrompt', () => {
       purpose,
       messages: [
         message('u1', 'user', 'old human request', 'user'),
-        pluginMessage('compact', 'summarize the prior conversation'),
+        pluginMessage('compact', 'summarize the prior conversation', 'snapshot'),
       ],
       tools: [{
         name: 'memory_search',
@@ -163,7 +173,7 @@ describe('compilePrompt', () => {
       messages: [
         message('u1', 'user', 'earlier human request', 'user'),
         message('a1', 'assistant', 'earlier answer', 'model'),
-        pluginMessage('reflect', '[meow-memory-reflect] review this session', undefined),
+        noFormPluginMessage('reflect', '[meow-memory-reflect] review this session'),
       ],
       tools: [{
         name: 'memory_remember',
@@ -204,7 +214,7 @@ describe('compilePrompt', () => {
       model: 'chatgpt-web/high',
       messages: [
         message('u1', 'user', 'first human request', 'user'),
-        pluginMessage('m1', '===== 长期记忆 =====\nH=Host'),
+        pluginMessage('m1', '===== 长期记忆 =====\nH=Host', 'snapshot'),
         message('u2', 'user', 'actual current request', 'user'),
       ],
     } satisfies GenerateOptions
