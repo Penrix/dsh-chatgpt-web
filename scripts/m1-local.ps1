@@ -51,7 +51,7 @@ function Resolve-NormalizedPath([string]$Path) {
 function Write-Utf8NoBom([string]$Path,[string]$Text) {
   $dir = Split-Path -Parent $Path
   if ($dir) { New-Item -ItemType Directory -Force $dir | Out-Null }
-  [IO.File]::WriteAllText($Path,$Text,(New-Object Text.UTF8Encoding($false)))
+  [IO.File]::WriteAllText($Path,$Text,[Text.UTF8Encoding]::new($false))
 }
 
 function Write-Json([string]$Path,[object]$Value) {
@@ -168,7 +168,7 @@ switch ($Action) {
     $git = Assert-RepositoryTarget
     $manifest = Assert-PackageShape
     if (-not $SkipRepositoryChecks) {
-      Invoke-Checked npm @('install','--no-audit','--no-fund')
+      Invoke-Checked npm @('install','--no-audit','--no-fund','--package-lock=false')
       Invoke-Checked npm @('run','typecheck')
       Invoke-Checked npm @('test')
       Invoke-Checked npm @('run','build')
@@ -241,6 +241,10 @@ switch ($Action) {
       $marker = Join-Path $isolated $IsolatedMarkerName
       if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) { throw "Refusing to mutate unowned isolated home: $isolated" }
     } else { New-Item -ItemType Directory -Force $isolated | Out-Null }
+    if (-not $PSCmdlet.ShouldProcess($isolated,"install staged $PackageName into isolated DSH web profile")) {
+      Write-Host "WHATIF: would install $($resolved.candidate) into isolated DSH_HOME $isolated"
+      break
+    }
     Write-Json (Join-Path $isolated $IsolatedMarkerName) ([pscustomobject]@{ packageName=$PackageName; stageMarker=$resolved.marker; candidateSha256=$resolved.stage.candidateSha256; createdAt=(Get-Date).ToUniversalTime().ToString('o') })
     $oldHome = $env:DSH_HOME
     try {
