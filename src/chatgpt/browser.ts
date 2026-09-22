@@ -103,22 +103,31 @@ export class ChatGptBrowser {
       ignoreDefaultArgs: ['--enable-automation'],
     })
 
-    this.context = context
-    const page = context.pages()[0] ?? await context.newPage()
-    await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    try {
+      const page = context.pages()[0] ?? await context.newPage()
+      await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded', timeout: 60_000 })
 
-    const deadline = Date.now() + this.options.loginTimeoutMs
-    for (;;) {
-      if (signal?.aborted) throw new LlmError('ChatGPT sign-in aborted.', 'ABORTED')
-      const visible = await page.locator(COMPOSER).first().isVisible().catch(() => false)
-      if (visible) break
-      if (Date.now() >= deadline) {
-        throw new LlmError(
-          'Timed out waiting for a logged-in ChatGPT composer. Sign in inside the dedicated browser window and retry.',
-          'TIMEOUT',
-        )
+      const deadline = Date.now() + this.options.loginTimeoutMs
+      for (;;) {
+        if (signal?.aborted) throw new LlmError('ChatGPT sign-in aborted.', 'ABORTED')
+        const visible = await page.locator(COMPOSER).first().isVisible().catch(() => false)
+        if (visible) break
+        if (Date.now() >= deadline) {
+          throw new LlmError(
+            'Timed out waiting for a logged-in ChatGPT composer. Sign in inside the dedicated browser window and retry.',
+            'TIMEOUT',
+          )
+        }
+        await page.waitForTimeout(1_000)
       }
-      await page.waitForTimeout(1_000)
+
+      // Publish the context only after login readiness is proven. A failed
+      // first-run login must not poison the next request with a false-ready
+      // context.
+      this.context = context
+    } catch (error) {
+      await context.close().catch(() => {})
+      throw error
     }
   }
 }
