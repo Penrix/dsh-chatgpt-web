@@ -15,6 +15,15 @@
 
 **README 是入口，不是项目记忆的唯一载体。**
 
+## M1 candidate
+
+`WEB-M1-001 rev 2` is staged on `web-m1-001-rev2`. See:
+
+- [`docs/m1-candidate-status.md`](docs/m1-candidate-status.md) — what is in the candidate and what is still unverified.
+- [`docs/windows-m1-acceptance.md`](docs/windows-m1-acceptance.md) — isolated Windows smoke, normal Desktop installation, and recovery.
+
+The candidate is not M1 completion; real Desktop + ChatGPT Web tool-loop acceptance remains local-only.
+
 ## Status
 
 - 建立：2026-09-22
