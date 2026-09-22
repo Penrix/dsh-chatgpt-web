@@ -117,6 +117,17 @@ Not completed yet:
 
 No GitHub Actions were started.
 
+### Current-environment validation attempt
+
+A local checkout/test run was attempted after the static implementation work.
+The current execution environment could not resolve `github.com`, so it could
+not clone the branch and therefore could not truthfully run `npm install`,
+`typecheck`, tests, or build here.
+
+This is an environment/network limitation, not a passing or failing result for
+the code. The next real validation must happen in a network-capable local
+checkout / the user's Windows environment.
+
 ## Known risks before live smoke
 
 ### 1. DSH package compatibility
