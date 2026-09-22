@@ -34,11 +34,33 @@ function blockProjection(block: ContentBlock): unknown {
 
 function sourceProjection(source: Message['source']): Record<string, unknown> {
   const value = source as unknown as Record<string, unknown>
-  return {
-    kind: source.kind,
-    ...(typeof value.plugin === 'string' ? { plugin: value.plugin } : {}),
-    ...(typeof value.form === 'string' ? { form: value.form } : {}),
-    ...(typeof value.summary === 'string' ? { summary: value.summary } : {}),
+  switch (source.kind) {
+    case 'user':
+      return { kind: 'user' }
+    case 'plugin':
+      return {
+        kind: 'plugin',
+        ...(typeof value.plugin === 'string' ? { plugin: value.plugin } : {}),
+        ...(typeof value.form === 'string' ? { form: value.form } : {}),
+        ...(Array.isArray(value.sections) ? { sections: value.sections } : {}),
+        ...(typeof value.summary === 'string' ? { summary: value.summary } : {}),
+      }
+    case 'model':
+      return {
+        kind: 'model',
+        ...(typeof value.provider === 'string' ? { provider: value.provider } : {}),
+        ...(typeof value.model === 'string' ? { model: value.model } : {}),
+      }
+    case 'tool':
+      return {
+        kind: 'tool',
+        ...(typeof value.callId === 'string' ? { callId: value.callId } : {}),
+      }
+    default:
+      // MessageSource is merge-extensible. Preserve only the semantic kind for
+      // unknown future producers rather than forwarding arbitrary adapter-private
+      // fields into the model request.
+      return { kind: String(value.kind ?? 'unknown') }
   }
 }
 
