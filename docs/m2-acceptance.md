@@ -1,6 +1,6 @@
 # M2 browserless acceptance seam
 
-Packet: `WEB-M2-002 rev 1`
+Packet: `WEB-M2-003 rev 1` (bounded repair of `WEB-M2-002`)
 
 This document narrows Milestone 2 to one browserless compatibility seam. It does **not** claim that Desktop installation, ChatGPT Web inference, compaction, reflection, dream, or live memory persistence has passed.
 
@@ -29,6 +29,7 @@ Authoritative upstream evidence:
 
 ```text
 root Cordis Context
+  -> real @deepseek-ai/dsh-system-prompt 0.1.5-rc.2 SystemPrompt
   -> real @deepseek-ai/dsh-tools 0.1.5-rc.2 ToolRuntime
   -> real installed meow-memory 0.27.0 plugin
   -> probe plugin with inject: ['tools']
@@ -55,7 +56,7 @@ The test temporarily redirects `HOME` and `USERPROFILE` to a throwaway directory
 
 ## What this seam proves when executed successfully
 
-A passing run proves only that the published `meow-memory@0.27.0` package can be resolved and loaded beside the exact rc.2 test graph, that its hard Cordis dependency is satisfiable by the real rc.2 `ToolRuntime`, and that its registered model-facing tool contract matches the package/version expected by Issue #2.
+A passing run proves only that the published `meow-memory@0.27.0` package can be resolved and loaded beside the exact rc.2 test graph, that the real rc.2 `SystemPrompt` → `ToolRuntime` service dependency chain is satisfiable, and that meow-memory's registered model-facing tool contract matches the package/version expected by Issue #2.
 
 This is a sibling-plugin test dependency only. `@penrix/dsh-chatgpt-web` does not gain a runtime dependency on meow-memory and does not own memory storage or semantics.
 
@@ -77,21 +78,31 @@ Raw DSH/DVR history remains original evidence. meow-memory remains derived struc
 
 ## Validation status for this packet
 
-GitHub Actions quota is exhausted by explicit project constraint, so no workflow was triggered, rerun, waited on, or used as evidence.
+The repository is public and GitHub Actions is available; the old quota-exhaustion constraint no longer applies.
 
-Rev 2 also follows Cordis 4.0.2's service contract: `ctx.plugin()` returns an awaitable Fiber, while service consumers declare `inject`; the injected plugin context is where the required service is guaranteed ready. Source: `deepseek-ai/deepseek-harness@6af96785b528463b6ba9e7d1184658a0218fea8e`, `vendor/cordis/src/registry.ts` and `docs/cordis-tutorial/03-services.md`.
+The bounded rev 3 repair was already exercised locally before commit with exactly these code changes:
 
-Local acceptance evidence recorded in Issue #8 for the rev 2 starting point shows that plain `npm install --no-audit --no-fund` succeeded with 110 packages, including the real `meow-memory@0.27.0`. Rev 2 changes only this test and this document, so package resolution evidence remains applicable to the final head.
-
-The following final-head checks still require an allowed local execution path and are therefore **未验证** here:
-
-```text
-npm run typecheck
-npm test -- tests/dsh-meow-memory.contract.test.ts
-npm test
-npm run build
-npm run smoke:load
-npm run smoke:pack
+```ts
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+...
+await ctx.plugin(SystemPrompt)
+await ctx.plugin(ToolRuntime)
 ```
 
-The exact next local action is to rerun typecheck and the focused meow-memory contract test on the final rev 2 head. If either fails, preserve the first exact failure rather than weakening the injection contract, using `--force` / `--legacy-peer-deps`, or replacing the real package with mocks or copied schemas.
+Recorded local result from PR #12:
+
+- plain install: **PASS**;
+- typecheck: **PASS**;
+- focused real-package contract test: **PASS**;
+- full tests: **PASS** (7 files / 31 tests);
+- build: **PASS**;
+- `smoke:load`: **PASS**;
+- `smoke:pack`: **PASS**.
+
+The final committed repair preserves that exact test change. This execution environment could not independently rerun npm because its local shell cannot resolve external hosts. That limitation is environmental, not a repository failure.
+
+GitHub Actions status for PR #12: **no run exists on the current head**. The repository workflow is enabled and has `workflow_dispatch`, but automatic `pull_request` runs are scoped to PRs targeting `main`; PR #12 correctly remains targeted at `web-m1-001-rev2`. No PR-base or workflow change was made merely to force CI because that would exceed this bounded repair.
+
+Cordis 4.0.2 service behavior remains the governing contract: service consumers declare `inject`, and `ToolRuntime` itself requires `systemPrompt`; therefore the harness must mount real `SystemPrompt` before real `ToolRuntime`.
+
+Remaining local/live-only risks are unchanged: Desktop 2.0.13 installation/runtime, embedded Node/`node:sqlite`, live persistence, ChatGPT Web inference and provenance, compaction reinjection, reflection, dream busy-turn behavior, and the full end-to-end acceptance scenario.
