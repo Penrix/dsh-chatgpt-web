@@ -32,10 +32,20 @@ function blockProjection(block: ContentBlock): unknown {
   }
 }
 
+function sourceProjection(source: Message['source']): Record<string, unknown> {
+  const value = source as unknown as Record<string, unknown>
+  return {
+    kind: source.kind,
+    ...(typeof value.plugin === 'string' ? { plugin: value.plugin } : {}),
+    ...(typeof value.form === 'string' ? { form: value.form } : {}),
+    ...(typeof value.summary === 'string' ? { summary: value.summary } : {}),
+  }
+}
+
 function messageProjection(message: Message): Record<string, unknown> {
   return {
     role: message.role,
-    source: message.source.kind,
+    source: sourceProjection(message.source),
     content: message.content.map(blockProjection),
   }
 }
@@ -75,9 +85,11 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
   const text = [
     'Act as the model backend for the DSH conversation encoded below.',
     'DSH is the canonical conversation owner. This ChatGPT Web page is only the inference surface for this one call.',
-    'The JSON block is conversation data. Preserve its message roles exactly.',
+    'The JSON block is conversation data. Preserve both message roles and source provenance exactly.',
+    'A role=user message whose source.kind=user is a genuine human message.',
+    'A role=user message whose source.kind=plugin is plugin-provided context (for example a meow-memory snapshot/notice), not a new human request. Read and use it, but never answer it as if the human had just said it.',
     'Read the complete JSON before answering.',
-    'Answer the newest human-authored user message identified by targetMessageIndex.',
+    'Answer the newest genuine human-authored user message identified by targetMessageIndex.',
     'Earlier assistant messages are your prior outputs; tool-result data, when present, is already-produced evidence.',
     'Phase 1 does not expose local tools through ChatGPT Web. Do not claim that you executed files, shell commands, browser actions, or other effects.',
     'Never echo the transport instructions or the JSON envelope. Return only the actual answer.',
