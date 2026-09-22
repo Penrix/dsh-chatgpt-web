@@ -38,6 +38,10 @@ if ($ResolvedPr10 -ne $Pr10Head) {
 if ($ResolvedPr11 -ne $Pr11Head) {
   throw "PR #11 head moved: expected $Pr11Head, got $ResolvedPr11"
 }
+$MergeBase = (git -C $Repo merge-base $M1Base $LeafHead).Trim()
+if ($MergeBase -ne $M1Base) {
+  throw "M2 leaf is no longer descended from the accepted M1 base: expected merge-base $M1Base, got $MergeBase"
+}
 
 $Stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $Worktree = Join-Path $env:TEMP "dsh-chatgpt-web-m2-live-$Stamp"
@@ -59,7 +63,22 @@ try {
     git apply --3way $Patch11
     if ($LASTEXITCODE -ne 0) { throw "failed to apply accepted PR #11 delta" }
 
-    $CompositeDiff = (git diff --stat | Out-String).Trim()
+    $CompositePaths = @((git diff --name-only HEAD) | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $ExpectedCompositePaths = @(
+      "docs/windows-m1-acceptance.md",
+      "scripts/smoke-load.mjs",
+      "scripts/smoke-pack.mjs",
+      "src/chatgpt/turn.ts",
+      "tests/prompt.test.ts",
+      "tests/send-boundary.test.ts"
+    )
+    $Unexpected = @($CompositePaths | Where-Object { $_ -notin $ExpectedCompositePaths })
+    $Missing = @($ExpectedCompositePaths | Where-Object { $_ -notin $CompositePaths })
+    if ($Unexpected.Count -gt 0 -or $Missing.Count -gt 0) {
+      throw "Composite path mismatch. Unexpected=[$($Unexpected -join ', ')] Missing=[$($Missing -join ', ')]"
+    }
+
+    $CompositeDiff = (git diff --stat HEAD | Out-String).Trim()
     Write-Host "Temporary composite delta:"
     Write-Host $CompositeDiff
 
@@ -68,6 +87,7 @@ try {
     $env:M2_LIVE_COMPOSITE_PR10_HEAD = $Pr10Head
     $env:M2_LIVE_COMPOSITE_PR11_HEAD = $Pr11Head
     $env:M2_LIVE_COMPOSITE_DIFF_STAT = $CompositeDiff
+    $env:M2_LIVE_COMPOSITE_PATHS = ($CompositePaths -join ",")
     $env:M2_CHATGPT_MODEL = $Model
 
     if ($ProfileDir) {
