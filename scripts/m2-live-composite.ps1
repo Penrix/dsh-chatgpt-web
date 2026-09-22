@@ -53,8 +53,13 @@ try {
   git -C $Repo worktree add --detach $Worktree $LeafHead
   if ($LASTEXITCODE -ne 0) { throw "git worktree add failed" }
 
-  git -C $Repo diff --binary "$M1Base..$Pr10Head" | Set-Content -Encoding utf8 $Patch10
-  git -C $Repo diff --binary "$M1Base..$Pr11Head" | Set-Content -Encoding utf8 $Patch11
+  $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+  $Patch10Text = (git -C $Repo diff --binary "$M1Base..$Pr10Head" | Out-String)
+  if ($LASTEXITCODE -ne 0) { throw "failed to materialize PR #10 patch" }
+  $Patch11Text = (git -C $Repo diff --binary "$M1Base..$Pr11Head" | Out-String)
+  if ($LASTEXITCODE -ne 0) { throw "failed to materialize PR #11 patch" }
+  [System.IO.File]::WriteAllText($Patch10, $Patch10Text, $Utf8NoBom)
+  [System.IO.File]::WriteAllText($Patch11, $Patch11Text, $Utf8NoBom)
 
   Push-Location $Worktree
   try {
@@ -91,7 +96,7 @@ try {
     $env:M2_CHATGPT_MODEL = $Model
 
     if ($ProfileDir) {
-      $env:M2_CHATGPT_PROFILE = (Resolve-Path $ProfileDir).Path
+      $env:M2_CHATGPT_PROFILE = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ProfileDir)
     }
     if ($EvidencePath) {
       $env:M2_LIVE_EVIDENCE = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($EvidencePath)
