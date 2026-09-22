@@ -8,6 +8,7 @@ param(
   [string]$ExpectedHead,
   [string]$DshHome,
   [string]$DesktopInstallRoot,
+  [string]$ExpectedDesktopVersion = '2.0.13',
   [string]$IsolatedDshHome,
   [switch]$SkipRepositoryChecks,
   [switch]$OpenDesktop
@@ -47,10 +48,14 @@ function Resolve-NormalizedPath([string]$Path) {
   return [IO.Path]::GetFullPath($Path).TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)
 }
 
-function Write-Json([string]$Path,[object]$Value) {
+function Write-Utf8NoBom([string]$Path,[string]$Text) {
   $dir = Split-Path -Parent $Path
   if ($dir) { New-Item -ItemType Directory -Force $dir | Out-Null }
-  $Value | ConvertTo-Json -Depth 12 | Set-Content -Encoding utf8NoBOM $Path
+  [IO.File]::WriteAllText($Path,$Text,(New-Object Text.UTF8Encoding($false)))
+}
+
+function Write-Json([string]$Path,[object]$Value) {
+  Write-Utf8NoBom $Path ($Value | ConvertTo-Json -Depth 12)
 }
 
 function Read-Json([string]$Path) {
@@ -176,11 +181,13 @@ switch ($Action) {
     if (Test-Path -LiteralPath $StageRoot) {
       $existingMarker = Join-Path $StageRoot $MarkerName
       if (-not (Test-Path -LiteralPath $existingMarker -PathType Leaf)) { throw "Refusing to replace unowned staging directory: $StageRoot" }
+      $existingStage = Read-Json $existingMarker
+      if ($existingStage.packageName -ne $PackageName) { throw "Refusing to replace staging directory owned by '$($existingStage.packageName)'." }
       Remove-Item -LiteralPath $StageRoot -Recurse -Force
     }
     New-Item -ItemType Directory -Force $StageRoot | Out-Null
-    $packJson = & npm pack --json --pack-destination $StageRoot 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "npm pack failed: $($packJson -join [Environment]::NewLine)" }
+    $packJson = & npm pack --json --pack-destination $StageRoot
+    if ($LASTEXITCODE -ne 0) { throw "npm pack failed with exit code $LASTEXITCODE." }
     $pack = ($packJson | Out-String | ConvertFrom-Json)[0]
     $candidate = [IO.Path]::GetFullPath((Join-Path $StageRoot $pack.filename))
     if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw "npm pack did not create expected tarball: $candidate" }
@@ -244,7 +251,7 @@ switch ($Action) {
       try {
         $config = & dsh --profile web --dump-default-config 2>&1
         if ($LASTEXITCODE -ne 0) { throw "DSH isolated config readback failed: $($config -join [Environment]::NewLine)" }
-        $config | Set-Content -Encoding utf8NoBOM $effective
+        Write-Utf8NoBom $effective (($config -join [Environment]::NewLine) + [Environment]::NewLine)
       } finally { Pop-Location }
       Write-Json (Join-Path $StageRoot 'isolated-install-readback.json') ([pscustomobject]@{ dshHome=$isolated; candidate=$resolved.candidate; candidateSha256=$resolved.stage.candidateSha256; effectiveConfig=$effective; completedAt=(Get-Date).ToUniversalTime().ToString('o') })
       Write-Host "ISOLATED INSTALL COMPLETE: $isolated"
@@ -270,13 +277,21 @@ switch ($Action) {
     if (-not $DesktopInstallRoot -or -not (Test-Path -LiteralPath $DesktopInstallRoot -PathType Container)) { throw "DSH Desktop install root not found: $DesktopInstallRoot" }
     $desktopExe = Join-Path $DesktopInstallRoot 'DSH Desktop.exe'
     if (-not (Test-Path -LiteralPath $desktopExe -PathType Leaf)) { throw "DSH Desktop executable not found: $desktopExe" }
+    $desktopVersionInfo = (Get-Item -LiteralPath $desktopExe).VersionInfo
+    $observedDesktopVersion = @($desktopVersionInfo.ProductVersion,$desktopVersionInfo.FileVersion) |
+      Where-Object { $_ } |
+      Select-Object -First 1
+    if (-not $observedDesktopVersion -or -not $observedDesktopVersion.StartsWith($ExpectedDesktopVersion,[StringComparison]::OrdinalIgnoreCase)) {
+      throw "Expected DSH Desktop $ExpectedDesktopVersion, observed '$observedDesktopVersion' at $desktopExe."
+    }
     $before = Get-DesktopProfileSnapshot (Join-Path $StageRoot 'desktop-before-install')
     $plan = [pscustomobject]@{
       packageName=$PackageName
       candidate=$resolved.candidate
       candidateSha256=$resolved.stage.candidateSha256
       desktopExe=$desktopExe
-      desktopFileVersion=(Get-Item -LiteralPath $desktopExe).VersionInfo.FileVersion
+      expectedDesktopVersion=$ExpectedDesktopVersion
+      desktopVersion=$observedDesktopVersion
       dshHome=$DshHome
       desktopProfile=$before.profile
       backup=$before
