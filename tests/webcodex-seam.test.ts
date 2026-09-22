@@ -152,7 +152,7 @@ describe('WebCodex read-only durable-body seam', () => {
     let calls = 0
     const ctx = await harness(async () => {
       calls += 1
-      return new Response(JSON.stringify({ status: 403, error: 'forbidden' }), {
+      return new Response(JSON.stringify({ status: 403, error: 'missing required scope: project:read' }), {
         status: 403,
         headers: { 'content-type': 'application/json' },
       })
@@ -166,7 +166,7 @@ describe('WebCodex read-only durable-body seam', () => {
     expect(result.isError).toBe(true)
     if (!result.isError) throw new Error('expected DSH seam failure')
     expect(result.error).toEqual({
-      message: 'WebCodex HTTP 403: forbidden',
+      message: 'WebCodex HTTP 403: missing required scope: project:read',
       info: { name: 'WebCodexHttpError', code: 'WEBCODEX_HTTP_ERROR' },
     })
   })
