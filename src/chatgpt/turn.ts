@@ -122,7 +122,9 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
       await page.waitForTimeout(500)
     }
   } catch (error) {
-    if (error instanceof LlmError) throw error
+    // Once Send may have happened, even a typed browser/rate-limit failure is
+    // no longer safe to replay automatically. Preserve the uncertainty
+    // boundary before preserving the original error taxonomy.
     if (sent || error instanceof PostSendFailure) {
       throw new LlmError(
         `ChatGPT Web outcome is uncertain after Send; the provider will not resend automatically. ${error instanceof Error ? error.message : String(error)}`,
@@ -130,6 +132,7 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
         { cause: error },
       )
     }
+    if (error instanceof LlmError) throw error
     throw new LlmError(
       `ChatGPT Web turn failed before Send: ${error instanceof Error ? error.message : String(error)}`,
       'TRANSPORT',
