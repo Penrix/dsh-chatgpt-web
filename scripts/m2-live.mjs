@@ -67,7 +67,9 @@ const evidence = {
     diffStat: process.env.M2_LIVE_COMPOSITE_DIFF_STAT,
     paths: process.env.M2_LIVE_COMPOSITE_PATHS?.split(',').filter(Boolean),
   },
-  plugin: {},
+  plugin: {
+    upstreamSource: '0405e1a8e46c36a5945697f948d88998c8de99f9',
+  },
   providerRequests: [],
   agentStatuses: [],
   agentErrors: [],
@@ -360,6 +362,7 @@ async function main() {
   assert.equal(manifest.version, '0.27.0')
   assert.match(String(manifest.repository?.url || ''), /Phant0Meow\/dsh-meow-memory/)
   evidence.plugin = {
+    ...evidence.plugin,
     name: manifest.name,
     version: manifest.version,
     repository: manifest.repository?.url,
@@ -459,6 +462,29 @@ async function main() {
         rulesReviewDays: 0,
       },
     })
+
+    let visibleMemoryTools
+    await ctx.plugin({
+      name: 'm2-live-tools-probe',
+      inject: ['tools'],
+      apply(probeCtx) {
+        visibleMemoryTools = probeCtx.tools.schemas()
+          .map((tool) => tool.name)
+          .filter((name) => name.startsWith('memory_'))
+          .sort()
+      },
+    })
+    assert.deepEqual(visibleMemoryTools, [
+      'memory_dream',
+      'memory_find_similar',
+      'memory_project',
+      'memory_read',
+      'memory_remember',
+      'memory_search',
+      'memory_update',
+    ])
+    evidence.plugin.visibleMemoryTools = visibleMemoryTools
+    writeEvidence()
 
     ctx.tools.register(defineContentToolFixture({
       name: 'm2_live_echo',
@@ -686,15 +712,18 @@ async function main() {
     )
     dreamStage.events = relevantEvents(mainAgent, dreamEventStart)
     dreamStage.agentErrors = evidence.agentErrors.slice(dreamErrorStart)
-    if (dreamStage.agentErrors.length > 0) {
+    const dreamToolErrors = dreamStage.events.filter((event) => event.type === 'tool/result' && event.isError)
+    if (dreamStage.agentErrors.length > 0 || dreamToolErrors.length > 0) {
       finishStage(dreamStage, 'blocked-known-edge')
       evidence.firstBlocker = {
         stage: dreamStage.name,
-        reason: 'Automatic dream/busy-turn collision produced a real agent error.',
+        reason: 'Automatic dream/busy-turn dogfood produced a real error.',
         errors: dreamStage.agentErrors,
+        toolErrors: dreamToolErrors,
         eventOrder: dreamStage.events,
       }
       evidence.finalStatus = 'blocked-known-dream-edge'
+      process.exitCode = 2
       return
     }
     finishStage(dreamStage, 'passed-no-collision-observed')
