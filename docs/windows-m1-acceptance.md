@@ -26,9 +26,9 @@ Machine-specific roots are parameters; defaults derive from `%TEMP%`, `$DSH_HOME
 From an existing checkout:
 
 ```powershell
-git fetch origin web-m1-001-rev2
+git fetch origin web-m1-live-008
 $Worktree = Join-Path $env:TEMP "dsh-chatgpt-web-m1-$PID"
-git worktree add --detach $Worktree origin/web-m1-001-rev2
+git worktree add --detach $Worktree origin/web-m1-live-008
 Set-Location $Worktree
 ```
 
