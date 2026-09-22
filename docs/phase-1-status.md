@@ -5,6 +5,8 @@
 > Status date: 2026-09-22
 >
 > This file is intentionally explicit about what exists versus what has actually been executed.
+>
+> **2026-09-22 scope update:** the earlier long-term-memory A/B gate is superseded. `Phant0Meow/dsh-meow-memory` is adopted as the structured memory layer. The branch's next blocker is the DSH tool loop needed to let ChatGPT Web use `memory_*` tools through DSH.
 
 ## Implemented on the branch
 
@@ -37,16 +39,36 @@
   - prompt history/targeting;
   - model/effort mapping.
 
-## Deliberately not implemented
+## Deliberately not implemented yet
 
-- DSH tool-call bridge.
-- ChatGPT native MCP connector.
+- DSH tool-call bridge — **next implementation slice**.
+- ChatGPT native MCP connector — not required for the ordinary DSH/meow-memory tool loop.
 - long-lived managed Web conversation.
 - DVR lookup.
 - WebCodex integration.
 - semantic/vector retrieval.
 - browser worker pool.
 - image input/output.
+
+## meow-memory compatibility already added at the prompt boundary
+
+The provider now preserves DSH message provenance instead of collapsing it to `role` only.
+
+In particular:
+
+```text
+source.kind=user
+→ genuine human request
+
+source.kind=plugin, plugin=meow-memory
+→ memory snapshot/notice/context
+```
+
+The outer transport contract explicitly instructs ChatGPT Web to use plugin
+messages as context while answering the newest genuine human message.
+
+A focused test fixture for a meow-memory plugin snapshot has been added, but
+the test has not yet been executed in a local checkout.
 
 ## Validation actually completed
 
@@ -124,7 +146,11 @@ retrieval system.
 6. Run one `chatgpt-web/high` turn.
 7. Verify a second DSH turn sees the first turn only through the DSH envelope, not a retained Web conversation.
 8. Run 10 sequential turns.
-9. Run the fixed high-semantic A/B experiment from `docs/phase-1.md`.
+9. Implement `final | action_proposal` tool-loop parsing/validation and emit ordinary DSH tool-call chunks.
+10. Install `meow-memory@0.27.x` as a sibling DSH plugin and verify first-turn injection.
+11. Exercise `memory_search`, `memory_project`, `memory_remember`, and `memory_update` through the ChatGPT Web provider.
+12. Verify post-compaction reinjection.
+13. Test the known dream/busy-turn steering edge (#20) before relying on unattended automatic dream.
+14. Connect WebCodex tools as the durable body.
 
-A failed step should be fixed before moving to the cognition experiment; a
-technical failure is not evidence for or against the cognitive hypothesis.
+The old A/B cognition experiment remains useful for tuning, but is no longer an architectural gate.
