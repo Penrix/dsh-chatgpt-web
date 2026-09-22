@@ -81,15 +81,17 @@ GitHub Actions quota is exhausted by explicit project constraint, so no workflow
 
 Rev 2 also follows Cordis 4.0.2's service contract: `ctx.plugin()` returns an awaitable Fiber, while service consumers declare `inject`; the injected plugin context is where the required service is guaranteed ready. Source: `deepseek-ai/deepseek-harness@6af96785b528463b6ba9e7d1184658a0218fea8e`, `vendor/cordis/src/registry.ts` and `docs/cordis-tutorial/03-services.md`.
 
-Therefore these commands are **未验证** until run in an allowed local environment:
+Local acceptance evidence recorded in Issue #8 for the rev 2 starting point shows that plain `npm install --no-audit --no-fund` succeeded with 110 packages, including the real `meow-memory@0.27.0`. Rev 2 changes only this test and this document, so package resolution evidence remains applicable to the final head.
+
+The following final-head checks still require an allowed local execution path and are therefore **未验证** here:
 
 ```text
-npm install --no-audit --no-fund
 npm run typecheck
+npm test -- tests/dsh-meow-memory.contract.test.ts
 npm test
 npm run build
 npm run smoke:load
 npm run smoke:pack
 ```
 
-The next allowed local action is to run the plain install first. If resolution fails, preserve the exact npm error and stop rather than using `--force`, `--legacy-peer-deps`, overrides, mocks, or a copied schema. If install succeeds, run the focused meow-memory contract test and then the existing M1 checks.
+The exact next local action is to rerun typecheck and the focused meow-memory contract test on the final rev 2 head. If either fails, preserve the first exact failure rather than weakening the injection contract, using `--force` / `--legacy-peer-deps`, or replacing the real package with mocks or copied schemas.
