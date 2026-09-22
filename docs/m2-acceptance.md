@@ -25,7 +25,7 @@ Authoritative upstream evidence:
 
 ## What the contract test does
 
-`tests/dsh-meow-memory.contract.test.ts` deliberately mounts only the upstream hard dependency:
+`tests/dsh-meow-memory.contract.test.ts` deliberately mounts the real rc.2 service dependency chain required for the upstream plugin:
 
 ```text
 root Cordis Context
