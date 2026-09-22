@@ -1,0 +1,39 @@
+{
+  "name": "@penrix/dsh-chatgpt-web",
+  "version": "0.0.1",
+  "private": true,
+  "description": "DSH-native ChatGPT Web provider experiment: DSH owns context, fresh Temporary Chat performs each inference.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsdown src/index.ts --format esm --dts"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.0",
+    "@deepseek-ai/dsh-llm": ">=0.1.1-rc.2 <0.2.0",
+    "@deepseek-ai/schemastery": ">=3.18.1"
+  },
+  "dependencies": {
+    "playwright-core": "^1.62.0",
+    "turndown": "^7.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/turndown": "^5.0.5",
+    "tsdown": "^0.22.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}
