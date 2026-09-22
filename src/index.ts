@@ -3,10 +3,17 @@ import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { ChatGptWebAdapter } from './adapter.ts'
+import { registerWebCodexReadFilesTool } from './webcodex/read-files.ts'
 
 export const name = 'penrix-llm-chatgpt-web'
 export const inject = ['llm']
 export const PROVIDER = 'chatgpt-web'
+
+export interface WebCodexReadConfig {
+  baseUrl: string
+  bearerToken: string
+  project: string
+}
 
 export interface Config {
   profileDir?: string
@@ -17,6 +24,7 @@ export interface Config {
   composerMaxChars?: number
   contextWindow?: number
   maxTokens?: number
+  webcodexRead?: WebCodexReadConfig
 }
 
 export const Config: z<Config> = z.object({
@@ -28,6 +36,11 @@ export const Config: z<Config> = z.object({
   composerMaxChars: z.number().step(1).min(1).default(180_000),
   contextWindow: z.number().step(1).min(1).default(90_000),
   maxTokens: z.number().step(1).min(1).default(16_384),
+  webcodexRead: z.object({
+    baseUrl: z.string().required(),
+    bearerToken: z.string().required(),
+    project: z.string().required(),
+  }),
 })
 
 export function apply(ctx: Context, config: Config): void {
@@ -43,6 +56,14 @@ export function apply(ctx: Context, config: Config): void {
   })
 
   ctx.llm.registerAdapter([PROVIDER], adapter)
+
+  if (config.webcodexRead !== undefined) {
+    const webcodexRead = config.webcodexRead
+    ctx.inject(['tools'], toolCtx => {
+      registerWebCodexReadFilesTool(toolCtx, webcodexRead)
+    })
+  }
+
   ctx.effect(() => async () => {
     await adapter.dispose().catch(() => {})
   })
@@ -50,3 +71,18 @@ export function apply(ctx: Context, config: Config): void {
 
 export { ChatGptWebAdapter } from './adapter.ts'
 export { compilePrompt } from './chatgpt/prompt.ts'
+
+export {
+  WEBCODEX_READ_FILES_ACTION_PATH,
+  WEBCODEX_READ_FILES_TOOL,
+  WebCodexHttpError,
+  invokeWebCodexReadFiles,
+  registerWebCodexReadFilesTool,
+} from './webcodex/index.ts'
+export type {
+  WebCodexJsonValue,
+  WebCodexReadFilesArguments,
+  WebCodexReadFilesItem,
+  WebCodexReadFilesSeamOptions,
+  WebCodexToolResult,
+} from './webcodex/index.ts'
