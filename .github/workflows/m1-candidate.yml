@@ -1,3 +1,4 @@
+# Public repository: standard GitHub-hosted runner validation is enabled.
 name: M1 candidate validation
 
 on:
