@@ -49,6 +49,19 @@ async function sendButton(page: Page) {
   return node
 }
 
+/**
+ * Enter the irreversible delivery boundary before invoking the browser click.
+ * A click promise may reject after the DOM event was already dispatched, so
+ * marking only after it resolves would make an ambiguous send look retry-safe.
+ */
+export async function dispatchSendFailClosed(
+  click: () => Promise<void>,
+  markDeliveryPossible: () => void,
+): Promise<void> {
+  markDeliveryPossible()
+  await click()
+}
+
 async function markdownFromLastAssistant(page: Page): Promise<string> {
   const assistant = page.locator(CHATGPT_ASSISTANT_TURN_SELECTOR).last()
   const markdown = assistant.locator('.markdown').last()
@@ -82,8 +95,10 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
 
     await input.fill(prompt)
     const button = await sendButton(page)
-    await button.click()
-    sent = true
+    await dispatchSendFailClosed(
+      () => button.click(),
+      () => { sent = true },
+    )
 
     const tracker = new CompletionTracker(baselineAssistantCount, baselineCopyActionCount)
     const deadline = Date.now() + options.timeoutMs
