@@ -9,6 +9,7 @@ import {
   CHATGPT_COMPOSER_SELECTOR,
   CHATGPT_STOP_BUTTON_SELECTOR,
   CHATGPT_TEMPORARY_CHAT_URL,
+  assertTemporaryChatPage,
   detectChatGptAccountCapabilities,
 } from './session.ts'
 import {
@@ -62,6 +63,19 @@ export async function dispatchSendFailClosed(
   await click()
 }
 
+/**
+ * Verify the page is still the isolated Temporary Chat surface immediately
+ * before crossing the irreversible delivery boundary.
+ */
+export async function dispatchTemporarySendFailClosed(
+  page: Page,
+  click: () => Promise<void>,
+  markDeliveryPossible: () => void,
+): Promise<void> {
+  await assertTemporaryChatPage(page)
+  await dispatchSendFailClosed(click, markDeliveryPossible)
+}
+
 async function markdownFromLastAssistant(page: Page): Promise<string> {
   const assistant = page.locator(CHATGPT_ASSISTANT_TURN_SELECTOR).last()
   const markdown = assistant.locator('.markdown').last()
@@ -82,6 +96,7 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
   try {
     await page.goto(CHATGPT_TEMPORARY_CHAT_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 })
     await dismissTemporaryChatOnboarding(page)
+    await assertTemporaryChatPage(page)
     await throwIfRateLimitDialog(page)
     await throwIfSessionFailureAlert(page)
 
@@ -95,7 +110,8 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
 
     await input.fill(prompt)
     const button = await sendButton(page)
-    await dispatchSendFailClosed(
+    await dispatchTemporarySendFailClosed(
+      page,
       () => button.click(),
       () => { sent = true },
     )
