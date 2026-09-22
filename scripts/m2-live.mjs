@@ -59,6 +59,13 @@ const evidence = {
     m1Pr10Head: M1_PR10_HEAD,
     m1Pr11Head: M1_PR11_HEAD,
   },
+  localCompositeActual: {
+    leafHead: process.env.M2_LIVE_COMPOSITE_LEAF_HEAD,
+    base: process.env.M2_LIVE_COMPOSITE_M1_BASE,
+    m1Pr10Head: process.env.M2_LIVE_COMPOSITE_PR10_HEAD,
+    m1Pr11Head: process.env.M2_LIVE_COMPOSITE_PR11_HEAD,
+    diffStat: process.env.M2_LIVE_COMPOSITE_DIFF_STAT,
+  },
   plugin: {},
   providerRequests: [],
   agentStatuses: [],
