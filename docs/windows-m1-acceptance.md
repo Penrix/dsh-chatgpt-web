@@ -28,7 +28,7 @@ From an existing checkout:
 ```powershell
 git fetch origin web-m1-001-rev2
 $Worktree = Join-Path $env:TEMP "dsh-chatgpt-web-m1-$PID"
-git worktree add $Worktree origin/web-m1-001-rev2
+git worktree add --detach $Worktree origin/web-m1-001-rev2
 Set-Location $Worktree
 ```
 
@@ -45,7 +45,7 @@ $Head
 .\scripts\m1-local.ps1 -Action Stage -ExpectedHead $Head
 ```
 
-`Stage` refuses a dirty checkout, wrong branch, or wrong `-ExpectedHead`. Unless `-SkipRepositoryChecks` is explicitly supplied, it runs:
+`Stage` refuses a dirty checkout, a wrong named branch, or a wrong `-ExpectedHead`. A detached worktree is accepted only when `-ExpectedHead` is explicitly supplied and exactly matches `HEAD`. Unless `-SkipRepositoryChecks` is explicitly supplied, it runs:
 
 ```text
 npm install --no-audit --no-fund --package-lock=false
