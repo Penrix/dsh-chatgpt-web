@@ -50,3 +50,17 @@ export function apply(ctx: Context, config: Config): void {
 
 export { ChatGptWebAdapter } from './adapter.ts'
 export { compilePrompt } from './chatgpt/prompt.ts'
+
+export {
+  WEBCODEX_READ_FILES_ACTION_PATH,
+  WEBCODEX_READ_FILES_TOOL,
+  WebCodexHttpError,
+  invokeWebCodexReadFiles,
+  registerWebCodexReadFilesTool,
+} from './webcodex/index.ts'
+export type {
+  WebCodexReadFilesArguments,
+  WebCodexReadFilesItem,
+  WebCodexReadFilesSeamOptions,
+  WebCodexToolResult,
+} from './webcodex/index.ts'
