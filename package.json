@@ -1,0 +1,76 @@
+{
+  "name": "@penrix/dsh-chatgpt-web",
+  "version": "0.0.1",
+  "private": true,
+  "description": "DSH-native ChatGPT Web reasoning provider candidate: DSH owns session/tool execution; ChatGPT Web supplies inference.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "smoke:load": "node scripts/smoke-load.mjs",
+    "smoke:pack": "node scripts/smoke-pack.mjs"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.2 <5.0.0",
+    "@deepseek-ai/dsh-llm": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
+    "@deepseek-ai/schemastery": ">=3.18.2 <4.0.0"
+  },
+  "dependencies": {
+    "playwright-core": "^1.62.0",
+    "turndown": "7.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-llm": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
+    "@deepseek-ai/schemastery": "3.18.2",
+    "@types/node": "^22.0.0",
+    "@types/turndown": "^5.0.5",
+    "tsdown": "^0.22.2",
+    "typescript": "5.9.3",
+    "vitest": "^3.0.0",
+    "@deepseek-ai/dsh-agent": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-agent-loop": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-session": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-session-projection": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-user-approval": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-session-persistence": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-settings": "0.1.5-rc.2"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Penrix/dsh-chatgpt-web.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Penrix/dsh-chatgpt-web/issues"
+  },
+  "homepage": "https://github.com/Penrix/dsh-chatgpt-web#readme"
+}
