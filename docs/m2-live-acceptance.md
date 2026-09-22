@@ -35,8 +35,41 @@ Remote commits on this branch remain M2-only. A Windows live run may use a tempo
 
 or WEB-M1-LIVE-008 once available. The composite SHA/state must be written into the delivery receipt; none of #5/#10/#11/#12 is modified from this branch.
 
+## Executable Windows path
+
+From a Windows checkout of this repository, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\m2-live-composite.ps1
+```
+
+Optional parameters:
+
+- `-ProfileDir <path>` — dedicated signed-in ChatGPT Chrome profile; otherwise the provider's Penrix profile path is used.
+- `-Model chatgpt-web/high` — provider model route.
+- `-EvidencePath <path>` — explicit machine-readable evidence JSON destination.
+- `-KeepWorktree` — retain the temporary composite for diagnosis.
+
+The composite runner fetches and SHA-pins accepted M1 PR #10/#11, applies only their expected paths into a detached temporary worktree, runs install/typecheck/tests/build/load/pack, then starts `npm run m2:live`. It never writes those M1 deltas back to this branch.
+
+The live runner itself:
+
+- verifies the installed upstream manifest is exactly `meow-memory@0.27.0`;
+- records the real seven-tool registry through an injected `tools` probe;
+- uses a real seed DSH Session to create first-turn memory state without direct DB manipulation;
+- uses a separate canonical main DSH Session for all acceptance assertions;
+- observes real `llm/stream` requests without modifying them and delegates to the real ChatGPT Web adapter;
+- records every required tool call/result and verifies the next inference contains that tool result;
+- checks the SQLite file exists and remains non-empty without treating the DB as original history;
+- runs real `compactNow()`, then requires a `reinjection` snapshot on the next genuine user turn;
+- triggers real meow reflection with one benign non-memory DSH tool;
+- enables automatic dream and queues a genuine user prompt when the dream request starts to dogfood the busy-turn edge;
+- writes the first exact blocker plus Session/provider event order to evidence JSON and exits nonzero on a blocker.
+
 ## Live evidence status
 
-No live behavior is claimed merely because this document or a harness exists. Until a signed-in Windows/browser run is actually executed, every acceptance item above remains **未执行**.
+**Live Windows/browser acceptance is still 未执行 in the current ChatGPT execution environment.** No live behavior is claimed merely because the harness exists.
 
-The first real blocker, if any, must be recorded without repairing M1/provider code in this branch.
+The current execution environment is not the product environment required by this packet: it has no access to the user's Windows desktop, dedicated signed-in ChatGPT browser profile, or interactive browser session. Its shell also cannot resolve `github.com` (a direct `git ls-remote` probe failed with `Could not resolve host: github.com`), so it cannot independently run the package install/regression suite either.
+
+This is an **execution-environment blocker, not an observed M1/provider product blocker**. No M1/provider repair is made on this branch. The first product blocker, if one occurs during the Windows run, must be recorded by the evidence JSON and delivered without repairing M1 here.
