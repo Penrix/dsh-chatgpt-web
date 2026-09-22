@@ -73,9 +73,14 @@ function Assert-RepositoryTarget {
     if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot '.git') -PathType Leaf)) { throw "RepoRoot is not a git checkout/worktree: $RepoRoot" }
   }
   $branch = (& git -C $RepoRoot branch --show-current).Trim()
-  if ($LASTEXITCODE -ne 0 -or $branch -ne $ExpectedBranch) { throw "Expected branch '$ExpectedBranch', found '$branch'." }
+  if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve repository branch.' }
   $head = (& git -C $RepoRoot rev-parse HEAD).Trim()
   if ($LASTEXITCODE -ne 0 -or -not $head) { throw 'Unable to resolve repository HEAD.' }
+  if ($branch) {
+    if ($branch -ne $ExpectedBranch) { throw "Expected branch '$ExpectedBranch', found '$branch'." }
+  } else {
+    if (-not $ExpectedHead) { throw 'Detached worktree requires explicit -ExpectedHead.' }
+  }
   if ($ExpectedHead -and $head -ne $ExpectedHead) { throw "Expected HEAD '$ExpectedHead', found '$head'." }
   $dirty = & git -C $RepoRoot status --porcelain
   if ($LASTEXITCODE -ne 0) { throw 'Unable to read git status.' }
