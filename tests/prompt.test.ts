@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MessageId } from '@deepseek-ai/dsh-llm'
+import { MessageId, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { compilePrompt } from '../src/chatgpt/prompt.ts'
 import type { GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
 
@@ -11,6 +11,21 @@ function message(id: string, role: 'user' | 'assistant', text: string, source: '
     source: source === 'user'
       ? { kind: 'user' }
       : { kind: 'model', provider: 'chatgpt-web', model: 'chatgpt-web/current' },
+  }
+}
+
+function toolResultMessage(id: string, callId: string, text: string): Message {
+  const brandedCallId = ToolCallId(callId)
+  return {
+    id: MessageId(id),
+    role: 'user',
+    content: [{
+      type: 'tool-result',
+      toolCallId: brandedCallId,
+      content: [{ type: 'text', text }],
+      isError: false,
+    }],
+    source: { kind: 'tool', callId: brandedCallId },
   }
 }
 
@@ -81,11 +96,41 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('DSH alone validates, authorizes, and executes')
   })
 
-  it('keeps auxiliary compaction calls final-only even when DSH carries tool schemas', () => {
+  it('keeps a tool result as evidence while retaining the human task target', () => {
     const options = {
       provider: 'chatgpt-web',
       model: 'chatgpt-web/high',
-      purpose: 'compaction',
+      messages: [
+        message('u1', 'user', 'Find the saved rule and answer me.', 'user'),
+        {
+          id: MessageId('a-tool'),
+          role: 'assistant',
+          content: [{
+            type: 'tool-call',
+            id: ToolCallId('call-1'),
+            name: 'memory_search',
+            arguments: '{"query":"rule"}',
+          }],
+          source: { kind: 'model', provider: 'chatgpt-web', model: 'chatgpt-web/high' },
+        },
+        toolResultMessage('tr1', 'call-1', 'The saved rule says DSH owns the session.'),
+      ],
+    } satisfies GenerateOptions
+
+    const result = compilePrompt(options, 100_000)
+    expect(result.targetMessageIndex).toBe(0)
+    expect(result.text).toContain('"kind":"tool"')
+    expect(result.text).toContain('"callId":"call-1"')
+    expect(result.text).toContain('The saved rule says DSH owns the session.')
+  })
+
+  it.each(['compaction', 'session-title'] as const)(
+    'keeps auxiliary %s calls final-only even when DSH carries tool schemas',
+    (purpose) => {
+    const options = {
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      purpose,
       messages: [
         message('u1', 'user', 'old human request', 'user'),
         pluginMessage('compact', 'summarize the prior conversation'),
@@ -104,11 +149,12 @@ describe('compilePrompt', () => {
 
     const result = compilePrompt(options, 100_000)
     expect(result.targetMessageIndex).toBe(1)
-    expect(result.text).toContain('"purpose":"compaction"')
+    expect(result.text).toContain(`"purpose":"${purpose}"`)
     expect(result.text).toContain('"toolActionsAllowed":false')
     expect(result.text).toContain('Tool schemas may be present')
     expect(result.text).not.toContain('Decide only the next DSH assistant step.')
-  })
+    },
+  )
 
   it('targets a meow-memory reflection/dream plugin turn when it is the actual DSH task', () => {
     const options = {
