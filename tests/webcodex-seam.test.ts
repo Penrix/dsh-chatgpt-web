@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import {
   WEBCODEX_READ_FILES_TOOL,
   registerWebCodexReadFilesTool,
 } from '../src/webcodex/read-files.ts'
+import { apply as applyPlugin } from '../src/index.ts'
 
 const contexts: Context[] = []
 
@@ -38,6 +39,28 @@ function execute(ctx: Context, args: unknown) {
 }
 
 describe('WebCodex read-only durable-body seam', () => {
+  it('mounts the capability through the installed root plugin when webcodexRead is configured', async () => {
+    const ctx = new Context()
+    contexts.push(ctx)
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+
+    applyPlugin(ctx, {
+      webcodexRead: {
+        baseUrl: 'http://127.0.0.1:8080',
+        bearerToken: 'wc_pat_test_only',
+        project: 'registered-project',
+      },
+    })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const schema = ctx.tools.schemas().find(tool => tool.name === WEBCODEX_READ_FILES_TOOL)
+    expect(schema).toBeDefined()
+    expect(schema?.parameters.properties).not.toHaveProperty('project')
+    expect(JSON.stringify(schema)).not.toContain('wc_pat_test_only')
+  })
+
   it('pins the registered project and records the exact canonical structured success as the DSH value', async () => {
     const authoritative = {
       success: true,
