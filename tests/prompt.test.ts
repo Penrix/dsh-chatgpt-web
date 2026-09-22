@@ -14,7 +14,7 @@ function message(id: string, role: 'user' | 'assistant', text: string, source: '
   }
 }
 
-function pluginMessage(id: string, text: string): Message {
+function pluginMessage(id: string, text: string, form: 'snapshot' | 'notice' | undefined = 'snapshot'): Message {
   return {
     id: MessageId(id),
     role: 'user',
@@ -22,8 +22,11 @@ function pluginMessage(id: string, text: string): Message {
     source: {
       kind: 'plugin',
       plugin: 'meow-memory',
-      form: 'snapshot',
-      sections: [],
+      ...(form === undefined
+        ? {}
+        : form === 'snapshot'
+          ? { form, sections: [] }
+          : { form, summary: text.slice(0, 40) }),
     } as Message['source'],
   }
 }
@@ -105,6 +108,48 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('"toolActionsAllowed":false')
     expect(result.text).toContain('Tool schemas may be present')
     expect(result.text).not.toContain('Decide only the next DSH assistant step.')
+  })
+
+  it('targets a meow-memory reflection/dream plugin turn when it is the actual DSH task', () => {
+    const options = {
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [
+        message('u1', 'user', 'earlier human request', 'user'),
+        message('a1', 'assistant', 'earlier answer', 'model'),
+        pluginMessage('reflect', '[meow-memory-reflect] review this session', undefined),
+      ],
+      tools: [{
+        name: 'memory_remember',
+        description: 'Store memory.',
+        parameters: {
+          type: 'object',
+          properties: { content: { type: 'string' } },
+          required: ['content'],
+          additionalProperties: false,
+        },
+      }],
+    } satisfies GenerateOptions
+
+    const result = compilePrompt(options, 100_000)
+    expect(result.targetMessageIndex).toBe(2)
+    expect(result.text).toContain('[meow-memory-reflect]')
+    expect(result.text).toContain('opaque/no-form or relay plugin message may itself be the task')
+  })
+
+  it('skips passive meow-memory snapshot/notice context when selecting the task target', () => {
+    const options = {
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [
+        message('u1', 'user', 'actual current request', 'user'),
+        pluginMessage('snapshot', 'long-term memory snapshot', 'snapshot'),
+        pluginMessage('notice', 'memory status notice', 'notice'),
+      ],
+    } satisfies GenerateOptions
+
+    const result = compilePrompt(options, 100_000)
+    expect(result.targetMessageIndex).toBe(0)
   })
 
   it('keeps meow-memory plugin snapshots as context and still targets the real human message', () => {
