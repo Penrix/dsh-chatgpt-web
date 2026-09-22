@@ -2,6 +2,19 @@
 
 > 目标不是“给 ChatGPT Web 再做一个聊天壳”，而是把长期上下文、工作状态与原始认知证据从 ChatGPT Web conversation 中剥离出来，让 ChatGPT Web 只承担它最有价值的部分：高质量推理。
 
+## Start here
+
+如果是第一次进入仓库，按这个顺序读：
+
+1. `README.md` — 项目为什么存在、整体是什么。
+2. `AGENTS.md` — 开发时不能违反的规则。
+3. `docs/adr/` — 已经拍板、不能悄悄改回去的架构决定。
+4. `docs/roadmap.md` — 当前里程碑和顺序。
+5. `docs/acceptance.md` — 什么叫真的做成。
+6. `docs/cognition.md` / `docs/formation-history.md` — 认知与形成史。
+
+**README 是入口，不是项目记忆的唯一载体。**
+
 ## Status
 
 - 建立：2026-09-22
@@ -401,5 +414,8 @@ C. negative history
 - [docs/formation-history.md](docs/formation-history.md) — 这几轮讨论里哪些判断被推翻、为什么被推翻；后续不要只读最终结论。
 - [docs/architecture.md](docs/architecture.md) — DSH、meow-memory、DVR、ChatGPT Web、WebCodex、Codex/ACP 的 authority 与接口边界。
 - [docs/meow-memory-integration.md](docs/meow-memory-integration.md) — 为什么直接采用 meow-memory、它负责什么、与 DVR/DSH/provider/WebCodex 的边界。
+- [docs/adr/](docs/adr/) — Architecture Decision Records；关键决定的“为什么”。
+- [docs/roadmap.md](docs/roadmap.md) — 当前开发顺序。
+- [docs/acceptance.md](docs/acceptance.md) — 可执行验收合同。
 
-做架构工作前先读 `AGENTS.md`，再读 `docs/cognition.md` 和 `docs/formation-history.md`。
+做架构工作前先读 `AGENTS.md`。改变核心边界前先查 ADR；完成实现时按 acceptance 验收，而不是只看“代码写完了没有”。
