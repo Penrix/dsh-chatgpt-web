@@ -4,7 +4,7 @@ param(
   [string]$Action = 'Stage',
   [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
   [string]$StageRoot,
-  [string]$ExpectedBranch = 'web-m1-001-rev2',
+  [string]$ExpectedBranch = 'web-m1-live-008',
   [string]$ExpectedHead,
   [string]$DshHome,
   [string]$DesktopInstallRoot,
@@ -210,7 +210,7 @@ switch ($Action) {
     $desktopExe = if ($DesktopInstallRoot) { Join-Path $DesktopInstallRoot 'DSH Desktop.exe' } else { $null }
     $stage = [pscustomobject]@{
       schema = 1
-      packet = 'WEB-M1-LOCAL-002 rev 1'
+      packet = 'WEB-M1-LIVE-008 rev 1'
       packageName = $PackageName
       packageVersion = [string]$manifest.version
       branch = $git.branch
