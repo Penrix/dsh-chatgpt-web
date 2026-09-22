@@ -14,8 +14,8 @@ Instead, a new branch was created from current main and only the M1 implementati
 - strict `final | action_proposal` protocol;
 - exact DSH 0.1.5-rc.2 tool-schema validation;
 - native DSH tool-call chunks;
-- focused unit tests;
-- package/build/bundle metadata.
+- focused unit tests and a keyless DSH AgentLoop integration test;
+- package/build/bundle metadata and browserless real-LlmRuntime load smoke.
 
 Current main governance, ADRs, roadmap, acceptance contract, and meow-memory architecture remain the base.
 
@@ -46,9 +46,22 @@ GitHub Actions workflow: `.github/workflows/m1-candidate.yml`.
 
 ## Validation truth
 
-At the time this document was first written, the new integration branch had not yet produced CI evidence. Do not interpret source presence as passing validation.
+Observed GitHub Actions evidence:
 
-Update this section only from observed workflow/local results.
+- PR #5 triggered `M1 candidate validation`.
+- Run #1 (`35699188531`) and later runs, including run #4 (`35699678217`), concluded `failure` **before any workflow step executed**.
+- The Actions API reports the `validate` job with `steps: null` and no job log URL/content. Therefore dependency installation, typecheck, unit tests, build, load smoke, and pack smoke are **blocked/unrun**, not code failures and not passes.
+- Per the task contract, no blind rerun is being used as evidence without a new cause/fix.
+
+Static contract evidence completed in the candidate:
+
+- branch was created from current main rather than force-updating the divergent experiment branch;
+- DSH `0.1.5-rc.2` public APIs were checked for `ToolSchema`, native `tool-call` chunks, JSON-Schema validation, and agent-loop tool/result continuation;
+- a keyless DSH AgentLoop integration test was added to exercise our native chunks through ToolRuntime into a second inference;
+- `smoke:load` now mounts the built provider into a real DSH `LlmRuntime` without invoking `stream()` or launching a browser;
+- post-Send safety was tightened so the outcome-unknown boundary starts before the browser click promise is awaited.
+
+Do not interpret these static checks as install/build/runtime success. The executable checks remain unrun until a runner/local environment actually starts them.
 
 ## Reserved for local/Codex
 
