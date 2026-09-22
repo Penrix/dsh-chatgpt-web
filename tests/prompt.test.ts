@@ -48,6 +48,65 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('"targetMessageIndex":2')
   })
 
+  it('serializes exact DSH tool schemas as data and enables one-step action proposals', () => {
+    const options = {
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [
+        message('u1', 'user', 'remember this', 'user'),
+      ],
+      tools: [{
+        name: 'memory_remember',
+        description: 'Store one durable memory.',
+        parameters: {
+          type: 'object',
+          properties: {
+            content: { type: 'string' },
+            keywords: { type: 'array', items: { type: 'string' } },
+          },
+          required: ['content', 'keywords'],
+          additionalProperties: false,
+        },
+      }],
+    } satisfies GenerateOptions
+
+    const result = compilePrompt(options, 100_000)
+    expect(result.text).toContain('"name":"memory_remember"')
+    expect(result.text).toContain('"required":["content","keywords"]')
+    expect(result.text).toContain('"toolActionsAllowed":true')
+    expect(result.text).toContain('"type":"action_proposal"')
+    expect(result.text).toContain('DSH alone validates, authorizes, and executes')
+  })
+
+  it('keeps auxiliary compaction calls final-only even when DSH carries tool schemas', () => {
+    const options = {
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      purpose: 'compaction',
+      messages: [
+        message('u1', 'user', 'old human request', 'user'),
+        pluginMessage('compact', 'summarize the prior conversation'),
+      ],
+      tools: [{
+        name: 'memory_search',
+        description: 'Search memory.',
+        parameters: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query'],
+          additionalProperties: false,
+        },
+      }],
+    } satisfies GenerateOptions
+
+    const result = compilePrompt(options, 100_000)
+    expect(result.targetMessageIndex).toBe(1)
+    expect(result.text).toContain('"purpose":"compaction"')
+    expect(result.text).toContain('"toolActionsAllowed":false')
+    expect(result.text).toContain('Tool schemas may be present')
+    expect(result.text).not.toContain('Decide only the next DSH assistant step.')
+  })
+
   it('keeps meow-memory plugin snapshots as context and still targets the real human message', () => {
     const options = {
       provider: 'chatgpt-web',
