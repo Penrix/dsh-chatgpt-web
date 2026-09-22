@@ -68,6 +68,11 @@ describe('WebCodex read-only durable-body seam', () => {
       })
     })
 
+    const schema = ctx.tools.schemas().find(tool => tool.name === WEBCODEX_READ_FILES_TOOL)
+    expect(schema).toBeDefined()
+    expect(schema?.parameters.properties).not.toHaveProperty('project')
+    expect(JSON.stringify(schema)).not.toContain('wc_pat_test_only')
+
     const result = await execute(ctx, {
       items: [{ path: 'README.md', start_line: 1, limit: 1 }],
       with_line_numbers: false,
