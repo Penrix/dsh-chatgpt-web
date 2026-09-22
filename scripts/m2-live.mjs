@@ -65,6 +65,7 @@ const evidence = {
     m1Pr10Head: process.env.M2_LIVE_COMPOSITE_PR10_HEAD,
     m1Pr11Head: process.env.M2_LIVE_COMPOSITE_PR11_HEAD,
     diffStat: process.env.M2_LIVE_COMPOSITE_DIFF_STAT,
+    paths: process.env.M2_LIVE_COMPOSITE_PATHS?.split(',').filter(Boolean),
   },
   plugin: {},
   providerRequests: [],
