@@ -3,8 +3,7 @@ import { homedir, platform } from 'node:os'
 import { join, resolve } from 'node:path'
 import { chromium, type BrowserContext, type Page } from 'playwright-core'
 import { LlmError } from '@deepseek-ai/dsh-llm'
-
-const COMPOSER = '#prompt-textarea, [data-testid="prompt-textarea"], [contenteditable="true"][role="textbox"]'
+import { CHATGPT_COMPOSER_SELECTOR, assertAuthenticatedChatGptPage } from './session.ts'
 
 function expandHome(path: string): string {
   if (path === '~') return homedir()
@@ -110,8 +109,11 @@ export class ChatGptBrowser {
       const deadline = Date.now() + this.options.loginTimeoutMs
       for (;;) {
         if (signal?.aborted) throw new LlmError('ChatGPT sign-in aborted.', 'ABORTED')
-        const visible = await page.locator(COMPOSER).first().isVisible().catch(() => false)
-        if (visible) break
+        const visible = await page.locator(CHATGPT_COMPOSER_SELECTOR).first().isVisible().catch(() => false)
+        if (visible) {
+          await assertAuthenticatedChatGptPage(page)
+          break
+        }
         if (Date.now() >= deadline) {
           throw new LlmError(
             'Timed out waiting for a logged-in ChatGPT composer. Sign in inside the dedicated browser window and retry.',
