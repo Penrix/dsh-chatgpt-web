@@ -18,9 +18,17 @@ export interface WebCodexReadFilesArguments {
   max_result_bytes?: number
 }
 
+export type WebCodexJsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | WebCodexJsonValue[]
+  | { [key: string]: WebCodexJsonValue }
+
 export interface WebCodexToolResult {
   success: boolean
-  output: unknown
+  output: WebCodexJsonValue
   error?: string
 }
 
@@ -72,7 +80,7 @@ function canonicalToolResult(value: unknown): WebCodexToolResult | undefined {
   if (!value.success && typeof value.error !== 'string') return undefined
   return {
     success: value.success,
-    output: value.output,
+    output: value.output as WebCodexJsonValue,
     ...(typeof value.error === 'string' ? { error: value.error } : {}),
   }
 }
