@@ -37,7 +37,7 @@ function schemaMap(ctx: Context): Map<string, JsonSchema> {
   return new Map(ctx.tools.schemas().map(tool => [
     tool.name,
     tool.parameters as JsonSchema,
-  ]))
+  ] as const))
 }
 
 describe('meow-memory 0.27.0 sibling-plugin contract on DSH 0.1.5-rc.2', () => {
