@@ -6,7 +6,9 @@
 >
 > This file is intentionally explicit about what exists versus what has actually been executed.
 >
-> **2026-09-22 scope update:** the earlier long-term-memory A/B gate is superseded. `Phant0Meow/dsh-meow-memory` is adopted as the structured memory layer. The branch's next blocker is the DSH tool loop needed to let ChatGPT Web use `memory_*` tools through DSH.
+> **2026-09-22 scope update:** the earlier long-term-memory A/B gate is superseded. `Phant0Meow/dsh-meow-memory` is adopted as the structured memory layer.
+>
+> **Issue #1 static implementation update:** the DSH tool-loop adapter path is now implemented in source: exact `ToolSchema` data is sent to ChatGPT Web, strict `final | action_proposal` output is parsed, proposal arguments are validated with DSH's own JSON-Schema validator, and valid proposals are translated into native DSH `tool-call` chunks. This is **not yet runtime-validated**.
 
 ## Implemented on the branch
 
@@ -34,14 +36,33 @@
 - Serialized browser requests.
 - Abort/timeout handling.
 - Post-Send fail-closed boundary: once Send may have happened, the adapter returns provider uncertainty rather than automatically resending.
+- Strict DSH reasoning result protocol:
+  - exactly one `final` or one `action_proposal`;
+  - no prose around the outer JSON envelope;
+  - unknown tools rejected;
+  - proposal arguments validated against the exact DSH `ToolSchema`;
+  - valid proposals translated to native DSH `tool-call` blocks;
+  - tool-call arguments remain raw JSON strings.
+- Auxiliary DSH calls (`compaction` / `session-title`) are final-only even when DSH carries tool schemas for request-prefix reasons.
+- DSH provenance target selection distinguishes:
+  - human user turns;
+  - passive plugin context (instructions/catalog/snapshot/notice/recall);
+  - task-bearing plugin turns (opaque/no-form or relay), including meow-memory reflection/dream;
+  - tool-result evidence.
 - Unit-test source for:
   - completion stability;
   - prompt history/targeting;
-  - model/effort mapping.
+  - model/effort mapping;
+  - strict reasoning-envelope parsing;
+  - DSH JSON-Schema proposal validation;
+  - meow-memory array arguments;
+  - tool-result history;
+  - compaction/session-title isolation;
+  - passive memory context vs reflection/dream task turns.
 
 ## Deliberately not implemented yet
 
-- DSH tool-call bridge — **next implementation slice**.
+- Real DSH runtime validation of the tool-call bridge — **next blocker**.
 - ChatGPT native MCP connector — not required for the ordinary DSH/meow-memory tool loop.
 - long-lived managed Web conversation.
 - DVR lookup.
@@ -64,8 +85,10 @@ source.kind=plugin, plugin=meow-memory
 → memory snapshot/notice/context
 ```
 
-The outer transport contract explicitly instructs ChatGPT Web to use plugin
-messages as context while answering the newest genuine human message.
+The outer transport contract preserves DSH source provenance. Passive plugin forms
+are contextual, while task-bearing plugin turns remain eligible as the current
+task. This is required because meow-memory snapshot/notice injection is passive,
+but reflection/dream prompts are plugin-sourced user turns with no passive form.
 
 A focused test fixture for a meow-memory plugin snapshot has been added, but
 the test has not yet been executed in a local checkout.
@@ -146,11 +169,12 @@ retrieval system.
 6. Run one `chatgpt-web/high` turn.
 7. Verify a second DSH turn sees the first turn only through the DSH envelope, not a retained Web conversation.
 8. Run 10 sequential turns.
-9. Implement `final | action_proposal` tool-loop parsing/validation and emit ordinary DSH tool-call chunks.
+9. Load one harmless DSH test tool and prove ChatGPT Web emits a native DSH tool call, DSH executes it, records the tool result, and calls the provider again.
 10. Install `meow-memory@0.27.x` as a sibling DSH plugin and verify first-turn injection.
-11. Exercise `memory_search`, `memory_project`, `memory_remember`, and `memory_update` through the ChatGPT Web provider.
+11. Exercise `memory_search`, `memory_project`, `memory_read`, `memory_remember`, and `memory_update` through the ChatGPT Web provider.
 12. Verify post-compaction reinjection.
-13. Test the known dream/busy-turn steering edge (#20) before relying on unattended automatic dream.
-14. Connect WebCodex tools as the durable body.
+13. Verify reflection turns target the plugin task rather than the earlier human turn.
+14. Test the known dream/busy-turn steering edge (#20) before relying on unattended automatic dream.
+15. Connect WebCodex tools as the durable body.
 
 The old A/B cognition experiment remains useful for tuning, but is no longer an architectural gate.
