@@ -95,7 +95,8 @@ export class ChatGptWebAdapter extends LlmAdapter {
           ...(options.signal ? { signal: options.signal } : {}),
         })
         const reasoning = parseReasoningResult(result.text)
-        const chunks = reasoningResultChunks(reasoning, options.tools)
+        const callableTools = options.purpose === undefined ? options.tools : undefined
+        const chunks = reasoningResultChunks(reasoning, callableTools)
         const usage = {
           inputTokens: Math.max(1, Math.ceil(compiled.text.length / 4)),
           outputTokens: Math.max(1, Math.ceil(result.text.length / 4)),
