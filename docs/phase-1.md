@@ -1,3 +1,10 @@
+> **Superseded research gate — 2026-09-22**
+>
+> The original Phase-1 hypothesis test below is retained as formation history, but it is no longer the implementation gate.
+> The user clarified that DSH-based long-term memory has already been validated in prior work, and `Phant0Meow/dsh-meow-memory` is now adopted as the long-term memory layer.
+>
+> Current next step: finish the ChatGPT Web ↔ DSH reasoning/tool bridge so meow-memory's `memory_*` tools can run through the ordinary DSH agent loop, then connect WebCodex as the durable body. See `docs/meow-memory-integration.md`.
+
 # Phase 1 implementation plan — DSH-owned context, fresh ChatGPT Web inference
 
 > Status: ready to implement
