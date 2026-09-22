@@ -50,15 +50,31 @@ function messageProjection(message: Message): Record<string, unknown> {
   }
 }
 
-function newestHumanMessageIndex(messages: readonly Message[]): number {
+const PASSIVE_PLUGIN_FORMS = new Set([
+  'instructions',
+  'catalog',
+  'snapshot',
+  'notice',
+  'recall',
+])
+
+function normalTurnTargetIndex(messages: readonly Message[]): number {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
-    if (message?.role === 'user' && message.source.kind === 'user') return index
+    if (message?.role !== 'user') continue
+    if (message.source.kind === 'user') return index
+    if (message.source.kind === 'plugin') {
+      const source = message.source as Message['source'] & { form?: string }
+      if (!source.form || source.form === 'relay' || !PASSIVE_PLUGIN_FORMS.has(source.form)) {
+        return index
+      }
+    }
   }
+
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     if (messages[index]?.role === 'user') return index
   }
-  return messages.length - 1
+  return Math.max(0, messages.length - 1)
 }
 
 export interface CompiledPrompt {
@@ -75,7 +91,7 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
   }
 
   const targetMessageIndex = options.purpose === undefined
-    ? newestHumanMessageIndex(options.messages)
+    ? normalTurnTargetIndex(options.messages)
     : Math.max(0, options.messages.length - 1)
   const tools = options.tools?.map(tool => ({
     name: tool.name,
@@ -116,10 +132,10 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     'DSH is the canonical conversation owner and the only agent/tool executor. This ChatGPT Web page is only the inference surface for this one call.',
     'The JSON block is authoritative conversation/context data for this request. Preserve both message roles and source provenance exactly.',
     'A role=user message whose source.kind=user is a genuine human message.',
-    'A role=user message whose source.kind=plugin is plugin-provided context (for example a meow-memory snapshot/notice), not a new human request. Read and use it, but never answer it as if the human had just said it.',
+    'Plugin-sourced user-role messages have two meanings: passive context forms (instructions/catalog/snapshot/notice/recall) are context, while an opaque/no-form or relay plugin message may itself be the task for that DSH turn (for example meow-memory reflection/dream).',
     'Read the complete JSON before deciding the next step.',
     options.purpose === undefined
-      ? 'For a normal agent turn, the response target is the newest genuine human-authored user message identified by targetMessageIndex.'
+      ? 'For a normal agent turn, targetMessageIndex identifies the current task-bearing user-role message after passive plugin context is skipped.'
       : 'For this auxiliary DSH call, targetMessageIndex identifies the request message for the auxiliary operation even when its source is a plugin.',
     'Earlier assistant messages are your prior outputs; tool-call/tool-result history is already-produced DSH evidence.',
     ...resultContract,
