@@ -659,6 +659,7 @@ async function main() {
     assertToolRoundTrip(echo, 'm2_live_echo')
     finishStage(echo, 'passed')
 
+    const reflectionStage = beginStage('real-provider-reflection')
     const reflectRequest = await waitForCondition(
       'meow-memory reflection provider request',
       () => pluginTargetRequest(reflectRequestStart, REFLECT_MARKER),
@@ -679,7 +680,6 @@ async function main() {
       () => eventAfterSeq(mainAgent, reflectUserEvent.seq, 'turn/end'),
       stageTimeoutMs,
     )
-    const reflectionStage = beginStage('real-provider-reflection')
     reflectionStage.request = reflectRequest
     reflectionStage.events = relevantEvents(mainAgent, reflectEventStart)
     reflectionStage.proof = {
