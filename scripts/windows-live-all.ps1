@@ -86,12 +86,12 @@ switch ($Phase) {
 
     $env:M2_CHATGPT_PROFILE = $ProfileDir
     $env:M2_LIVE_EVIDENCE = Join-Path $EvidenceRoot 'm2-live.json'
-    $env:M2_LIVE_COMPOSITE_LEAF_HEAD = $Head
-    $env:M2_LIVE_COMPOSITE_M1_BASE = '653995ea6d7ae014c3498c42082f263acde90185'
-    $env:M2_LIVE_COMPOSITE_PR10_HEAD = 'ee4a3b8afcb467b56ee18bc7527044d1b30ba38a'
-    $env:M2_LIVE_COMPOSITE_PR11_HEAD = 'd64791777248f21f70d32fb485ac75388472a254'
-    $env:M2_LIVE_COMPOSITE_DIFF_STAT = 'WEB-WIN-LIVE-001 integrated branch'
-    $env:M2_LIVE_COMPOSITE_PATHS = 'docs/windows-m1-acceptance.md,scripts/smoke-load.mjs,scripts/smoke-pack.mjs,tests/prompt.test.ts,src/chatgpt/turn.ts,tests/send-boundary.test.ts'
+    Get-ChildItem Env:M2_LIVE_COMPOSITE_* -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
+    $env:M2_WIN_INTEGRATION_REF = $ExpectedBranch
+    $env:M2_WIN_INTEGRATION_HEAD = $Head
+    $env:M2_WIN_M2_SOURCE_HEAD = 'f098fb15eeec6df91974a031757bd1feadb314cd'
+    $env:M2_WIN_OVERLAY_PATHS = 'docs/m2-live-acceptance.md,scripts/m2-live.mjs'
+    Remove-Item Env:M2_WIN_CHANGED_PATHS -ErrorAction SilentlyContinue
 
     Write-Host ''
     Write-Host '=== M1 live ChatGPT Web echo ==='
@@ -104,8 +104,15 @@ switch ($Phase) {
     Write-Host ''
     Write-Host '=== M3 prerequisite check ==='
     $null = Assert-Env 'WEBCODEX_BASE_URL'
-    $null = Assert-Env 'WEBCODEX_BEARER_TOKEN'
     $null = Assert-Env 'WEBCODEX_PROJECT'
+    $inlineCredential = [Environment]::GetEnvironmentVariable('WEBCODEX_BEARER_TOKEN')
+    $fileCredential = [Environment]::GetEnvironmentVariable('WEBCODEX_BEARER_TOKEN_FILE')
+    if ([bool]$inlineCredential -eq [bool]$fileCredential) {
+      throw 'Configure exactly one M3 credential source. Prefer WEBCODEX_BEARER_TOKEN_FILE from scripts\m3-webcodex-windows-preflight.ps1; inline WEBCODEX_BEARER_TOKEN remains compatibility-only.'
+    }
+    if ($fileCredential -and -not (Test-Path -LiteralPath $fileCredential -PathType Leaf)) {
+      throw "WEBCODEX_BEARER_TOKEN_FILE does not exist: $fileCredential"
+    }
     if (-not $env:WEBCODEX_LOCAL_ROOT) { $env:WEBCODEX_LOCAL_ROOT = $RepoRoot }
     $env:WEBCODEX_LIVE_EVIDENCE = Join-Path $EvidenceRoot 'm3-live.json'
 
