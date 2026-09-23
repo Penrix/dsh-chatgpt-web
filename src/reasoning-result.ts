@@ -45,7 +45,7 @@ function balancedObjectSpans(text: string): Array<{ start: number; end: number }
     if (inString) {
       if (escaped) {
         escaped = false
-      } else if (char === '\\\\') {
+      } else if (char === '\\') {
         escaped = true
       } else if (char === '"') {
         inString = false
