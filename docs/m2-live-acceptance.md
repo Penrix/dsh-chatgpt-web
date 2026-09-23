@@ -1,111 +1,123 @@
-# WEB-M2-WIN-LIVE-005 live acceptance
+# WEB-M2-WIN-LIVE-006 live acceptance
 
-This packet owns M2 only. It does not modify M1 browser/provider semantics or M3 WebCodex.
+This packet owns M2 only. M1 real E2E has already passed on Windows integration head `ff62ba6caa3934da5dfbf52693f594951b0d3fb7` and must not be rerun unless M1 production behavior changes.
 
-## Authoritative Windows state
+## Verified Windows baseline
 
-- Product target: the user's own Windows machine.
-- DSH Desktop: 2.0.13.
-- Candidate plugin is already installed and enabled through Desktop's main-app sidebar Plugins / shared Web Plugin Manager.
-- Accepted tarball SHA-256: `5e502457ae906697dc86cf988600619bccb6bd1f633f887f386b79bfaeb2b3b0`.
-- DesktopReadback passed with the local candidate dependency and `bundleSelected=True`.
-- Desktop restarted healthy and no reserved Desktop profile file was hand-edited.
-- The dedicated ChatGPT provider profile does not exist yet. That is valid first-run state; M1 owns creating it and interactive sign-in.
-- Missing WebCodex Server/Runner/base URL/credential/Project belongs to M3 and must not block M2.
-- Live M1/M2/M3 product acceptance has not yet run.
+- DSH Desktop 2.0.13.
+- Node 24.16.0 / npm 11.13.0 / PowerShell 7.6.3.
+- Latest Prepare passed install, typecheck, 9 test files / 54 tests, build, smoke:load and smoke:pack.
+- The candidate package is installed in the active Desktop profile and DesktopReadback passed.
+- WebCodex local service, runner and exact project are online.
+- M1 real ChatGPT Web → DSH echo → second real inference passed on `ff62ba6c...`.
+- M2 then failed at `seed-real-memory` before any memory tool or persistence assertion.
 
-## Provider profile continuity
+## First real M2 blocker
 
-M1 and M2 use the same default dedicated profile convention:
+The failed M2 request reused the same dedicated profile that M1 had just used successfully:
 
 ```text
-~/.dsh-chatgpt-web-penrix/chrome-profile
+C:\Users\123\.dsh-chatgpt-web-penrix\chrome-profile
 ```
 
-M1's live runner uses `M1_PROFILE_DIR` to override that path. M2 uses `M2_CHATGPT_PROFILE` to override it. If neither override is supplied, both resolve to the same dedicated directory.
+The second `browserType.launchPersistentContext` timed out after 180000 ms. Chrome stderr said remote debugging requires a non-default data directory even though the launch command already contained the dedicated `--user-data-dir=...` and `--remote-debugging-pipe`.
 
-M2 computes the provider profile path before temporarily isolating `HOME` / `USERPROFILE` for meow-memory diagnostics, so the meow isolation does not redirect the ChatGPT browser profile.
+Source audit establishes:
 
-After M1 has created/signed into the profile, M2 reuses the same profile. It does not borrow the user's ordinary Chrome profile.
+1. M1 awaits `adapter.dispose()`.
+2. `ChatGptWebAdapter.dispose()` awaits `ChatGptBrowser.close()`.
+3. `ChatGptBrowser.close()` awaits `context.close()`, but deliberately swallows a close rejection.
+4. The integration runner waits for the M1 Node child process to exit, then immediately launches M2 against the identical persistent profile.
+5. There was no OS-level proof that the previous Chrome profile owner/process had fully disappeared before the second persistent launch.
 
-## No persistent ChatGPT conversation
+The Windows evidence does **not** prove whether the remaining owner window came from slow Chrome/Windows process reaping after a successful close or from a close failure hidden by best-effort disposal. The concrete defect is the same in either case: the sequential M1 → M2 path crossed the same-profile launch boundary without a quiescence check.
 
-DSH Session is the canonical conversation owner.
+## Narrow M2-owned fix
 
-The ChatGPT Web provider opens a fresh page for each inference and `runFreshTurn()` explicitly navigates that page to Temporary Chat before Send. The page is closed after the inference. M2 therefore does not require or reuse a persistent ChatGPT Web thread.
+The fix does not change M1 parser, protocol, send safety, browser launch flags, profile path, cookies or login state.
 
-The M2 proof intentionally keeps one canonical DSH Session across later Web inferences while provider pages remain fresh.
+`scripts/m2-profile-quiescence.mjs` performs a bounded, read-only Windows process check:
 
-## Truth surfaces
+- inspects only `chrome.exe` / `msedge.exe`;
+- matches only a process whose command line contains the exact dedicated `--user-data-dir`;
+- waits until no matching process remains;
+- never kills a process;
+- never deletes `Singleton*` files;
+- never changes or clones the profile;
+- times out fail-closed with only process name/PID evidence.
 
-Evidence stays separated between:
+Focused regression coverage exercises:
 
-1. **DSH Session** — `turn/*`, `user/message`, `assistant/message`, `tool/call`, `tool/result`, `compaction/*`.
-2. **meow-memory** — SQLite persistence plus plugin messages whose source is `{ kind: "plugin", plugin: "meow-memory" }`.
-3. **Provider** — actually observed `llm/stream` requests handed unchanged to the real ChatGPT Web adapter.
-4. **Derived acceptance assertions** — pass/fail conclusions calculated from the first three.
+- occupied → occupied → released: barrier succeeds only after release;
+- continuously occupied: barrier exits blocked with `M2_PROFILE_BUSY` and does not mutate anything.
 
-No legacy `M2_LIVE_COMPOSITE_*` value is used as current integration truth.
+The standalone M2 launcher and the Windows integration runner both execute this barrier before M2 opens the persistent profile.
 
-## Required live sequence
+## Existing M1 PASS is preserved
 
-The real run must prove:
+Draft PR #17 adds `ResumeM2`.
+
+`ResumeM2`:
+
+1. requires the existing `m1-live.json`;
+2. requires `accepted=true`;
+3. requires its recorded `profileDir` to equal the current dedicated profile;
+4. does **not** execute M1;
+5. runs the quiescence barrier;
+6. runs M2 and writes new M2 resume evidence;
+7. only on M2 success proceeds directly to the existing M3 prerequisite check and M3 live seam;
+8. stops on the first failure.
+
+The original failed `m2-live.json` is preserved; resumed evidence is written separately as `m2-live-resume.json`.
+
+## Production package / reinstall
+
+This repair changes acceptance scripts, tests and documentation only. It does not change `src/**`, `package.json`, the packed runtime bundle, M1 production behavior or M3 production behavior.
+
+Therefore the already-installed production candidate remains byte-identical for this repair:
+
+**Prepare / repack / Desktop reinstall / DesktopReadback are not required before ResumeM2.**
+
+## Exact Windows resume command
+
+Use the evidence root that already contains the passed M1 evidence:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\windows-live-all.ps1 `
+  -Phase ResumeM2 `
+  -EvidenceRoot 'C:\Users\123\AppData\Local\Temp\dsh-chatgpt-web-win-live-evidence-ff62ba6c'
+```
+
+No M1 rerun occurs.
+
+Expected order:
+
+```text
+existing M1 accepted evidence
+→ dedicated profile quiescence
+→ M2 real meow-memory E2E
+→ if M2 PASS, M3 prerequisite check
+→ M3 real read-only seam
+```
+
+If the barrier itself times out, that is the next concrete Windows blocker and its process/PID evidence should be delivered without extra diagnostics.
+
+## M2 proof contract after browser handoff
+
+Once the provider opens successfully, M2 still requires:
 
 ```text
 same canonical DSH Session
-→ first-turn meow snapshot is plugin/context, while genuine human input remains the target
-→ memory_search / memory_project / memory_read / memory_remember / memory_update
-→ each tool/call has a tool/result in the same Session
-→ that tool result is present before the next real Web inference
-→ durable remember/update in meow SQLite
-→ later inference through another fresh Temporary Chat page with the same DSH Session
-→ remembered fact retrieved again
-→ real DSH compaction
-→ successful compaction/end
-→ next genuine user turn receives meow snapshot meta kind=reinjection
-→ real meow reflection
-→ automatic dream/busy-turn edge observed and recorded truthfully
+→ first-turn meow snapshot as plugin/context, not human intent
+→ memory_search/project/read/remember/update through normal DSH tool loop
+→ each tool result enters the same Session before next real Web inference
+→ durable remember/update
+→ fresh Temporary Chat page while same DSH Session continues
+→ retrieve remembered fact again
+→ DSH compaction
+→ reinjection on next genuine user turn
+→ reflection
+→ automatic-dream/busy-turn edge observed truthfully
 ```
 
-A stage remains `running` until all assertions for that stage pass. If an assertion or runtime step fails, that stage becomes `failed`, the first blocker is recorded, and later stages are never created or reported as passes.
-
-## Current integration-head execution
-
-The old PR #10/#11 reconstruction is obsolete for Windows execution.
-
-`scripts/m2-live-composite.ps1` now:
-
-1. fetches the current `web-win-live-001` head;
-2. creates a detached temporary worktree at that actual integration head;
-3. overlays only the current M2-owned live runner/doc from `web-m2-live-004`;
-4. verifies the integration package still contains `m2:live` and `meow-memory@0.27.0`;
-5. removes any stale `M2_LIVE_COMPOSITE_*` environment variables;
-6. records the actual integration ref/head, actual M2 source head and overlay paths;
-7. optionally runs install/typecheck/tests/build/load/pack;
-8. launches the real M2 live runner.
-
-A newer integration head is accepted by default and recorded truthfully. `-ExpectedIntegrationHead` is optional and should be used only when the operator intentionally wants an exact-head guard.
-
-No `src/chatgpt/**` or `src/webcodex/**` file is modified by this M2 overlay.
-
-## Exact next Windows command
-
-After M1 has created the dedicated provider profile and completed interactive ChatGPT sign-in:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\m2-live-composite.ps1 -IntegrationRef web-win-live-001
-```
-
-Optional explicit evidence destination:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\m2-live-composite.ps1 -IntegrationRef web-win-live-001 -EvidencePath "$env:TEMP\m2-win-live.json"
-```
-
-No WebCodex environment variable is required.
-
-## Current execution status
-
-The Windows/browser live sequence is still **未执行** in this ChatGPT window. This source audit and M2 repair do not count as product live evidence.
-
-The first real product blocker, if any, must come from the Windows evidence JSON. An M1/browser/provider blocker must be reported to M1 rather than repaired on this branch.
+A failed stage remains failed and later stages are not represented as passes.
