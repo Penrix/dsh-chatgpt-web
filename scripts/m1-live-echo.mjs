@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -21,6 +22,7 @@ const turnTimeoutMs = Number(process.env.M1_TURN_TIMEOUT_MS || 900_000)
 const overallTimeoutMs = Number(process.env.M1_OVERALL_TIMEOUT_MS || 1_800_000)
 const sessionId = SessionId(`penrix-m1-live-${Date.now()}`)
 const evidencePath = resolve(process.env.M1_LIVE_EVIDENCE || join(tmpdir(), `dsh-chatgpt-web-m1-live-${Date.now()}.json`))
+const profileExistedBefore = existsSync(profileDir)
 
 function waitForIdle(ctx, agent, timeoutMs) {
   return new Promise((resolveIdle, rejectIdle) => {
@@ -133,13 +135,17 @@ try {
   assert.match(finalText, /M1_LIVE_OK/, 'second real inference must include the acceptance marker')
   assert.match(finalText, /echo:M1_LIVE_PING/, 'second real inference must use the exact DSH tool result')
 
+  assert.ok(existsSync(profileDir), 'dedicated ChatGPT provider profile must exist after a successful live run')
+
   const evidence = {
-    packet: 'WEB-M1-LIVE-008 rev 1',
+    packet: 'WEB-M1-WIN-LIVE-009 rev 1',
     accepted: true,
     provider,
     model,
     sessionId: String(sessionId),
     profileDir,
+    profileExistedBefore,
+    profileExistsAfter: existsSync(profileDir),
     echoExecutions,
     counts: {
       assistantMessages: assistantIndexes.length,
@@ -163,12 +169,14 @@ try {
   console.log(`EVIDENCE: ${evidencePath}`)
 } catch (error) {
   const failure = {
-    packet: 'WEB-M1-LIVE-008 rev 1',
+    packet: 'WEB-M1-WIN-LIVE-009 rev 1',
     accepted: false,
     provider,
     model,
     sessionId: String(sessionId),
     profileDir,
+    profileExistedBefore,
+    profileExistsAfter: existsSync(profileDir),
     echoExecutions,
     error: error instanceof Error
       ? { name: error.name, message: error.message, stack: error.stack }
