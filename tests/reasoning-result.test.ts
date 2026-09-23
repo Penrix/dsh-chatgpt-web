@@ -36,6 +36,33 @@ describe('reasoning result protocol', () => {
     })
   })
 
+  it('normalizes the exact Windows-captured markdown underscore escapes', () => {
+    const result = parseReasoningResult(
+      String.raw`{"type":"action\_proposal","action":"echo","arguments":{"text":"M1\_LIVE\_PING"}}`,
+    )
+    expect(result).toEqual({
+      type: 'action_proposal',
+      action: 'echo',
+      arguments: { text: 'M1_LIVE_PING' },
+    })
+  })
+
+  it('preserves standard JSON escapes while normalizing only markdown underscore escapes', () => {
+    const result = parseReasoningResult(
+      String.raw`{"type":"final","content":"slash \\ quote \" newline \n path C:\\Users\\123 token M1\_LIVE"}`,
+    )
+    expect(result).toEqual({
+      type: 'final',
+      content: 'slash \\ quote " newline \n path C:\\Users\\123 token M1_LIVE',
+    })
+  })
+
+  it('rejects unsupported invalid JSON escapes instead of guessing a repair', () => {
+    expect(() => parseReasoningResult(
+      String.raw`{"type":"final","content":"bad\qescape"}`,
+    )).toThrow(/invalid reasoning envelope/i)
+  })
+
   it('accepts one outer JSON code fence as transport tolerance', () => {
     expect(parseReasoningResult('```json\n{"type":"final","content":"done"}\n```')).toEqual({
       type: 'final',
