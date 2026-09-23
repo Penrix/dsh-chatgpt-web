@@ -179,13 +179,7 @@ try {
   $uri = [Uri]$serverUrl
   $loopbackBaseUrl = $uri.IsAbsoluteUri -and
     ($uri.Scheme -eq 'http' -or $uri.Scheme -eq 'https') -and
-    [Net.IPAddress]::TryParse($uri.Host,[ref]([Net.IPAddress]$null))
-  if ($loopbackBaseUrl) {
-    $address = [Net.IPAddress]::Parse($uri.Host)
-    $loopbackBaseUrl = [Net.IPAddress]::IsLoopback($address)
-  } else {
-    $loopbackBaseUrl = $uri.Host -eq 'localhost'
-  }
+    $uri.IsLoopback
 } catch {
   $loopbackBaseUrl = $false
 }
