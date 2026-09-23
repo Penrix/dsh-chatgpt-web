@@ -18,7 +18,9 @@ $M2Branch = "web-m2-live-004"
 $RequiredM2Paths = @(
   "docs/m2-live-acceptance.md",
   "scripts/m2-live.mjs",
+  "scripts/m2-home-scope.mjs",
   "scripts/m2-profile-quiescence.mjs",
+  "tests/m2-home-scope.test.ts",
   "tests/m2-profile-quiescence.test.ts"
 )
 
@@ -129,7 +131,7 @@ try {
       throw "Dedicated ChatGPT profile did not become quiescent before M2."
     }
 
-    Write-Host "Starting WEB-M2-WIN-LIVE-006 real Windows/browser acceptance..."
+    Write-Host "Starting WEB-M2-WIN-LIVE-007 real Windows/browser acceptance..."
     npm run m2:live
     if ($LASTEXITCODE -ne 0) {
       throw "m2:live exited with code $LASTEXITCODE. Inspect the evidence JSON for the first exact blocker."
