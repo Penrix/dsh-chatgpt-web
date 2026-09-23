@@ -231,6 +231,30 @@ End.`
     expect(() => validateActionProposal(rejected, [boundedUnion])).toThrow(/exactly one oneOf branch/i)
   })
 
+  it('enforces number bounds recursively through array items', () => {
+    const boundedArray = {
+      name: 'bounded_array',
+      description: 'Test recursive numeric bounds for array items.',
+      parameters: {
+        type: 'object',
+        properties: {
+          values: { type: 'array', items: { type: 'number', minimum: -1.5, maximum: 1.5 } },
+        },
+        required: ['values'],
+        additionalProperties: false,
+      },
+    } as unknown as ToolSchema
+    const accepted = parseReasoningResult(JSON.stringify({
+      type: 'action_proposal', action: 'bounded_array', arguments: { values: [-1.5, 0.25, 1.5] },
+    }))
+    if (accepted.type !== 'action_proposal') throw new Error('expected action proposal')
+    expect(() => validateActionProposal(accepted, [boundedArray])).not.toThrow()
+    const rejected = parseReasoningResult(JSON.stringify({
+      type: 'action_proposal', action: 'bounded_array', arguments: { values: [0, 2] },
+    }))
+    if (rejected.type !== 'action_proposal') throw new Error('expected action proposal')
+    expect(() => validateActionProposal(rejected, [boundedArray])).toThrow(/less than or equal/i)
+  })
   it('rejects malformed numeric bounds and unrelated unsupported keywords', () => {
     const malformedSchemas: unknown[] = [
       { type: 'object', properties: { value: { type: 'string', minimum: 1 } } },
