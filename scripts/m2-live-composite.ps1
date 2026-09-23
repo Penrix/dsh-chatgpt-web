@@ -17,7 +17,9 @@ if (-not $Repo) { throw "Run this script inside Penrix/dsh-chatgpt-web." }
 $M2Branch = "web-m2-live-004"
 $RequiredM2Paths = @(
   "docs/m2-live-acceptance.md",
-  "scripts/m2-live.mjs"
+  "scripts/m2-live.mjs",
+  "scripts/m2-profile-quiescence.mjs",
+  "tests/m2-profile-quiescence.test.ts"
 )
 
 Write-Host "Fetching current Windows integration and M2 source refs..."
@@ -85,6 +87,8 @@ try {
 
     if ($ProfileDir) {
       $env:M2_CHATGPT_PROFILE = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ProfileDir)
+    } else {
+      $env:M2_CHATGPT_PROFILE = [IO.Path]::GetFullPath((Join-Path $HOME '.dsh-chatgpt-web-penrix\chrome-profile'))
     }
     if ($EvidencePath) {
       $env:M2_LIVE_EVIDENCE = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($EvidencePath)
@@ -119,7 +123,13 @@ try {
       if ($LASTEXITCODE -ne 0) { throw "smoke:pack failed" }
     }
 
-    Write-Host "Starting WEB-M2-WIN-LIVE-005 real Windows/browser acceptance..."
+    Write-Host "Waiting for the dedicated ChatGPT profile to be fully released before M2..."
+    node scripts/m2-profile-quiescence.mjs --profile $env:M2_CHATGPT_PROFILE
+    if ($LASTEXITCODE -ne 0) {
+      throw "Dedicated ChatGPT profile did not become quiescent before M2."
+    }
+
+    Write-Host "Starting WEB-M2-WIN-LIVE-006 real Windows/browser acceptance..."
     npm run m2:live
     if ($LASTEXITCODE -ne 0) {
       throw "m2:live exited with code $LASTEXITCODE. Inspect the evidence JSON for the first exact blocker."
