@@ -16,7 +16,7 @@ import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import BasicCompaction from '@deepseek-ai/dsh-compaction-basic'
 import { ChatGptWebAdapter, compilePrompt } from '../lib/index.js'
 
-const PACKET = 'WEB-M2-WIN-LIVE-005 rev 1'
+const PACKET = 'WEB-M2-WIN-LIVE-006 rev 1'
 const SOURCE_STARTING_HEAD = '476e9b31c4c07b18ae0f45ef168816e5f3c53453'
 const REFLECT_MARKER = '[meow-memory-reflect]'
 const DREAM_MARKER = '[meow-memory-dream]'
