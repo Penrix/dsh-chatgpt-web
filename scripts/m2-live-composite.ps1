@@ -1,4 +1,6 @@
 param(
+  [string]$IntegrationRef = "web-win-live-001",
+  [string]$ExpectedIntegrationHead = "",
   [string]$ProfileDir = "",
   [string]$Model = "chatgpt-web/high",
   [string]$EvidencePath = "",
@@ -12,87 +14,65 @@ Set-StrictMode -Version Latest
 $Repo = (git rev-parse --show-toplevel).Trim()
 if (-not $Repo) { throw "Run this script inside Penrix/dsh-chatgpt-web." }
 
-$M1Base = "653995ea6d7ae014c3498c42082f263acde90185"
-$Pr10Head = "ee4a3b8afcb467b56ee18bc7527044d1b30ba38a"
-$Pr11Head = "d64791777248f21f70d32fb485ac75388472a254"
-$LeafBranch = "web-m2-live-004"
-
-Write-Host "Fetching exact M2/M1 acceptance refs..."
-$LeafRefspec = "+refs/heads/" + $LeafBranch + ":refs/remotes/origin/" + $LeafBranch
-$fetchArgs = @(
-  "-C", $Repo, "fetch", "origin",
-  $LeafRefspec,
-  "+refs/heads/web-m1-val-005:refs/remotes/origin/web-m1-val-005",
-  "+refs/heads/web-m1-safe-006:refs/remotes/origin/web-m1-safe-006"
+$M2Branch = "web-m2-live-004"
+$RequiredM2Paths = @(
+  "docs/m2-live-acceptance.md",
+  "scripts/m2-live.mjs"
 )
-& git @fetchArgs
+
+Write-Host "Fetching current Windows integration and M2 source refs..."
+$IntegrationRefspec = "+refs/heads/" + $IntegrationRef + ":refs/remotes/origin/" + $IntegrationRef
+$M2Refspec = "+refs/heads/" + $M2Branch + ":refs/remotes/origin/" + $M2Branch
+& git -C $Repo fetch origin $IntegrationRefspec $M2Refspec
 if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
 
-$LeafHead = (git -C $Repo rev-parse "origin/$LeafBranch").Trim()
-$ResolvedPr10 = (git -C $Repo rev-parse "origin/web-m1-val-005").Trim()
-$ResolvedPr11 = (git -C $Repo rev-parse "origin/web-m1-safe-006").Trim()
+$IntegrationHead = (git -C $Repo rev-parse ("origin/" + $IntegrationRef)).Trim()
+$M2SourceHead = (git -C $Repo rev-parse ("origin/" + $M2Branch)).Trim()
+if (-not $IntegrationHead) { throw "Unable to resolve current integration head for $IntegrationRef." }
+if (-not $M2SourceHead) { throw "Unable to resolve current M2 source head." }
 
-if ($ResolvedPr10 -ne $Pr10Head) {
-  throw "PR #10 head moved: expected $Pr10Head, got $ResolvedPr10"
-}
-if ($ResolvedPr11 -ne $Pr11Head) {
-  throw "PR #11 head moved: expected $Pr11Head, got $ResolvedPr11"
-}
-$MergeBase = (git -C $Repo merge-base $M1Base $LeafHead).Trim()
-if ($MergeBase -ne $M1Base) {
-  throw "M2 leaf is no longer descended from the accepted M1 base: expected merge-base $M1Base, got $MergeBase"
+if ($ExpectedIntegrationHead -and $IntegrationHead -ne $ExpectedIntegrationHead) {
+  throw "Integration head moved: expected $ExpectedIntegrationHead, got $IntegrationHead"
 }
 
 $Stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$Worktree = Join-Path $env:TEMP "dsh-chatgpt-web-m2-live-$Stamp"
-$Patch10 = Join-Path $env:TEMP "dsh-m2-pr10-$Stamp.patch"
-$Patch11 = Join-Path $env:TEMP "dsh-m2-pr11-$Stamp.patch"
+$Worktree = Join-Path $env:TEMP "dsh-chatgpt-web-m2-win-live-$Stamp"
 
 try {
-  Write-Host "Creating detached Windows composite worktree at $LeafHead"
-  git -C $Repo worktree add --detach $Worktree $LeafHead
+  Write-Host "Creating detached worktree from current integration head $IntegrationHead"
+  git -C $Repo worktree add --detach $Worktree $IntegrationHead
   if ($LASTEXITCODE -ne 0) { throw "git worktree add failed" }
-
-  $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-  $Patch10Text = (git -C $Repo diff --binary "$M1Base..$Pr10Head" | Out-String)
-  if ($LASTEXITCODE -ne 0) { throw "failed to materialize PR #10 patch" }
-  $Patch11Text = (git -C $Repo diff --binary "$M1Base..$Pr11Head" | Out-String)
-  if ($LASTEXITCODE -ne 0) { throw "failed to materialize PR #11 patch" }
-  [System.IO.File]::WriteAllText($Patch10, $Patch10Text, $Utf8NoBom)
-  [System.IO.File]::WriteAllText($Patch11, $Patch11Text, $Utf8NoBom)
 
   Push-Location $Worktree
   try {
-    git apply --3way $Patch10
-    if ($LASTEXITCODE -ne 0) { throw "failed to apply accepted PR #10 delta" }
-    git apply --3way $Patch11
-    if ($LASTEXITCODE -ne 0) { throw "failed to apply accepted PR #11 delta" }
-
-    $CompositePaths = @((git diff --name-only HEAD) | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    $ExpectedCompositePaths = @(
-      "docs/windows-m1-acceptance.md",
-      "scripts/smoke-load.mjs",
-      "scripts/smoke-pack.mjs",
-      "src/chatgpt/turn.ts",
-      "tests/prompt.test.ts",
-      "tests/send-boundary.test.ts"
-    )
-    $Unexpected = @($CompositePaths | Where-Object { $_ -notin $ExpectedCompositePaths })
-    $Missing = @($ExpectedCompositePaths | Where-Object { $_ -notin $CompositePaths })
-    if ($Unexpected.Count -gt 0 -or $Missing.Count -gt 0) {
-      throw "Composite path mismatch. Unexpected=[$($Unexpected -join ', ')] Missing=[$($Missing -join ', ')]"
+    foreach ($Path in $RequiredM2Paths) {
+      git checkout $M2SourceHead -- $Path
+      if ($LASTEXITCODE -ne 0) { throw "failed to overlay M2-owned path: $Path" }
     }
 
-    $CompositeDiff = (git diff --stat HEAD | Out-String).Trim()
-    Write-Host "Temporary composite delta:"
-    Write-Host $CompositeDiff
+    $OverlayPaths = @((git diff --name-only HEAD) | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $Unexpected = @($OverlayPaths | Where-Object { $_ -notin $RequiredM2Paths })
+    $Missing = @($RequiredM2Paths | Where-Object { $_ -notin $OverlayPaths })
+    if ($Unexpected.Count -gt 0 -or $Missing.Count -gt 0) {
+      throw "M2 overlay path mismatch. Unexpected=[$($Unexpected -join ', ')] Missing=[$($Missing -join ', ')]"
+    }
 
-    $env:M2_LIVE_COMPOSITE_LEAF_HEAD = $LeafHead
-    $env:M2_LIVE_COMPOSITE_M1_BASE = $M1Base
-    $env:M2_LIVE_COMPOSITE_PR10_HEAD = $Pr10Head
-    $env:M2_LIVE_COMPOSITE_PR11_HEAD = $Pr11Head
-    $env:M2_LIVE_COMPOSITE_DIFF_STAT = $CompositeDiff
-    $env:M2_LIVE_COMPOSITE_PATHS = ($CompositePaths -join ",")
+    $Package = Get-Content -LiteralPath (Join-Path $Worktree "package.json") -Raw | ConvertFrom-Json
+    if ($Package.scripts.'m2:live' -ne "npm run build && node scripts/m2-live.mjs") {
+      throw "Current integration head does not contain the required M2 script wiring."
+    }
+    if ($Package.devDependencies.'meow-memory' -ne "0.27.0") {
+      throw "Current integration head does not pin meow-memory@0.27.0."
+    }
+
+    # Old WEB-M2-LIVE-004 composite metadata described PR #10/#11, not the
+    # current Windows integration head. Remove it so it cannot misrepresent this run.
+    Get-ChildItem Env:M2_LIVE_COMPOSITE_* -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
+
+    $env:M2_WIN_INTEGRATION_REF = $IntegrationRef
+    $env:M2_WIN_INTEGRATION_HEAD = $IntegrationHead
+    $env:M2_WIN_M2_SOURCE_HEAD = $M2SourceHead
+    $env:M2_WIN_OVERLAY_PATHS = ($OverlayPaths -join ",")
     $env:M2_CHATGPT_MODEL = $Model
 
     if ($ProfileDir) {
@@ -102,12 +82,22 @@ try {
       $env:M2_LIVE_EVIDENCE = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($EvidencePath)
     }
 
-    Write-Host "Installing exact dependency graph..."
+    Write-Host "WINDOWS INTEGRATION REF: $IntegrationRef"
+    Write-Host "WINDOWS INTEGRATION HEAD: $IntegrationHead"
+    Write-Host "M2 SOURCE HEAD: $M2SourceHead"
+    Write-Host "M2 OVERLAY: $($OverlayPaths -join ', ')"
+    if ($env:M2_CHATGPT_PROFILE) {
+      Write-Host "PROFILE: $env:M2_CHATGPT_PROFILE"
+    } else {
+      Write-Host "PROFILE: default dedicated provider profile (~/.dsh-chatgpt-web-penrix/chrome-profile)"
+    }
+
+    Write-Host "Installing exact current integration dependency graph..."
     npm install --no-audit --no-fund
     if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
 
     if (-not $SkipRegression) {
-      Write-Host "Running composite regression checks..."
+      Write-Host "Running current integration regression checks before M2 live..."
       npm run typecheck
       if ($LASTEXITCODE -ne 0) { throw "typecheck failed" }
       npm test
@@ -120,7 +110,7 @@ try {
       if ($LASTEXITCODE -ne 0) { throw "smoke:pack failed" }
     }
 
-    Write-Host "Starting WEB-M2-LIVE-004 real Windows/browser acceptance..."
+    Write-Host "Starting WEB-M2-WIN-LIVE-005 real Windows/browser acceptance..."
     npm run m2:live
     if ($LASTEXITCODE -ne 0) {
       throw "m2:live exited with code $LASTEXITCODE. Inspect the evidence JSON for the first exact blocker."
@@ -131,11 +121,10 @@ try {
   }
 }
 finally {
-  Remove-Item -Force -ErrorAction SilentlyContinue $Patch10, $Patch11
   if ((Test-Path $Worktree) -and -not $KeepWorktree) {
     git -C $Repo worktree remove --force $Worktree
   }
   elseif (Test-Path $Worktree) {
-    Write-Host "Kept composite worktree: $Worktree"
+    Write-Host "Kept M2 Windows worktree: $Worktree"
   }
 }
