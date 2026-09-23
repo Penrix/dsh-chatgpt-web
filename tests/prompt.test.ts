@@ -103,6 +103,8 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('"required":["content","keywords"]')
     expect(result.text).toContain('"toolActionsAllowed":true')
     expect(result.text).toContain('"type":"action_proposal"')
+    expect(result.text).toContain('OUTPUT PROTOCOL IS MACHINE-PARSED')
+    expect(result.text).toContain('Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary')
     expect(result.text).toContain('DSH alone validates, authorizes, and executes')
   })
 
