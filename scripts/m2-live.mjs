@@ -62,6 +62,7 @@ const evidence = {
     integrationHead: process.env.M2_WIN_INTEGRATION_HEAD,
     m2SourceHead: process.env.M2_WIN_M2_SOURCE_HEAD,
     overlayPaths: process.env.M2_WIN_OVERLAY_PATHS?.split(',').filter(Boolean),
+    changedPaths: process.env.M2_WIN_CHANGED_PATHS?.split(',').filter(Boolean),
     legacyCompositeMetadataPresent,
     legacyCompositeMetadataUsed: false,
   },
