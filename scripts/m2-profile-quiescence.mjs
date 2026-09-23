@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import process from 'node:process'
 
 function parseArgs(argv) {
@@ -136,7 +137,7 @@ async function main() {
   }) + '\n')
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname)) {
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
   main().catch(error => {
     process.stderr.write(JSON.stringify({
       packet: 'WEB-M2-WIN-LIVE-006 rev 1',
