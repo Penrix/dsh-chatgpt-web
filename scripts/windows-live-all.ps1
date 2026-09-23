@@ -187,7 +187,7 @@ switch ($Phase) {
     Write-Host "Preserving existing M1 PASS evidence: $env:M1_LIVE_EVIDENCE"
     Write-Host "M1 completedAt: $($m1.completedAt)"
 
-    Set-M2Environment (Join-Path $EvidenceRoot 'm2-live-resume-rev8.json')
+    Set-M2Environment (Join-Path $EvidenceRoot 'm2-live-resume-after-m1-011.json')
     Wait-M2ProfileQuiescence
 
     Write-Host ''
