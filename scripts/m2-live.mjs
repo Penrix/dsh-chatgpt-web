@@ -16,8 +16,9 @@ import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import BasicCompaction from '@deepseek-ai/dsh-compaction-basic'
 import { ChatGptWebAdapter, compilePrompt } from '../lib/index.js'
 import { restoreHomeEnvironment, snapshotHomeEnvironment, withTemporaryHome } from './m2-home-scope.mjs'
+import { boundedReasoningEnvelopeDiagnostic } from './m2-reasoning-diagnostic.mjs'
 
-const PACKET = 'WEB-M2-WIN-LIVE-007 rev 1'
+const PACKET = 'WEB-M2-WIN-LIVE-008 rev 1'
 const SOURCE_STARTING_HEAD = '476e9b31c4c07b18ae0f45ef168816e5f3c53453'
 const REFLECT_MARKER = '[meow-memory-reflect]'
 const DREAM_MARKER = '[meow-memory-dream]'
@@ -83,6 +84,7 @@ const evidence = {
   agentErrors: [],
   stages: [],
   persistence: {},
+  reasoningEnvelopeDiagnostic: null,
   firstBlocker: null,
   finalStatus: 'running',
   startedAt: new Date().toISOString(),
@@ -424,6 +426,10 @@ async function main() {
       composerMaxChars,
       contextWindow: 90000,
       maxTokens: 16384,
+      onReasoningEnvelopeError({ rawText, error }) {
+        evidence.reasoningEnvelopeDiagnostic = boundedReasoningEnvelopeDiagnostic(rawText, error)
+        writeEvidence()
+      },
     }
     adapter = new ChatGptWebAdapter(adapterOptions)
     ctx.llm.registerAdapter(['chatgpt-web'], adapter)
@@ -535,7 +541,7 @@ async function main() {
       seedAgent,
       'seed-real-memory',
       'Use memory_remember exactly once before answering. Store this exact fact: "' + seedToken
-        + ' is the seed fact for WEB-M2-WIN-LIVE-007." Use project "' + project
+        + ' is the seed fact for WEB-M2-WIN-LIVE-008." Use project "' + project
         + '", level "fact", importance 5, and keywords ["' + seedToken + '","m2-live-seed"].',
     )
     assertToolRoundTrip(seed, 'memory_remember')
