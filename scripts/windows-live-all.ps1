@@ -50,7 +50,7 @@ function Set-M2Environment([string]$EvidencePath) {
   Get-ChildItem Env:M2_LIVE_COMPOSITE_* -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
   $env:M2_WIN_INTEGRATION_REF = $ExpectedBranch
   $env:M2_WIN_INTEGRATION_HEAD = $Head
-  $env:M2_WIN_M2_SOURCE_HEAD = '36e855d774374823129e6626856346261af8d065'
+  $env:M2_WIN_M2_SOURCE_HEAD = '8b69da5d952fc0e66250bc2ad0571398ae696d0d'
   $env:M2_WIN_OVERLAY_PATHS = 'docs/m2-live-acceptance.md,scripts/m2-live.mjs,scripts/m2-profile-quiescence.mjs,tests/m2-profile-quiescence.test.ts'
   Remove-Item Env:M2_WIN_CHANGED_PATHS -ErrorAction SilentlyContinue
 }
