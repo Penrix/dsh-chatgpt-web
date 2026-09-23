@@ -518,14 +518,14 @@ async function main() {
       seedAgent,
       'seed-real-memory',
       'Use memory_remember exactly once before answering. Store this exact fact: "' + seedToken
-        + ' is the seed fact for WEB-M2-LIVE-004." Use project "' + project
+        + ' is the seed fact for WEB-M2-WIN-LIVE-005." Use project "' + project
         + '", level "fact", importance 5, and keywords ["' + seedToken + '","m2-live-seed"].',
     )
     assertToolRoundTrip(seed, 'memory_remember')
     evidence.persistence.afterSeed = dbEvidence()
     assert.equal(evidence.persistence.afterSeed.exists, true, 'meow-memory SQLite database was not created')
     assert.equal(evidence.persistence.afterSeed.bytes > 0, true, 'meow-memory SQLite database is empty')
-    writeEvidence()
+    finishStage(seed, 'passed')
 
     mainAgent = await ctx.agentLoop.create(
       SessionId('m2-live-main-' + runId),
@@ -562,6 +562,7 @@ async function main() {
         + '", level "fact", importance 7, and keywords ["' + durableToken + '","m2-live-durable"].',
     )
     assertToolRoundTrip(remember, 'memory_remember')
+    finishStage(remember, 'passed')
 
     const search = await runUserTurn(
       mainAgent,
@@ -570,7 +571,7 @@ async function main() {
     )
     const durableId = parseSearchId(search, durableToken)
     evidence.identifiers.durableId = durableId
-    writeEvidence()
+    finishStage(search, 'passed', { durableId })
 
     const projectStage = await runUserTurn(
       mainAgent,
@@ -578,6 +579,7 @@ async function main() {
       'Use memory_project exactly once with project "' + project + '" before answering. Summarize only what the tool returns.',
     )
     assertToolRoundTrip(projectStage, 'memory_project')
+    finishStage(projectStage, 'passed')
 
     const read = await runUserTurn(
       mainAgent,
@@ -585,6 +587,7 @@ async function main() {
       'Use memory_read exactly once with id "' + durableId + '" before answering. Report the remembered content from the tool result.',
     )
     assertToolRoundTrip(read, 'memory_read')
+    finishStage(read, 'passed')
 
     const update = await runUserTurn(
       mainAgent,
@@ -595,7 +598,7 @@ async function main() {
     )
     assertToolRoundTrip(update, 'memory_update')
     evidence.persistence.afterUpdate = dbEvidence()
-    writeEvidence()
+    finishStage(update, 'passed')
 
     const requestOrdinalBeforeFreshRecall = evidence.providerRequests.length
     const freshRecall = await runUserTurn(
@@ -654,6 +657,7 @@ async function main() {
         + '" before answering. This non-memory tool call exists only to trigger meow-memory reflection.',
     )
     assertToolRoundTrip(echo, 'm2_live_echo')
+    finishStage(echo, 'passed')
 
     const reflectRequest = await waitForCondition(
       'meow-memory reflection provider request',
