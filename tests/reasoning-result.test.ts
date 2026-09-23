@@ -50,6 +50,16 @@ describe('reasoning result protocol', () => {
     })
   })
 
+  it('keeps escaped quotes, braces, and Windows paths inside the single JSON object string', () => {
+    const raw = String.raw`Here is the object:
+{"type":"final","content":"Path C:\\Users\\123, quoted \\\"{ok}\\\""}
+End.`
+    expect(parseReasoningResult(raw)).toEqual({
+      type: 'final',
+      content: 'Path C:\\Users\\123, quoted "{ok}"',
+    })
+  })
+
   it('accepts one JSON code fence even when presentation prose surrounds it', () => {
     expect(parseReasoningResult('Here is the object:\n\`\`\`json\n{"type":"final","content":"done"}\n\`\`\`\nThat is the complete object.')).toEqual({
       type: 'final',
