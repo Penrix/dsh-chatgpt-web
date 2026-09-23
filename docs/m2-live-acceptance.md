@@ -1,86 +1,100 @@
-# WEB-M2-WIN-LIVE-006 live acceptance
+# WEB-M2-WIN-LIVE-007 live acceptance
 
-This packet owns M2 only. M1 real E2E has already passed on Windows integration head `ff62ba6caa3934da5dfbf52693f594951b0d3fb7` and must not be rerun unless M1 production behavior changes.
+This packet owns M2 acceptance only. M1 real E2E remains preserved and must not be rerun.
 
 ## Verified Windows baseline
 
-- DSH Desktop 2.0.13.
-- Node 24.16.0 / npm 11.13.0 / PowerShell 7.6.3.
-- Latest Prepare passed install, typecheck, 9 test files / 54 tests, build, smoke:load and smoke:pack.
-- The candidate package is installed in the active Desktop profile and DesktopReadback passed.
-- WebCodex local service, runner and exact project are online.
-- M1 real ChatGPT Web → DSH echo → second real inference passed on `ff62ba6c...`.
-- M2 then failed at `seed-real-memory` before any memory tool or persistence assertion.
+- Integration checkout tested before this repair: `web-win-live-001@5cf385c11a1f0f993d86f1bc605cb79750222cb4`.
+- M2 source head tested before this repair: `8b69da5d952fc0e66250bc2ad0571398ae696d0d`.
+- Existing M1 PASS evidence remains: `C:\Users\123\AppData\Local\Temp\dsh-chatgpt-web-win-live-evidence-ff62ba6c\m1-live.json`.
+- Rev 6 M2 evidence remains preserved at `m2-live-resume.json`.
+- Rev 6 quiescence barrier passed with no matching Chrome/Edge profile owner, yet M2 still failed at `seed-real-memory` before any memory tool ran.
+- M3 did not run.
 
-## First real M2 blocker
+## Proven root cause
 
-The failed M2 request reused the same dedicated profile that M1 had just used successfully:
+Rev 6's profile-quiescence hypothesis was disproven as the sufficient cause.
+
+`scripts/m2-live.mjs` changed process-wide `HOME` and `USERPROFILE` to the fake meow test home before dynamically importing `meow-memory`, then kept those fake values in place through ChatGPT adapter construction and Chrome/Playwright startup.
+
+The bounded Windows A/B reproduction proved:
+
+1. normal `HOME/USERPROFILE` + fresh custom `userDataDir` -> launch PASS;
+2. only changing `HOME` and `USERPROFILE` to a fresh fake home before launch -> FAIL with the same Chrome 152 remote-debugging default-data-dir rejection;
+3. a fresh profile under the normal Penrix dedicated-profile parent path passes under the normal environment.
+
+Therefore the actual defect is **M2 harness environment leakage into Chrome/Playwright startup**. The dedicated profile path itself is valid, and an occupied profile is not the proven cause.
+
+Chromium's current remote-debugging check fails closed when it cannot determine the default data directory. The fake `HOME/USERPROFILE` changes that determination boundary on Windows.
+
+## Narrow M2-only fix
+
+`scripts/m2-home-scope.mjs` provides a small environment-scope primitive:
+
+- snapshot original `HOME` / `USERPROFILE`;
+- set both to the temporary meow home only while the supplied operation runs;
+- restore both in `finally`, preserving originally-undefined variables exactly.
+
+`scripts/m2-live.mjs` now uses that scope only for the dynamic `import('meow-memory')` boundary. This preserves meow-memory 0.27.0 import-captured homedir paths while avoiding fake-home leakage into the browser.
+
+The project database remains independently isolated by the explicit workspace-relative `projectDir`.
+
+Before creating the ChatGPT adapter, the live harness now explicitly asserts that `HOME/USERPROFILE` equal their original values and records `restoredBeforeAdapter: true` in evidence.
+
+The outer live-run `finally` retains a defensive restoration on every exit.
+
+## Rev 6 quiescence barrier status
+
+The bounded profile-quiescence barrier remains as a safety check, but it is no longer described as the proven root-cause fix.
+
+It still:
+
+- observes only Chrome/Edge using the exact dedicated `--user-data-dir`;
+- never kills a process;
+- never deletes lock files;
+- never changes profiles;
+- fails closed on timeout.
+
+## Focused regression coverage
+
+`tests/m2-home-scope.test.ts` proves:
+
+- temporary fake home is visible inside the meow import/bootstrap scope;
+- original environment is restored before later adapter/browser-style use;
+- restoration occurs when the import/bootstrap operation throws;
+- undefined HOME/USERPROFILE values are restored exactly.
+
+`tests/m2-profile-quiescence.test.ts` remains unchanged and continues to cover the rev 6 safety barrier truthfully.
+
+## Packaging
+
+This repair remains scripts/tests/docs only. It does not modify `src/**`, `package.json`, M1 production code, or M3 production code.
+
+Therefore no Prepare, repack, Desktop reinstall, or DesktopReadback is required before ResumeM2.
+
+## ResumeM2
+
+ResumeM2 must preserve the existing M1 PASS and must not rerun M1.
+
+The rev 6 failure file remains preserved. Rev 7 writes a new M2 evidence file:
 
 ```text
-C:\Users\123\.dsh-chatgpt-web-penrix\chrome-profile
+m2-live-resume-rev7.json
 ```
 
-The second `browserType.launchPersistentContext` timed out after 180000 ms. Chrome stderr said remote debugging requires a non-default data directory even though the launch command already contained the dedicated `--user-data-dir=...` and `--remote-debugging-pipe`.
+Expected order:
 
-Source audit establishes:
+```text
+existing M1 PASS evidence
+-> bounded profile quiescence safety check
+-> M2 with original HOME/USERPROFILE restored before browser startup
+-> on M2 PASS, existing M3 prerequisite check
+-> M3 real read-only seam
+```
 
-1. M1 awaits `adapter.dispose()`.
-2. `ChatGptWebAdapter.dispose()` awaits `ChatGptBrowser.close()`.
-3. `ChatGptBrowser.close()` awaits `context.close()`, but deliberately swallows a close rejection.
-4. The integration runner waits for the M1 Node child process to exit, then immediately launches M2 against the identical persistent profile.
-5. There was no OS-level proof that the previous Chrome profile owner/process had fully disappeared before the second persistent launch.
-
-The Windows evidence does **not** prove whether the remaining owner window came from slow Chrome/Windows process reaping after a successful close or from a close failure hidden by best-effort disposal. The concrete defect is the same in either case: the sequential M1 → M2 path crossed the same-profile launch boundary without a quiescence check.
-
-## Narrow M2-owned fix
-
-The fix does not change M1 parser, protocol, send safety, browser launch flags, profile path, cookies or login state.
-
-`scripts/m2-profile-quiescence.mjs` performs a bounded, read-only Windows process check:
-
-- inspects only `chrome.exe` / `msedge.exe`;
-- matches only a process whose command line contains the exact dedicated `--user-data-dir`;
-- waits until no matching process remains;
-- never kills a process;
-- never deletes `Singleton*` files;
-- never changes or clones the profile;
-- times out fail-closed with only process name/PID evidence.
-
-Focused regression coverage exercises:
-
-- occupied → occupied → released: barrier succeeds only after release;
-- continuously occupied: barrier exits blocked with `M2_PROFILE_BUSY` and does not mutate anything.
-
-The standalone M2 launcher and the Windows integration runner both execute this barrier before M2 opens the persistent profile.
-
-## Existing M1 PASS is preserved
-
-Draft PR #17 adds `ResumeM2`.
-
-`ResumeM2`:
-
-1. requires the existing `m1-live.json`;
-2. requires `accepted=true`;
-3. requires its recorded `profileDir` to equal the current dedicated profile;
-4. does **not** execute M1;
-5. runs the quiescence barrier;
-6. runs M2 and writes new M2 resume evidence;
-7. only on M2 success proceeds directly to the existing M3 prerequisite check and M3 live seam;
-8. stops on the first failure.
-
-The original failed `m2-live.json` is preserved; resumed evidence is written separately as `m2-live-resume.json`.
-
-## Production package / reinstall
-
-This repair changes acceptance scripts, tests and documentation only. It does not change `src/**`, `package.json`, the packed runtime bundle, M1 production behavior or M3 production behavior.
-
-Therefore the already-installed production candidate remains byte-identical for this repair:
-
-**Prepare / repack / Desktop reinstall / DesktopReadback are not required before ResumeM2.**
+Stop at the first new real blocker and do not run extra diagnostics merely for curiosity.
 
 ## Exact Windows resume command
-
-Use the evidence root that already contains the passed M1 evidence:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\windows-live-all.ps1 `
@@ -88,36 +102,4 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows-live-all.ps1 `
   -EvidenceRoot 'C:\Users\123\AppData\Local\Temp\dsh-chatgpt-web-win-live-evidence-ff62ba6c'
 ```
 
-No M1 rerun occurs.
-
-Expected order:
-
-```text
-existing M1 accepted evidence
-→ dedicated profile quiescence
-→ M2 real meow-memory E2E
-→ if M2 PASS, M3 prerequisite check
-→ M3 real read-only seam
-```
-
-If the barrier itself times out, that is the next concrete Windows blocker and its process/PID evidence should be delivered without extra diagnostics.
-
-## M2 proof contract after browser handoff
-
-Once the provider opens successfully, M2 still requires:
-
-```text
-same canonical DSH Session
-→ first-turn meow snapshot as plugin/context, not human intent
-→ memory_search/project/read/remember/update through normal DSH tool loop
-→ each tool result enters the same Session before next real Web inference
-→ durable remember/update
-→ fresh Temporary Chat page while same DSH Session continues
-→ retrieve remembered fact again
-→ DSH compaction
-→ reinjection on next genuine user turn
-→ reflection
-→ automatic-dream/busy-turn edge observed truthfully
-```
-
-A failed stage remains failed and later stages are not represented as passes.
+Real Windows M2/M3 acceptance remains local-only and is not claimed by this remote repair.
