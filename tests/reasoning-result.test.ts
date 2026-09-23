@@ -249,6 +249,7 @@ End.`
 
   it('does not mutate the raw numeric-bound schema during validation', () => {
     const before = structuredClone(memorySearch.parameters)
+    const serializedBefore = JSON.stringify(memorySearch.parameters)
     const result = parseReasoningResult(JSON.stringify({
       type: 'action_proposal', action: 'memory_search',
       arguments: { project: 'p', query: 'q', days: 7, k: 3, content_max: 500 },
@@ -256,6 +257,7 @@ End.`
     if (result.type !== 'action_proposal') throw new Error('expected action proposal')
     validateActionProposal(result, [memorySearch])
     expect(memorySearch.parameters).toEqual(before)
+    expect(JSON.stringify(memorySearch.parameters)).toBe(serializedBefore)
   })
   it('validates an action proposal against the exact DSH tool schema', () => {
     const result = parseReasoningResult(JSON.stringify({
