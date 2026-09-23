@@ -87,9 +87,7 @@ function singleFencedJsonObject(text: string): string | undefined {
     throw new Error('JSON-like content outside the single Markdown fence is ambiguous')
   }
 
-  const candidate = (match[2] ?? '').trim()
-  JSON.parse(candidate)
-  return candidate
+  return (match[2] ?? '').trim()
 }
 
 function normalizeReasoningPresentation(raw: string): string {
@@ -119,9 +117,49 @@ function normalizeReasoningPresentation(raw: string): string {
     throw new Error('JSON-like content outside the single object is ambiguous')
   }
 
-  const candidate = trimmed.slice(span.start, span.end)
-  JSON.parse(candidate)
-  return candidate
+  return trimmed.slice(span.start, span.end)
+}
+
+function normalizeMarkdownJsonStringEscapes(candidate: string): string {
+  let result = ''
+  let inString = false
+
+  for (let index = 0; index < candidate.length; index += 1) {
+    const char = candidate[index]
+    if (!inString) {
+      result += char
+      if (char === '"') inString = true
+      continue
+    }
+
+    if (char === '"') {
+      result += char
+      inString = false
+      continue
+    }
+
+    if (char !== '\\') {
+      result += char
+      continue
+    }
+
+    const next = candidate[index + 1]
+    if (next === undefined) {
+      result += char
+      continue
+    }
+
+    if (next === '_') {
+      result += '_'
+      index += 1
+      continue
+    }
+
+    result += char + next
+    index += 1
+  }
+
+  return result
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -131,7 +169,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 export function parseReasoningResult(raw: string): ReasoningResult {
   let candidate: string
   try {
-    candidate = normalizeReasoningPresentation(raw)
+    candidate = normalizeMarkdownJsonStringEscapes(normalizeReasoningPresentation(raw))
   } catch (error) {
     throw new LlmError(
       'ChatGPT Web returned an invalid reasoning envelope presentation: expected exactly one JSON object.',
