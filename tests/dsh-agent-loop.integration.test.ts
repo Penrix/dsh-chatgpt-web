@@ -34,14 +34,37 @@ class CandidateAdapter extends LlmAdapter {
   }
 }
 
-function waitForIdle(ctx: Context, agent: Agent): Promise<void> {
-  return new Promise(resolve => {
-    const dispose = ctx.on('agent/status', ({ agent: subject, status }) => {
-      if (subject !== agent || status !== 'idle') return
-      dispose()
-      resolve()
-    })
+class FailingAdapter extends LlmAdapter {
+  override stream(): AsyncIterable<StreamChunk> {
+    return (async function* () {
+      throw new Error('dedicated browser failed before composer readiness')
+      yield { type: 'finish', reason: 'stop' } as StreamChunk
+    })()
+  }
+}
+
+
+async function runAndObserve(
+  ctx: Context,
+  agent: Agent,
+  start: () => void,
+): Promise<{ statuses: string[]; errors: unknown[] }> {
+  const statuses: string[] = []
+  const errors: unknown[] = []
+  const stopStatus = ctx.on('agent/status', ({ agent: subject, status }) => {
+    if (subject === agent) statuses.push(status)
   })
+  const stopError = ctx.on('agent/error', ({ agent: subject, error }) => {
+    if (subject === agent) errors.push(error)
+  })
+  try {
+    start()
+    await agent.whenIdle()
+    return { statuses, errors }
+  } finally {
+    stopStatus()
+    stopError()
+  }
 }
 
 async function createHarness(adapter: CandidateAdapter): Promise<Context> {
@@ -85,12 +108,14 @@ describe('DSH 0.1.5-rc.2 native tool-loop compatibility', () => {
       provider: 'candidate',
       model: 'candidate-model',
     })
-    const idle = waitForIdle(ctx, agent)
-    agent.followup(createUserMessage({
-      content: [{ type: 'text', text: 'Use echo, then answer.' }],
-      source: { kind: 'user' },
-    }))
-    await idle
+    const observation = await runAndObserve(ctx, agent, () => {
+      agent.followup(createUserMessage({
+        content: [{ type: 'text', text: 'Use echo, then answer.' }],
+        source: { kind: 'user' },
+      }))
+    })
+    expect(observation.statuses).toEqual(['running', 'idle'])
+    expect(observation.errors).toEqual([])
 
     expect(executions).toBe(1)
     expect(adapter.requests).toHaveLength(2)
@@ -107,5 +132,40 @@ describe('DSH 0.1.5-rc.2 native tool-loop compatibility', () => {
     expect(events.filter(event => event.type === 'tool/call')).toHaveLength(1)
     expect(events.filter(event => event.type === 'tool/result')).toHaveLength(1)
     expect(events.filter(event => event.type === 'assistant/message')).toHaveLength(2)
+  })
+
+  it('surfaces a provider failure on agent/error before any zero-tool assertion', async () => {
+    const ctx = await createHarness(new FailingAdapter() as unknown as CandidateAdapter)
+    contexts.push(ctx)
+
+    let executions = 0
+    ctx.tools.register(defineContentToolFixture({
+      name: 'echo',
+      description: 'Return the supplied text.',
+      parameters: {
+        text: { type: 'string', required: true },
+      },
+      async execute({ text }) {
+        executions += 1
+        return [{ type: 'text', text: `echo:${text}` }]
+      },
+    }))
+
+    const agent = await ctx.agentLoop.create(SessionId('penrix-m1-provider-failure'), {
+      provider: 'candidate',
+      model: 'candidate-model',
+    })
+    const observation = await runAndObserve(ctx, agent, () => {
+      agent.followup(createUserMessage({
+        content: [{ type: 'text', text: 'Use echo, then answer.' }],
+        source: { kind: 'user' },
+      }))
+    })
+
+    expect(observation.statuses).toEqual(['running', 'idle'])
+    expect(observation.errors).toHaveLength(1)
+    expect(observation.errors[0]).toBeInstanceOf(Error)
+    expect((observation.errors[0] as Error).message).toContain('dedicated browser failed before composer readiness')
+    expect(executions).toBe(0)
   })
 })
