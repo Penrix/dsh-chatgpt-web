@@ -17,6 +17,7 @@ export interface AdapterOptions extends BrowserOptions {
   contextWindow: number
   maxTokens: number
   turnTimeoutMs: number
+  onReasoningEnvelopeError?: (diagnostic: { rawText: string; error: unknown }) => void
 }
 
 const MODELS = [
@@ -94,7 +95,17 @@ export class ChatGptWebAdapter extends LlmAdapter {
           timeoutMs: this.options.turnTimeoutMs,
           ...(options.signal ? { signal: options.signal } : {}),
         })
-        const reasoning = parseReasoningResult(result.text)
+        let reasoning: ReturnType<typeof parseReasoningResult>
+        try {
+          reasoning = parseReasoningResult(result.text)
+        } catch (error) {
+          try {
+            this.options.onReasoningEnvelopeError?.({ rawText: result.text, error })
+          } catch {
+            // Acceptance diagnostics are best-effort and must never replace the parser failure.
+          }
+          throw error
+        }
         const callableTools = options.purpose === undefined ? options.tools : undefined
         const chunks = reasoningResultChunks(reasoning, callableTools)
         const usage = {
