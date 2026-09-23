@@ -50,11 +50,18 @@ try {
       if ($LASTEXITCODE -ne 0) { throw "failed to overlay M2-owned path: $Path" }
     }
 
-    $OverlayPaths = @((git diff --name-only HEAD) | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    $Unexpected = @($OverlayPaths | Where-Object { $_ -notin $RequiredM2Paths })
-    $Missing = @($RequiredM2Paths | Where-Object { $_ -notin $OverlayPaths })
-    if ($Unexpected.Count -gt 0 -or $Missing.Count -gt 0) {
-      throw "M2 overlay path mismatch. Unexpected=[$($Unexpected -join ', ')] Missing=[$($Missing -join ', ')]"
+    foreach ($Path in $RequiredM2Paths) {
+      $ExpectedBlob = (git -C $Repo rev-parse ($M2SourceHead + ":" + $Path)).Trim()
+      $ActualBlob = (git hash-object $Path).Trim()
+      if (-not $ExpectedBlob -or $ActualBlob -ne $ExpectedBlob) {
+        throw "M2 overlay content mismatch for $Path. expected=$ExpectedBlob actual=$ActualBlob"
+      }
+    }
+
+    $ChangedPaths = @((git diff --name-only HEAD) | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $Unexpected = @($ChangedPaths | Where-Object { $_ -notin $RequiredM2Paths })
+    if ($Unexpected.Count -gt 0) {
+      throw "M2 overlay changed an unexpected path: $($Unexpected -join ', ')"
     }
 
     $Package = Get-Content -LiteralPath (Join-Path $Worktree "package.json") -Raw | ConvertFrom-Json
@@ -72,7 +79,8 @@ try {
     $env:M2_WIN_INTEGRATION_REF = $IntegrationRef
     $env:M2_WIN_INTEGRATION_HEAD = $IntegrationHead
     $env:M2_WIN_M2_SOURCE_HEAD = $M2SourceHead
-    $env:M2_WIN_OVERLAY_PATHS = ($OverlayPaths -join ",")
+    $env:M2_WIN_OVERLAY_PATHS = ($RequiredM2Paths -join ",")
+    $env:M2_WIN_CHANGED_PATHS = ($ChangedPaths -join ",")
     $env:M2_CHATGPT_MODEL = $Model
 
     if ($ProfileDir) {
@@ -85,7 +93,8 @@ try {
     Write-Host "WINDOWS INTEGRATION REF: $IntegrationRef"
     Write-Host "WINDOWS INTEGRATION HEAD: $IntegrationHead"
     Write-Host "M2 SOURCE HEAD: $M2SourceHead"
-    Write-Host "M2 OVERLAY: $($OverlayPaths -join ', ')"
+    Write-Host "M2 SOURCE PATHS: $($RequiredM2Paths -join ', ')"
+    Write-Host "M2 PATHS CHANGED VS INTEGRATION HEAD: $($ChangedPaths -join ', ')"
     if ($env:M2_CHATGPT_PROFILE) {
       Write-Host "PROFILE: $env:M2_CHATGPT_PROFILE"
     } else {
