@@ -1,6 +1,7 @@
 export {
   WEBCODEX_READ_FILES_ACTION_PATH,
   WEBCODEX_READ_FILES_TOOL,
+  WebCodexCredentialError,
   WebCodexHttpError,
   invokeWebCodexReadFiles,
   registerWebCodexReadFilesTool,
