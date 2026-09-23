@@ -2,10 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { LlmError, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { StreamChunk, ToolSchema } from '@deepseek-ai/dsh-llm'
 import {
-  assertSupportedJsonSchema,
-  validateJsonSchemaValue,
-  type JsonSchemaNode,
-} from '@deepseek-ai/dsh-tools'
+  prepareNumericBoundsSchema,
+  validateNumericBoundsSchemaValue,
+} from './numeric-bounds-schema.ts'
 
 export type ReasoningResult =
   | { type: 'final'; content: string }
@@ -286,9 +285,9 @@ export function validateActionProposal(
   }
 
   const tool = findTool(tools, result.action)
-  assertSupportedJsonSchema(tool.parameters)
-  const violations = validateJsonSchemaValue(
-    tool.parameters as JsonSchemaNode,
+  const preparedSchema = prepareNumericBoundsSchema(tool.parameters)
+  const violations = validateNumericBoundsSchemaValue(
+    preparedSchema,
     result.arguments,
     'arguments',
   )
