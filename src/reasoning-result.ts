@@ -16,10 +16,112 @@ export type ReasoningResult =
       reason?: string
     }
 
-function stripSingleCodeFence(text: string): string {
-  const trimmed = text.trim()
-  const match = /^\`\`\`(?:json)?\s*\n([\s\S]*?)\n\`\`\`$/i.exec(trimmed)
-  return match?.[1]?.trim() ?? trimmed
+function safePresentationWrapper(text: string): boolean {
+  return !/[{}\[\]`]/.test(text)
+}
+
+function balancedObjectSpans(text: string): Array<{ start: number; end: number }> {
+  const spans: Array<{ start: number; end: number }> = []
+  let start = -1
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (start < 0) {
+      if (char === '}') {
+        throw new Error('unmatched closing brace outside JSON object')
+      }
+      if (char === '{') {
+        start = index
+        depth = 1
+        inString = false
+        escaped = false
+      }
+      continue
+    }
+
+    if (inString) {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === '"') {
+        inString = false
+      }
+      continue
+    }
+
+    if (char === '"') {
+      inString = true
+    } else if (char === '{') {
+      depth += 1
+    } else if (char === '}') {
+      depth -= 1
+      if (depth === 0) {
+        spans.push({ start, end: index + 1 })
+        start = -1
+      }
+    }
+  }
+
+  if (start >= 0 || inString) throw new Error('unterminated JSON object presentation')
+  return spans
+}
+
+function singleFencedJsonObject(text: string): string | undefined {
+  const fence = /```([^\r\n`]*)[ \t]*\r?\n?([\s\S]*?)\r?\n?```/g
+  const matches = [...text.matchAll(fence)]
+  if (matches.length === 0) return undefined
+  if (matches.length !== 1) throw new Error('multiple Markdown code fences are ambiguous')
+
+  const match = matches[0]
+  if (match === undefined || match.index === undefined) throw new Error('invalid Markdown fence match')
+  const language = (match[1] ?? '').trim().toLowerCase()
+  if (language !== '' && language !== 'json') throw new Error('reasoning envelope fence must be unlabeled or json')
+
+  const before = text.slice(0, match.index)
+  const after = text.slice(match.index + match[0].length)
+  if (!safePresentationWrapper(before) || !safePresentationWrapper(after)) {
+    throw new Error('JSON-like content outside the single Markdown fence is ambiguous')
+  }
+
+  const candidate = (match[2] ?? '').trim()
+  JSON.parse(candidate)
+  return candidate
+}
+
+function normalizeReasoningPresentation(raw: string): string {
+  const trimmed = raw.trim()
+  if (trimmed.length === 0) return trimmed
+
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (isPlainRecord(parsed)) return trimmed
+  } catch {
+    // Continue with strict presentation normalization below.
+  }
+
+  const fenced = singleFencedJsonObject(trimmed)
+  if (fenced !== undefined) return fenced
+
+  const spans = balancedObjectSpans(trimmed)
+  if (spans.length !== 1) {
+    throw new Error(`expected exactly one JSON object presentation, found ${spans.length}`)
+  }
+
+  const span = spans[0]
+  if (span === undefined) throw new Error('missing JSON object presentation')
+  const before = trimmed.slice(0, span.start)
+  const after = trimmed.slice(span.end)
+  if (!safePresentationWrapper(before) || !safePresentationWrapper(after)) {
+    throw new Error('JSON-like content outside the single object is ambiguous')
+  }
+
+  const candidate = trimmed.slice(span.start, span.end)
+  JSON.parse(candidate)
+  return candidate
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -27,7 +129,16 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function parseReasoningResult(raw: string): ReasoningResult {
-  const candidate = stripSingleCodeFence(raw)
+  let candidate: string
+  try {
+    candidate = normalizeReasoningPresentation(raw)
+  } catch (error) {
+    throw new LlmError(
+      'ChatGPT Web returned an invalid reasoning envelope presentation: expected exactly one JSON object.',
+      'INVALID_RESPONSE',
+      { cause: error },
+    )
+  }
   let value: unknown
   try {
     value = JSON.parse(candidate)
