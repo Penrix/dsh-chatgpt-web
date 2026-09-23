@@ -99,7 +99,11 @@ export class ChatGptWebAdapter extends LlmAdapter {
         try {
           reasoning = parseReasoningResult(result.text)
         } catch (error) {
-          this.options.onReasoningEnvelopeError?.({ rawText: result.text, error })
+          try {
+            this.options.onReasoningEnvelopeError?.({ rawText: result.text, error })
+          } catch {
+            // Acceptance diagnostics are best-effort and must never replace the parser failure.
+          }
           throw error
         }
         const callableTools = options.purpose === undefined ? options.tools : undefined
