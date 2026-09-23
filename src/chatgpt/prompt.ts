@@ -138,6 +138,7 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
           : `This is a DSH auxiliary ${options.purpose} request. Tool schemas may be present as historical/request context, but tool actions are disabled for this call.`,
         'OUTPUT PROTOCOL IS MACHINE-PARSED. Return exactly one raw JSON object as the entire assistant message.',
         'Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary before or after it.',
+        'Inside JSON string tokens, use standard JSON escaping only. Do not Markdown-escape punctuation; for example write action_proposal, never action\\_proposal.',
         'Use this shape:',
         '{"type":"final","content":"answer for this request"}',
       ]
@@ -146,6 +147,7 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
         'Decide only the next DSH assistant step.',
         'OUTPUT PROTOCOL IS MACHINE-PARSED. Return exactly ONE raw JSON object as the entire assistant message.',
         'Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary before or after it.',
+        'Inside JSON string tokens, use standard JSON escaping only. Do not Markdown-escape punctuation; for example write action_proposal, never action\\_proposal.',
         'Use one of these shapes:',
         '{"type":"final","content":"user-visible answer"}',
         '{"type":"action_proposal","action":"one exact tool name from tools","arguments":{},"reason":"optional short public reason"}',
