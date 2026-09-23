@@ -10,8 +10,56 @@ interface PreparedNumericBoundsSchema {
   readonly dsh: JsonSchemaNode
 }
 
+function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): boolean {
+  const descriptor = Object.getOwnPropertyDescriptor(prototype, 'constructor')
+  const constructor: unknown = descriptor?.value
+  if (typeof constructor !== 'function') return false
+  try {
+    return constructor.name === name
+      && constructor.prototype === prototype
+      && Function.prototype.toString.call(constructor) === `function ${name}() { [native code] }`
+  } catch {
+    return false
+  }
+}
+
+function isIntrinsicObjectPrototype(value: object): boolean {
+  return Object.getPrototypeOf(value) === null && hasIntrinsicConstructor(value, 'Object')
+}
+
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  try {
+    const prototype: unknown = Object.getPrototypeOf(value)
+    const plainPrototype = prototype === null
+      || typeof prototype === 'object'
+        && prototype !== null
+        && isIntrinsicObjectPrototype(prototype)
+    if (!plainPrototype) return false
+    return Reflect.ownKeys(value)
+      .every(key => typeof key === 'string' && Object.prototype.propertyIsEnumerable.call(value, key))
+  } catch {
+    return false
+  }
+}
+
+function isPlainArray(value: unknown): value is unknown[] {
+  if (!Array.isArray(value)) return false
+  try {
+    const prototype: unknown = Object.getPrototypeOf(value)
+    if (!Array.isArray(prototype) || !hasIntrinsicConstructor(prototype, 'Array')) return false
+    const objectPrototype: unknown = Object.getPrototypeOf(prototype)
+    if (typeof objectPrototype !== 'object' || objectPrototype === null || !isIntrinsicObjectPrototype(objectPrototype)) {
+      return false
+    }
+    if (Reflect.ownKeys(value).length !== value.length + 1) return false
+    for (let index = 0; index < value.length; index += 1) {
+      if (!Object.hasOwn(value, index)) return false
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
 function isLosslessJsonNumber(value: unknown): value is number {
@@ -75,7 +123,7 @@ function sanitizeNumericBoundsSchema(
         continue
       }
 
-      if (key === 'oneOf' && Array.isArray(value)) {
+      if (key === 'oneOf' && isPlainArray(value)) {
         clone[key] = value.map((branch, index) => visit(branch, `${path}.oneOf[${index}]`))
         continue
       }
@@ -132,7 +180,7 @@ function validateNode(
   const rawNode = isPlainRecord(raw) ? raw : {}
 
   if (schema.oneOf !== undefined) {
-    const rawBranches = Array.isArray(rawNode.oneOf) ? rawNode.oneOf : []
+    const rawBranches = isPlainArray(rawNode.oneOf) ? rawNode.oneOf : []
     let matches = 0
 
     for (let index = 0; index < schema.oneOf.length; index += 1) {
