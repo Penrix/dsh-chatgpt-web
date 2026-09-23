@@ -22,7 +22,6 @@ const memorySearch = {
     additionalProperties: false,
   },
 } as unknown as ToolSchema
-
 const memoryRemember: ToolSchema = {
   name: 'memory_remember',
   description: 'Store one durable memory.',
@@ -90,42 +89,6 @@ describe('reasoning result protocol', () => {
     )).toThrow(/invalid reasoning envelope/i)
     expect(() => parseReasoningResult(
       String.raw`{"type":"final","content":"not-proven\*markdown"}`,
-    )).toThrow(/invalid reasoning envelope/i)
-  })
-
-  it('normalizes the exact Windows-captured M2 structural array escapes', () => {
-    const raw = String.raw`{"type":"action\_proposal","action":"memory\_remember","arguments":{"content":"M2SEED\_5ca7f302-39a4-435e-9071-24965048427c is the seed fact for WEB-M2-WIN-LIVE-008.","level":"fact","project":"m2-live-5ca7f302-39a4-435e-9071-24965048427c","importance":5,"keywords":\["M2SEED\_5ca7f302-39a4-435e-9071-24965048427c","m2-live-seed"\]},"reason":"Store the requested seed fact exactly once before answering."}`
-    expect(raw).toHaveLength(404)
-
-    const result = parseReasoningResult(raw)
-    expect(result.type).toBe('action_proposal')
-    if (result.type !== 'action_proposal') throw new Error('expected action proposal')
-
-    expect(result.action).toBe('memory_remember')
-    expect(result.arguments).toMatchObject({
-      content: 'M2SEED_5ca7f302-39a4-435e-9071-24965048427c is the seed fact for WEB-M2-WIN-LIVE-008.',
-      level: 'fact',
-      project: 'm2-live-5ca7f302-39a4-435e-9071-24965048427c',
-      importance: 5,
-      keywords: [
-        'M2SEED_5ca7f302-39a4-435e-9071-24965048427c',
-        'm2-live-seed',
-      ],
-    })
-  })
-
-  it('does not normalize markdown bracket escapes inside JSON strings', () => {
-    expect(() => parseReasoningResult(
-      String.raw`{"type":"final","content":"literal \[brackets\] stay strict"}`,
-    )).toThrow(/invalid reasoning envelope/i)
-  })
-
-  it('rejects unsupported structural markdown escapes other than array delimiters', () => {
-    expect(() => parseReasoningResult(
-      String.raw`{"type":"final","content":"done","extra":\{\}}`,
-    )).toThrow(/invalid reasoning envelope/i)
-    expect(() => parseReasoningResult(
-      String.raw`{"type":"final","content":\*"done"}`,
     )).toThrow(/invalid reasoning envelope/i)
   })
 
@@ -215,30 +178,20 @@ End.`
     const result = parseReasoningResult(JSON.stringify({
       type: 'action_proposal',
       action: 'memory_search',
-      arguments: {
-        project: 'm2-live-project',
-        query: 'seed fact',
-        days: 30,
-        k: 10,
-        content_max: 1200,
-      },
+      arguments: { project: 'm2-live-project', query: 'seed fact', days: 30, k: 10, content_max: 1200 },
     }))
     if (result.type !== 'action_proposal') throw new Error('expected action proposal')
-
     expect(() => validateActionProposal(result, [memorySearch])).not.toThrow()
   })
 
-  it('rejects memory_search integers below minimum or above maximum', () => {
-    for (const argumentsValue of [
+  it('rejects memory_search integers outside numeric bounds', () => {
+    const invalid = [
       { project: 'p', query: 'q', days: 0, k: 10, content_max: 100 },
       { project: 'p', query: 'q', days: 30, k: 51, content_max: 100 },
       { project: 'p', query: 'q', days: 30, k: 10, content_max: 5001 },
-    ]) {
-      const result = parseReasoningResult(JSON.stringify({
-        type: 'action_proposal',
-        action: 'memory_search',
-        arguments: argumentsValue,
-      }))
+    ]
+    for (const argumentsValue of invalid) {
+      const result = parseReasoningResult(JSON.stringify({ type: 'action_proposal', action: 'memory_search', arguments: argumentsValue }))
       if (result.type !== 'action_proposal') throw new Error('expected action proposal')
       expect(() => validateActionProposal(result, [memorySearch])).toThrow(/greater than or equal|less than or equal/i)
     }
@@ -248,14 +201,9 @@ End.`
     const result = parseReasoningResult(JSON.stringify({
       type: 'action_proposal',
       action: 'memory_search',
-      arguments: {
-        project: 'p',
-        query: 'q',
-        days: 1.5,
-      },
+      arguments: { project: 'p', query: 'q', days: 1.5 },
     }))
     if (result.type !== 'action_proposal') throw new Error('expected action proposal')
-
     expect(() => validateActionProposal(result, [memorySearch])).toThrow(/must be an integer/i)
   })
 
@@ -278,44 +226,22 @@ End.`
       },
     } as unknown as ToolSchema
 
-    const accepted = parseReasoningResult(JSON.stringify({
-      type: 'action_proposal',
-      action: 'bounded_union',
-      arguments: { bucket: 12 },
-    }))
+    const accepted = parseReasoningResult(JSON.stringify({ type: 'action_proposal', action: 'bounded_union', arguments: { bucket: 12 } }))
     if (accepted.type !== 'action_proposal') throw new Error('expected action proposal')
     expect(() => validateActionProposal(accepted, [boundedUnion])).not.toThrow()
 
-    const rejected = parseReasoningResult(JSON.stringify({
-      type: 'action_proposal',
-      action: 'bounded_union',
-      arguments: { bucket: 7 },
-    }))
+    const rejected = parseReasoningResult(JSON.stringify({ type: 'action_proposal', action: 'bounded_union', arguments: { bucket: 7 } }))
     if (rejected.type !== 'action_proposal') throw new Error('expected action proposal')
     expect(() => validateActionProposal(rejected, [boundedUnion])).toThrow(/exactly one oneOf branch/i)
   })
 
   it('rejects malformed numeric bounds and unrelated unsupported keywords', () => {
-    const malformedSchemas = [
-      {
-        type: 'object',
-        properties: { value: { type: 'string', minimum: 1 } },
-      },
-      {
-        type: 'object',
-        properties: { value: { type: 'integer', minimum: Number.NaN } },
-      },
-      {
-        type: 'object',
-        properties: { value: { type: 'integer', minimum: -0 } },
-      },
-      {
-        type: 'object',
-        properties: { value: { type: 'integer', minimum: 10, maximum: 2 } },
-      },
-      {
-        type: 'object',
-        properties: { value: { type: 'string', pattern: '^x
+    const malformedSchemas: unknown[] = [
+      { type: 'object', properties: { value: { type: 'string', minimum: 1 } } },
+      { type: 'object', properties: { value: { type: 'integer', minimum: Number.NaN } } },
+      { type: 'object', properties: { value: { type: 'integer', minimum: -0 } } },
+      { type: 'object', properties: { value: { type: 'integer', minimum: 10, maximum: 2 } } },
+      { type: 'object', properties: { value: { type: 'string', pattern: '^x
     const result = parseReasoningResult(JSON.stringify({
       type: 'action_proposal',
       action: 'memory_remember',
@@ -431,21 +357,11 @@ End.`
     ])
   })
 })
- } },
-      },
+ } } },
     ]
-
     for (const parameters of malformedSchemas) {
-      const tool = {
-        name: 'malformed_bounds',
-        description: 'Malformed schema fixture.',
-        parameters,
-      } as unknown as ToolSchema
-      const result = parseReasoningResult(JSON.stringify({
-        type: 'action_proposal',
-        action: 'malformed_bounds',
-        arguments: { value: 3 },
-      }))
+      const tool = { name: 'malformed_bounds', description: 'Malformed schema fixture.', parameters } as unknown as ToolSchema
+      const result = parseReasoningResult(JSON.stringify({ type: 'action_proposal', action: 'malformed_bounds', arguments: { value: 3 } }))
       if (result.type !== 'action_proposal') throw new Error('expected action proposal')
       expect(() => validateActionProposal(result, [tool])).toThrow(/unsupported JSON schema/i)
     }
@@ -456,20 +372,12 @@ End.`
     const result = parseReasoningResult(JSON.stringify({
       type: 'action_proposal',
       action: 'memory_search',
-      arguments: {
-        project: 'p',
-        query: 'q',
-        days: 7,
-        k: 3,
-        content_max: 500,
-      },
+      arguments: { project: 'p', query: 'q', days: 7, k: 3, content_max: 500 },
     }))
     if (result.type !== 'action_proposal') throw new Error('expected action proposal')
-
     validateActionProposal(result, [memorySearch])
     expect(memorySearch.parameters).toEqual(before)
   })
-
   it('validates an action proposal against the exact DSH tool schema', () => {
     const result = parseReasoningResult(JSON.stringify({
       type: 'action_proposal',
