@@ -76,6 +76,42 @@ describe('reasoning result protocol', () => {
     )).toThrow(/invalid reasoning envelope/i)
   })
 
+  it('normalizes the exact Windows-captured M2 structural array escapes', () => {
+    const raw = String.raw`{"type":"action\_proposal","action":"memory\_remember","arguments":{"content":"M2SEED\_5ca7f302-39a4-435e-9071-24965048427c is the seed fact for WEB-M2-WIN-LIVE-008.","level":"fact","project":"m2-live-5ca7f302-39a4-435e-9071-24965048427c","importance":5,"keywords":\["M2SEED\_5ca7f302-39a4-435e-9071-24965048427c","m2-live-seed"\]},"reason":"Store the requested seed fact exactly once before answering."}`
+    expect(raw).toHaveLength(404)
+
+    const result = parseReasoningResult(raw)
+    expect(result.type).toBe('action_proposal')
+    if (result.type !== 'action_proposal') throw new Error('expected action proposal')
+
+    expect(result.action).toBe('memory_remember')
+    expect(result.arguments).toMatchObject({
+      content: 'M2SEED_5ca7f302-39a4-435e-9071-24965048427c is the seed fact for WEB-M2-WIN-LIVE-008.',
+      level: 'fact',
+      project: 'm2-live-5ca7f302-39a4-435e-9071-24965048427c',
+      importance: 5,
+      keywords: [
+        'M2SEED_5ca7f302-39a4-435e-9071-24965048427c',
+        'm2-live-seed',
+      ],
+    })
+  })
+
+  it('does not normalize markdown bracket escapes inside JSON strings', () => {
+    expect(() => parseReasoningResult(
+      String.raw`{"type":"final","content":"literal \[brackets\] stay strict"}`,
+    )).toThrow(/invalid reasoning envelope/i)
+  })
+
+  it('rejects unsupported structural markdown escapes other than array delimiters', () => {
+    expect(() => parseReasoningResult(
+      String.raw`{"type":"final","content":"done","extra":\{\}}`,
+    )).toThrow(/invalid reasoning envelope/i)
+    expect(() => parseReasoningResult(
+      String.raw`{"type":"final","content":\*"done"}`,
+    )).toThrow(/invalid reasoning envelope/i)
+  })
+
   it('accepts one outer JSON code fence as transport tolerance', () => {
     expect(parseReasoningResult('```json\n{"type":"final","content":"done"}\n```')).toEqual({
       type: 'final',
