@@ -15,8 +15,9 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import BasicCompaction from '@deepseek-ai/dsh-compaction-basic'
 import { ChatGptWebAdapter, compilePrompt } from '../lib/index.js'
+import { restoreHomeEnvironment, snapshotHomeEnvironment, withTemporaryHome } from './m2-home-scope.mjs'
 
-const PACKET = 'WEB-M2-WIN-LIVE-006 rev 1'
+const PACKET = 'WEB-M2-WIN-LIVE-007 rev 1'
 const SOURCE_STARTING_HEAD = '476e9b31c4c07b18ae0f45ef168816e5f3c53453'
 const REFLECT_MARKER = '[meow-memory-reflect]'
 const DREAM_MARKER = '[meow-memory-dream]'
@@ -42,6 +43,7 @@ mkdirSync(workspace, { recursive: true })
 mkdirSync(dirname(evidencePath), { recursive: true })
 const meowHome = join(workspace, '.m2-home')
 mkdirSync(meowHome, { recursive: true })
+const originalHomeEnvironment = snapshotHomeEnvironment()
 
 const legacyCompositeMetadataPresent = Object.keys(process.env)
   .filter((key) => key.startsWith('M2_LIVE_COMPOSITE_'))
@@ -376,18 +378,32 @@ async function main() {
     manifestPath,
   }
 
-  // Isolate meow-memory's homedir-owned diagnostics/prompts while retaining the
-  // user's real, dedicated ChatGPT login profile computed above.
-  const oldHome = process.env.HOME
-  const oldUserProfile = process.env.USERPROFILE
-  process.env.HOME = meowHome
-  process.env.USERPROFILE = meowHome
+  // meow-memory 0.27.0 captures several homedir-owned diagnostic/prompt/window
+  // paths at module import. Scope the fake home to that import only. The project
+  // DB is independently isolated by workspace + PROJECT_DIR.
+  let meowMemory
+  try {
+    meowMemory = await withTemporaryHome(meowHome, () => import('meow-memory'))
+  } finally {
+    // Defensive restoration even if the import/bootstrap helper itself changes.
+    restoreHomeEnvironment(originalHomeEnvironment)
+  }
+  assert.equal(meowMemory.name, 'meow-memory')
+  assert.deepEqual(meowMemory.inject, ['tools'])
+  assert.deepEqual(
+    snapshotHomeEnvironment(),
+    originalHomeEnvironment,
+    'HOME/USERPROFILE must be restored before ChatGPT adapter/browser startup',
+  )
+  evidence.environment = {
+    meowImportHome: meowHome,
+    restoredBeforeAdapter: true,
+    originalHomeDefined: originalHomeEnvironment.HOME !== undefined,
+    originalUserProfileDefined: originalHomeEnvironment.USERPROFILE !== undefined,
+  }
+  writeEvidence()
 
   try {
-    const meowMemory = await import('meow-memory')
-    assert.equal(meowMemory.name, 'meow-memory')
-    assert.deepEqual(meowMemory.inject, ['tools'])
-
     ctx = new Context()
     await ctx.plugin(LlmRuntime)
     await ctx.plugin(SessionStore)
@@ -519,7 +535,7 @@ async function main() {
       seedAgent,
       'seed-real-memory',
       'Use memory_remember exactly once before answering. Store this exact fact: "' + seedToken
-        + ' is the seed fact for WEB-M2-WIN-LIVE-005." Use project "' + project
+        + ' is the seed fact for WEB-M2-WIN-LIVE-007." Use project "' + project
         + '", level "fact", importance 5, and keywords ["' + seedToken + '","m2-live-seed"].',
     )
     assertToolRoundTrip(seed, 'memory_remember')
@@ -744,10 +760,7 @@ async function main() {
   } finally {
     if (ctx) await ctx.fiber.dispose().catch(() => {})
     if (adapter) await adapter.dispose().catch(() => {})
-    if (oldHome === undefined) delete process.env.HOME
-    else process.env.HOME = oldHome
-    if (oldUserProfile === undefined) delete process.env.USERPROFILE
-    else process.env.USERPROFILE = oldUserProfile
+    restoreHomeEnvironment(originalHomeEnvironment)
   }
 }
 
