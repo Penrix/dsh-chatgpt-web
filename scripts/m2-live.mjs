@@ -16,10 +16,8 @@ import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import BasicCompaction from '@deepseek-ai/dsh-compaction-basic'
 import { ChatGptWebAdapter, compilePrompt } from '../lib/index.js'
 
-const STARTING_HEAD = '8607227e49838011eb4f2bd0533ba1dfb0349861'
-const M1_PR10_HEAD = 'ee4a3b8afcb467b56ee18bc7527044d1b30ba38a'
-const M1_PR11_HEAD = 'd64791777248f21f70d32fb485ac75388472a254'
-const M1_BASE = '653995ea6d7ae014c3498c42082f263acde90185'
+const PACKET = 'WEB-M2-WIN-LIVE-005 rev 1'
+const SOURCE_STARTING_HEAD = '476e9b31c4c07b18ae0f45ef168816e5f3c53453'
 const REFLECT_MARKER = '[meow-memory-reflect]'
 const DREAM_MARKER = '[meow-memory-dream]'
 const PROJECT_DIR = '.dsh-meow-live'
@@ -37,7 +35,7 @@ const dreamWaitMs = Number(process.env.M2_DREAM_WAIT_MS || 150000)
 const dreamCollision = process.env.M2_DREAM_COLLISION !== '0'
 
 if (platform() !== 'win32' && process.env.M2_ALLOW_NON_WINDOWS !== '1') {
-  throw new Error('WEB-M2-LIVE-004 acceptance is Windows-first. Set M2_ALLOW_NON_WINDOWS=1 only for non-acceptance diagnostics.')
+  throw new Error(PACKET + ' acceptance is Windows-first. Set M2_ALLOW_NON_WINDOWS=1 only for non-acceptance diagnostics.')
 }
 
 mkdirSync(workspace, { recursive: true })
@@ -45,27 +43,35 @@ mkdirSync(dirname(evidencePath), { recursive: true })
 const meowHome = join(workspace, '.m2-home')
 mkdirSync(meowHome, { recursive: true })
 
+const legacyCompositeMetadataPresent = Object.keys(process.env)
+  .filter((key) => key.startsWith('M2_LIVE_COMPOSITE_'))
+  .sort()
+
 const evidence = {
-  packet: 'WEB-M2-LIVE-004 rev 1',
-  startingHead: STARTING_HEAD,
+  packet: PACKET,
+  sourceStartingHead: SOURCE_STARTING_HEAD,
   runId,
   platform: process.platform,
   node: process.version,
   workspace,
   profileDir,
+  profileConvention: '~/.dsh-chatgpt-web-penrix/chrome-profile',
   model,
-  localCompositeExpected: {
-    base: M1_BASE,
-    m1Pr10Head: M1_PR10_HEAD,
-    m1Pr11Head: M1_PR11_HEAD,
+  executionContext: {
+    integrationRef: process.env.M2_WIN_INTEGRATION_REF,
+    integrationHead: process.env.M2_WIN_INTEGRATION_HEAD,
+    m2SourceHead: process.env.M2_WIN_M2_SOURCE_HEAD,
+    overlayPaths: process.env.M2_WIN_OVERLAY_PATHS?.split(',').filter(Boolean),
+    changedPaths: process.env.M2_WIN_CHANGED_PATHS?.split(',').filter(Boolean),
+    legacyCompositeMetadataPresent,
+    legacyCompositeMetadataUsed: false,
   },
-  localCompositeActual: {
-    leafHead: process.env.M2_LIVE_COMPOSITE_LEAF_HEAD,
-    base: process.env.M2_LIVE_COMPOSITE_M1_BASE,
-    m1Pr10Head: process.env.M2_LIVE_COMPOSITE_PR10_HEAD,
-    m1Pr11Head: process.env.M2_LIVE_COMPOSITE_PR11_HEAD,
-    diffStat: process.env.M2_LIVE_COMPOSITE_DIFF_STAT,
-    paths: process.env.M2_LIVE_COMPOSITE_PATHS?.split(',').filter(Boolean),
+  continuityContract: {
+    canonicalHistoryOwner: 'DSH Session',
+    persistentChatGptConversationRequired: false,
+    providerProfileReusedAcrossM1M2: true,
+    providerPagePolicy: 'fresh Temporary Chat page per provider inference',
+    webCodexRequired: false,
   },
   plugin: {
     upstreamSource: '0405e1a8e46c36a5945697f948d88998c8de99f9',
@@ -316,7 +322,8 @@ async function runUserTurn(agent, name, text) {
     finishStage(stage, 'failed')
     throw new Error('Agent error during ' + name + ': ' + stage.agentErrors[0].error.message)
   }
-  finishStage(stage, 'passed')
+  stage.observedAt = new Date().toISOString()
+  writeEvidence()
   return stage
 }
 
@@ -512,14 +519,14 @@ async function main() {
       seedAgent,
       'seed-real-memory',
       'Use memory_remember exactly once before answering. Store this exact fact: "' + seedToken
-        + ' is the seed fact for WEB-M2-LIVE-004." Use project "' + project
+        + ' is the seed fact for WEB-M2-WIN-LIVE-005." Use project "' + project
         + '", level "fact", importance 5, and keywords ["' + seedToken + '","m2-live-seed"].',
     )
     assertToolRoundTrip(seed, 'memory_remember')
     evidence.persistence.afterSeed = dbEvidence()
     assert.equal(evidence.persistence.afterSeed.exists, true, 'meow-memory SQLite database was not created')
     assert.equal(evidence.persistence.afterSeed.bytes > 0, true, 'meow-memory SQLite database is empty')
-    writeEvidence()
+    finishStage(seed, 'passed')
 
     mainAgent = await ctx.agentLoop.create(
       SessionId('m2-live-main-' + runId),
@@ -556,6 +563,7 @@ async function main() {
         + '", level "fact", importance 7, and keywords ["' + durableToken + '","m2-live-durable"].',
     )
     assertToolRoundTrip(remember, 'memory_remember')
+    finishStage(remember, 'passed')
 
     const search = await runUserTurn(
       mainAgent,
@@ -564,7 +572,7 @@ async function main() {
     )
     const durableId = parseSearchId(search, durableToken)
     evidence.identifiers.durableId = durableId
-    writeEvidence()
+    finishStage(search, 'passed', { durableId })
 
     const projectStage = await runUserTurn(
       mainAgent,
@@ -572,6 +580,7 @@ async function main() {
       'Use memory_project exactly once with project "' + project + '" before answering. Summarize only what the tool returns.',
     )
     assertToolRoundTrip(projectStage, 'memory_project')
+    finishStage(projectStage, 'passed')
 
     const read = await runUserTurn(
       mainAgent,
@@ -579,6 +588,7 @@ async function main() {
       'Use memory_read exactly once with id "' + durableId + '" before answering. Report the remembered content from the tool result.',
     )
     assertToolRoundTrip(read, 'memory_read')
+    finishStage(read, 'passed')
 
     const update = await runUserTurn(
       mainAgent,
@@ -589,7 +599,7 @@ async function main() {
     )
     assertToolRoundTrip(update, 'memory_update')
     evidence.persistence.afterUpdate = dbEvidence()
-    writeEvidence()
+    finishStage(update, 'passed')
 
     const requestOrdinalBeforeFreshRecall = evidence.providerRequests.length
     const freshRecall = await runUserTurn(
@@ -648,7 +658,9 @@ async function main() {
         + '" before answering. This non-memory tool call exists only to trigger meow-memory reflection.',
     )
     assertToolRoundTrip(echo, 'm2_live_echo')
+    finishStage(echo, 'passed')
 
+    const reflectionStage = beginStage('real-provider-reflection')
     const reflectRequest = await waitForCondition(
       'meow-memory reflection provider request',
       () => pluginTargetRequest(reflectRequestStart, REFLECT_MARKER),
@@ -669,7 +681,6 @@ async function main() {
       () => eventAfterSeq(mainAgent, reflectUserEvent.seq, 'turn/end'),
       stageTimeoutMs,
     )
-    const reflectionStage = beginStage('real-provider-reflection')
     reflectionStage.request = reflectRequest
     reflectionStage.events = relevantEvents(mainAgent, reflectEventStart)
     reflectionStage.proof = {
@@ -743,9 +754,12 @@ async function main() {
 try {
   await main()
 } catch (error) {
+  const summary = errorSummary(error)
+  const runningStage = [...evidence.stages].reverse().find((stage) => stage.status === 'running')
+  if (runningStage) finishStage(runningStage, 'failed', { error: summary })
   evidence.firstBlocker = evidence.firstBlocker || {
     stage: currentStage,
-    error: errorSummary(error),
+    error: summary,
   }
   evidence.finalStatus = 'blocked'
   process.exitCode = 1
