@@ -105,6 +105,8 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('"type":"action_proposal"')
     expect(result.text).toContain('OUTPUT PROTOCOL IS MACHINE-PARSED')
     expect(result.text).toContain('Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary')
+    expect(result.text).toContain('Inside JSON string tokens, use standard JSON escaping only')
+    expect(result.text).toContain('write action_proposal, never action\\_proposal')
     expect(result.text).toContain('DSH alone validates, authorizes, and executes')
   })
 
@@ -166,6 +168,8 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('Tool schemas may be present')
     expect(result.text).toContain('OUTPUT PROTOCOL IS MACHINE-PARSED')
     expect(result.text).toContain('Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary')
+    expect(result.text).toContain('Inside JSON string tokens, use standard JSON escaping only')
+    expect(result.text).toContain('write action_proposal, never action\\_proposal')
     expect(result.text).not.toContain('Decide only the next DSH assistant step.')
     },
   )
