@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { ToolCallId } from '@deepseek-ai/dsh-llm'
@@ -5,14 +8,20 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import {
   WEBCODEX_READ_FILES_TOOL,
+  invokeWebCodexReadFiles,
   registerWebCodexReadFilesTool,
 } from '../src/webcodex/read-files.ts'
 import { Config as PluginConfig, apply as applyPlugin } from '../src/index.ts'
 
 const contexts: Context[] = []
+const temporaryDirectories: string[] = []
 
 afterEach(async () => {
   while (contexts.length > 0) await contexts.pop()?.fiber.dispose()
+  while (temporaryDirectories.length > 0) {
+    const directory = temporaryDirectories.pop()
+    if (directory !== undefined) await rm(directory, { recursive: true, force: true })
+  }
 })
 
 async function harness(fetchImpl: typeof fetch) {
@@ -54,6 +63,19 @@ describe('WebCodex read-only durable-body seam', () => {
       baseUrl: 'http://127.0.0.1:8080',
       bearerToken: 'wc_pat_test_only',
       project: 'registered-project',
+    })
+
+    const fileConfigured = PluginConfig({
+      webcodexRead: {
+        baseUrl: 'http://127.0.0.1:8080',
+        bearerTokenFile: 'C:\\protected\\webcodex-user-token',
+        project: 'agent:desktop-runner:repo',
+      },
+    })
+    expect(fileConfigured.webcodexRead).toEqual({
+      baseUrl: 'http://127.0.0.1:8080',
+      bearerTokenFile: 'C:\\protected\\webcodex-user-token',
+      project: 'agent:desktop-runner:repo',
     })
   })
 
@@ -129,6 +151,52 @@ describe('WebCodex read-only durable-body seam', () => {
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected DSH seam transport success')
     expect(result.value).toEqual(authoritative)
+  })
+
+  it('loads the bearer from a protected file at call time without adding the path or secret to the tool result', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'webcodex-pat-'))
+    temporaryDirectories.push(directory)
+    const tokenFile = join(directory, 'webcodex-user-token')
+    await writeFile(tokenFile, 'wc_pat_file_secret\n', 'utf8')
+
+    let request: Request | undefined
+    const authoritative = { success: true, output: { returned_count: 0, items: [] } }
+    const result = await invokeWebCodexReadFiles({
+      baseUrl: 'http://127.0.0.1:8080',
+      bearerTokenFile: tokenFile,
+      project: 'agent:desktop-runner:repo',
+      fetch: async (input, init) => {
+        request = new Request(input, init)
+        return new Response(JSON.stringify(authoritative), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      },
+    }, {
+      items: [{ path: 'README.md', start_line: 1, limit: 1 }],
+    }, new AbortController().signal)
+
+    expect(request?.headers.get('authorization')).toBe('Bearer wc_pat_file_secret')
+    expect(result).toEqual(authoritative)
+    expect(JSON.stringify(result)).not.toContain('wc_pat_file_secret')
+    expect(JSON.stringify(result)).not.toContain(tokenFile)
+  })
+
+  it('fails with a stable credential error when the configured bearer token file is unavailable', async () => {
+    const unavailable = join(tmpdir(), 'webcodex-definitely-missing-user-token')
+    await expect(invokeWebCodexReadFiles({
+      baseUrl: 'http://127.0.0.1:8080',
+      bearerTokenFile: unavailable,
+      project: 'agent:desktop-runner:repo',
+      fetch: async () => {
+        throw new Error('fetch must not run without a credential')
+      },
+    }, {
+      items: [{ path: 'README.md', start_line: 1, limit: 1 }],
+    }, new AbortController().signal)).rejects.toMatchObject({
+      name: 'WebCodexCredentialError',
+      code: 'WEBCODEX_CREDENTIAL_ERROR',
+    })
   })
 
   it('preserves a canonical WebCodex business failure and recovery output instead of rewriting it as success text', async () => {
