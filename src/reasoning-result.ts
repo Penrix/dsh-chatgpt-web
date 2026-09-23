@@ -127,6 +127,15 @@ function normalizeMarkdownJsonStringEscapes(candidate: string): string {
   for (let index = 0; index < candidate.length; index += 1) {
     const char = candidate[index]
     if (!inString) {
+      if (char === '\\') {
+        const next = candidate[index + 1]
+        if (next === '[' || next === ']') {
+          result += next
+          index += 1
+          continue
+        }
+      }
+
       result += char
       if (char === '"') inString = true
       continue
