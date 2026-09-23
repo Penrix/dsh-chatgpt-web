@@ -1,3 +1,4 @@
+import { readFile, stat } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -35,12 +36,20 @@ export interface WebCodexToolResult {
 export interface WebCodexReadFilesSeamOptions {
   /** WebCodex Server base URL, for example http://127.0.0.1:8080. */
   baseUrl: string
-  /** WebCodex Bearer credential. Never exposed in the DSH tool schema. */
-  bearerToken: string
+  /** Inline WebCodex Bearer credential. Prefer bearerTokenFile for Desktop managed pairing. */
+  bearerToken?: string
+  /** Protected file containing the WebCodex Bearer credential. Its contents are never rendered. */
+  bearerTokenFile?: string
   /** Exact registered WebCodex Project id pinned to this DSH capability. */
   project: string
   /** Test seam only; production uses globalThis.fetch. */
   fetch?: typeof fetch
+}
+
+export class WebCodexCredentialError extends HarnessError {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, 'WEBCODEX_CREDENTIAL_ERROR', options)
+  }
 }
 
 export class WebCodexHttpError extends HarnessError {
@@ -58,6 +67,52 @@ function requireNonEmpty(value: string, label: string): string {
   const trimmed = value.trim()
   if (trimmed.length === 0) throw new TypeError(`${label} must be non-empty`)
   return trimmed
+}
+
+const MAX_BEARER_TOKEN_FILE_BYTES = 4096
+
+function credentialSource(options: WebCodexReadFilesSeamOptions): 'inline' | 'file' {
+  const inline = options.bearerToken !== undefined
+  const file = options.bearerTokenFile !== undefined
+  if (inline === file) {
+    throw new TypeError('configure exactly one WebCodex bearer credential source: bearerToken or bearerTokenFile')
+  }
+  if (inline) {
+    requireNonEmpty(options.bearerToken ?? '', 'WebCodex bearerToken')
+    return 'inline'
+  }
+  requireNonEmpty(options.bearerTokenFile ?? '', 'WebCodex bearerTokenFile')
+  return 'file'
+}
+
+async function resolveBearerToken(options: WebCodexReadFilesSeamOptions): Promise<string> {
+  if (credentialSource(options) === 'inline') {
+    return requireNonEmpty(options.bearerToken ?? '', 'WebCodex bearerToken')
+  }
+
+  const path = requireNonEmpty(options.bearerTokenFile ?? '', 'WebCodex bearerTokenFile')
+  try {
+    const info = await stat(path)
+    if (!info.isFile()) {
+      throw new WebCodexCredentialError(`WebCodex bearer credential path is not a file: ${path}`)
+    }
+    if (info.size <= 0 || info.size > MAX_BEARER_TOKEN_FILE_BYTES) {
+      throw new WebCodexCredentialError(
+        `WebCodex bearer credential file size is outside the accepted 1..${MAX_BEARER_TOKEN_FILE_BYTES} byte range: ${path}`,
+      )
+    }
+    const token = (await readFile(path, 'utf8')).trim()
+    if (token.length === 0) {
+      throw new WebCodexCredentialError(`WebCodex bearer credential file is empty: ${path}`)
+    }
+    return token
+  } catch (error) {
+    if (error instanceof WebCodexCredentialError) throw error
+    throw new WebCodexCredentialError(
+      `WebCodex bearer credential file could not be read: ${path}`,
+      { cause: error },
+    )
+  }
 }
 
 function actionUrl(baseUrl: string): string {
@@ -111,7 +166,7 @@ export async function invokeWebCodexReadFiles(
   args: WebCodexReadFilesArguments,
   signal: AbortSignal,
 ): Promise<WebCodexToolResult> {
-  const token = requireNonEmpty(options.bearerToken, 'WebCodex bearerToken')
+  const token = await resolveBearerToken(options)
   const project = requireNonEmpty(options.project, 'WebCodex project')
   const requestBody = readFilesRequest(project, args)
   const fetchImpl = options.fetch ?? globalThis.fetch
@@ -182,7 +237,7 @@ export function registerWebCodexReadFilesTool(
   options: WebCodexReadFilesSeamOptions,
 ): () => void {
   requireNonEmpty(options.project, 'WebCodex project')
-  requireNonEmpty(options.bearerToken, 'WebCodex bearerToken')
+  credentialSource(options)
   actionUrl(options.baseUrl)
 
   return ctx.tools.register(defineTool({
