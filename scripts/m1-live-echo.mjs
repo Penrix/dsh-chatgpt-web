@@ -213,7 +213,7 @@ try {
   assert.ok(existsSync(profileDir), 'dedicated ChatGPT provider profile must exist after a successful live run')
 
   const evidence = {
-    packet: 'WEB-M1-WIN-LIVE-010 rev 2',
+    packet: 'WEB-M1-WIN-LIVE-010 rev 3',
     accepted: true,
     provider,
     model,
@@ -247,7 +247,7 @@ try {
 } catch (error) {
   const events = agent?.session.snapshotEvents?.() ?? []
   const failure = {
-    packet: 'WEB-M1-WIN-LIVE-010 rev 2',
+    packet: 'WEB-M1-WIN-LIVE-010 rev 3',
     accepted: false,
     provider,
     model,
