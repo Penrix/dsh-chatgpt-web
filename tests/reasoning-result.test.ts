@@ -57,9 +57,22 @@ describe('reasoning result protocol', () => {
     })
   })
 
+  it('preserves a valid JSON-escaped literal backslash before an underscore', () => {
+    const result = parseReasoningResult(
+      String.raw`{"type":"final","content":"literal \\_ pair"}`,
+    )
+    expect(result).toEqual({
+      type: 'final',
+      content: 'literal \\_ pair',
+    })
+  })
+
   it('rejects unsupported invalid JSON escapes instead of guessing a repair', () => {
     expect(() => parseReasoningResult(
       String.raw`{"type":"final","content":"bad\qescape"}`,
+    )).toThrow(/invalid reasoning envelope/i)
+    expect(() => parseReasoningResult(
+      String.raw`{"type":"final","content":"not-proven\*markdown"}`,
     )).toThrow(/invalid reasoning envelope/i)
   })
 
