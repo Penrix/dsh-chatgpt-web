@@ -1,98 +1,79 @@
-# WEB-M2-WIN-LIVE-007 live acceptance
+# WEB-M2-WIN-LIVE-008 live acceptance
 
-This packet owns M2 acceptance only. M1 real E2E remains preserved and must not be rerun.
+This packet owns M2 acceptance diagnostics only. It does not change the production reasoning parser.
 
-## Verified Windows baseline
+## Verified baseline
 
-- Integration checkout tested before this repair: `web-win-live-001@5cf385c11a1f0f993d86f1bc605cb79750222cb4`.
-- M2 source head tested before this repair: `8b69da5d952fc0e66250bc2ad0571398ae696d0d`.
-- Existing M1 PASS evidence remains: `C:\Users\123\AppData\Local\Temp\dsh-chatgpt-web-win-live-evidence-ff62ba6c\m1-live.json`.
-- Rev 6 M2 evidence remains preserved at `m2-live-resume.json`.
-- Rev 6 quiescence barrier passed with no matching Chrome/Edge profile owner, yet M2 still failed at `seed-real-memory` before any memory tool ran.
-- M3 did not run.
+- Integration tested before this packet: `web-win-live-001@f2ae9ac001babaa8e53a8fd6052812f0723514fd`.
+- M2 source tested before this packet: `f4b1415d45b210a9d681b4092cf9ba2a0154d93f`.
+- Rev 7 environment-scope fix is proven on real Windows: quiescence passed, `environment.restoredBeforeAdapter=true`, Chrome launched, and the request reached real ChatGPT Web.
+- Rev 7 first blocker is now a reasoning-envelope parse failure at `seed-real-memory` after one provider request.
+- No memory tool ran and M3 did not run.
 
-## Proven root cause
+## Missing evidence addressed by Rev 8
 
-Rev 6's profile-quiescence hypothesis was disproven as the sufficient cause.
+M2 previously constructed `ChatGptWebAdapter` without the existing `onReasoningEnvelopeError` diagnostic hook used by M1. The raw assistant reply was therefore lost after cleanup.
 
-`scripts/m2-live.mjs` changed process-wide `HOME` and `USERPROFILE` to the fake meow test home before dynamically importing `meow-memory`, then kept those fake values in place through ChatGPT adapter construction and Chrome/Playwright startup.
+Rev 8 ports the same bounded diagnostic discipline into M2 acceptance:
 
-The bounded Windows A/B reproduction proved:
+- raw response length;
+- SHA-256;
+- whether trimmed text starts/ends with `{` / `}`;
+- markdown fence marker count;
+- bounded preview only: 1536-character head + truncation marker + 512-character tail, maximum raw payload exposure equivalent to 2048 characters;
+- parser error summary.
 
-1. normal `HOME/USERPROFILE` + fresh custom `userDataDir` -> launch PASS;
-2. only changing `HOME` and `USERPROFILE` to a fresh fake home before launch -> FAIL with the same Chrome 152 remote-debugging default-data-dir rejection;
-3. a fresh profile under the normal Penrix dedicated-profile parent path passes under the normal environment.
+The full raw response is never written to evidence.
 
-Therefore the actual defect is **M2 harness environment leakage into Chrome/Playwright startup**. The dedicated profile path itself is valid, and an occupied profile is not the proven cause.
+## Implementation
 
-Chromium's current remote-debugging check fails closed when it cannot determine the default data directory. The fake `HOME/USERPROFILE` changes that determination boundary on Windows.
+`scripts/m2-reasoning-diagnostic.mjs` contains the bounded diagnostic helper.
 
-## Narrow M2-only fix
+`scripts/m2-live.mjs` wires `onReasoningEnvelopeError` into the existing `ChatGptWebAdapter` options and immediately stores only the bounded diagnostic at `evidence.reasoningEnvelopeDiagnostic`.
 
-`scripts/m2-home-scope.mjs` provides a small environment-scope primitive:
+Rev 7 HOME/USERPROFILE scoping remains unchanged. Rev 6 profile quiescence remains as a bounded safety check.
 
-- snapshot original `HOME` / `USERPROFILE`;
-- set both to the temporary meow home only while the supplied operation runs;
-- restore both in `finally`, preserving originally-undefined variables exactly.
+No changes are made to:
 
-`scripts/m2-live.mjs` now uses that scope only for the dynamic `import('meow-memory')` boundary. This preserves meow-memory 0.27.0 import-captured homedir paths while avoiding fake-home leakage into the browser.
-
-The project database remains independently isolated by the explicit workspace-relative `projectDir`.
-
-Before creating the ChatGPT adapter, the live harness now explicitly asserts that `HOME/USERPROFILE` equal their original values and records `restoredBeforeAdapter: true` in evidence.
-
-The outer live-run `finally` retains a defensive restoration on every exit.
-
-## Rev 6 quiescence barrier status
-
-The bounded profile-quiescence barrier remains as a safety check, but it is no longer described as the proven root-cause fix.
-
-It still:
-
-- observes only Chrome/Edge using the exact dedicated `--user-data-dir`;
-- never kills a process;
-- never deletes lock files;
-- never changes profiles;
-- fails closed on timeout.
+- `src/reasoning-result.ts`;
+- `src/chatgpt/**`;
+- production prompt/parser behavior;
+- M1 production code;
+- M3 production code.
 
 ## Focused regression coverage
 
-`tests/m2-home-scope.test.ts` proves:
+`tests/m2-reasoning-diagnostic.test.ts` proves:
 
-- temporary fake home is visible inside the meow import/bootstrap scope;
-- original environment is restored before later adapter/browser-style use;
-- restoration occurs when the import/bootstrap operation throws;
-- undefined HOME/USERPROFILE values are restored exactly.
+- short responses keep complete bounded preview plus metadata;
+- SHA-256 and brace/fence metadata are recorded;
+- long responses are truncated to 1536 head + marker + 512 tail;
+- the middle of a long raw response is not dumped;
+- parser error summary is captured.
 
-`tests/m2-profile-quiescence.test.ts` remains unchanged and continues to cover the rev 6 safety barrier truthfully.
+Existing Rev 7 environment-scope and Rev 6 quiescence tests remain in place.
 
-## Packaging
+## Evidence preservation
 
-This repair remains scripts/tests/docs only. It does not modify `src/**`, `package.json`, M1 production code, or M3 production code.
-
-Therefore no Prepare, repack, Desktop reinstall, or DesktopReadback is required before ResumeM2.
-
-## ResumeM2
-
-ResumeM2 must preserve the existing M1 PASS and must not rerun M1.
-
-The rev 6 failure file remains preserved. Rev 7 writes a new M2 evidence file:
+All prior files remain preserved:
 
 ```text
+m2-live.json
+m2-live-resume.json
 m2-live-resume-rev7.json
 ```
 
-Expected order:
+Rev 8 writes:
 
 ```text
-existing M1 PASS evidence
--> bounded profile quiescence safety check
--> M2 with original HOME/USERPROFILE restored before browser startup
--> on M2 PASS, existing M3 prerequisite check
--> M3 real read-only seam
+m2-live-resume-rev8.json
 ```
 
-Stop at the first new real blocker and do not run extra diagnostics merely for curiosity.
+## Packaging
+
+This packet changes scripts/tests/docs/integration orchestration only. No packed production bytes change.
+
+**No Prepare, repack, Desktop reinstall, or DesktopReadback is required.**
 
 ## Exact Windows resume command
 
@@ -102,4 +83,4 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows-live-all.ps1 `
   -EvidenceRoot 'C:\Users\123\AppData\Local\Temp\dsh-chatgpt-web-win-live-evidence-ff62ba6c'
 ```
 
-Real Windows M2/M3 acceptance remains local-only and is not claimed by this remote repair.
+The next Windows run is **diagnostic only**. It is intended to capture the bounded raw-reply evidence for the first real reasoning-envelope failure. No production parser fix is claimed by Rev 8.
