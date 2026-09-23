@@ -259,6 +259,7 @@ End.`
     const malformedSchemas: unknown[] = [
       { type: 'object', properties: { value: { type: 'string', minimum: 1 } } },
       { type: 'object', properties: { value: { type: 'integer', minimum: Number.NaN } } },
+      { type: 'object', properties: { value: { type: 'integer', maximum: Number.POSITIVE_INFINITY } } },
       { type: 'object', properties: { value: { type: 'integer', minimum: -0 } } },
       { type: 'object', properties: { value: { type: 'integer', minimum: 10, maximum: 2 } } },
       { type: 'object', properties: { value: { type: 'string', pattern: '[a-z]+' } } },
