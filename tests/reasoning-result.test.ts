@@ -43,14 +43,79 @@ describe('reasoning result protocol', () => {
     })
   })
 
-  it('rejects prose around the JSON result', () => {
-    expect(() => parseReasoningResult('Here you go: {"type":"final","content":"done"}'))
-      .toThrow(/invalid reasoning envelope/i)
+  it('accepts one unambiguous JSON object with presentation-only surrounding prose', () => {
+    expect(parseReasoningResult('Here is the exact transport object:\n{"type":"final","content":"done"}\nEnd of response.')).toEqual({
+      type: 'final',
+      content: 'done',
+    })
+  })
+
+  it('keeps escaped quotes, braces, and Windows paths inside the single JSON object string', () => {
+    const raw = String.raw`Here is the object:
+{"type":"final","content":"Path C:\\Users\\123, quoted \"{ok}\""}
+End.`
+    expect(parseReasoningResult(raw)).toEqual({
+      type: 'final',
+      content: 'Path C:\\Users\\123, quoted "{ok}"',
+    })
+  })
+
+  it('accepts one JSON code fence even when presentation prose surrounds it', () => {
+    expect(parseReasoningResult('Here is the object:\n\`\`\`json\n{"type":"final","content":"done"}\n\`\`\`\nThat is the complete object.')).toEqual({
+      type: 'final',
+      content: 'done',
+    })
+  })
+
+  it('accepts a JSON fence without a newline before the closing fence', () => {
+    expect(parseReasoningResult('\`\`\`json\n{"type":"final","content":"done"}\`\`\`')).toEqual({
+      type: 'final',
+      content: 'done',
+    })
+  })
+
+  it('rejects multiple JSON objects as ambiguous presentation', () => {
+    expect(() => parseReasoningResult(
+      '{"type":"final","content":"one"}\n{"type":"final","content":"two"}',
+    )).toThrow(/expected exactly one JSON object|invalid reasoning envelope presentation/i)
+  })
+
+  it('rejects JSON-like structure outside the single object', () => {
+    expect(() => parseReasoningResult(
+      'Wrapper [metadata] {"type":"final","content":"done"}',
+    )).toThrow(/ambiguous|invalid reasoning envelope presentation/i)
+  })
+
+  it('rejects multiple fenced blocks even when one contains a valid object', () => {
+    expect(() => parseReasoningResult(
+      '\`\`\`json\n{"type":"final","content":"one"}\n\`\`\`\n\`\`\`json\n{"type":"final","content":"two"}\n\`\`\`',
+    )).toThrow(/multiple Markdown code fences|invalid reasoning envelope presentation/i)
+  })
+
+  it('rejects non-json fence labels instead of guessing transport meaning', () => {
+    expect(() => parseReasoningResult(
+      '\`\`\`javascript\n{"type":"final","content":"done"}\n\`\`\`',
+    )).toThrow(/fence must be unlabeled or json|invalid reasoning envelope presentation/i)
   })
 
   it('rejects extra final fields rather than silently ignoring them', () => {
     expect(() => parseReasoningResult('{"type":"final","content":"done","tool":"x"}'))
       .toThrow(/unsupported fields/i)
+  })
+
+  it('normalizes one prose-wrapped action proposal with nested arguments as one object', () => {
+    const result = parseReasoningResult(
+      'Proposal follows:\n{"type":"action_proposal","action":"memory_remember","arguments":{"level":"fact","content":"Nested object stays inside one envelope.","keywords":["one","two"]}}\nEnd.',
+    )
+    expect(result).toEqual({
+      type: 'action_proposal',
+      action: 'memory_remember',
+      arguments: {
+        level: 'fact',
+        content: 'Nested object stays inside one envelope.',
+        keywords: ['one', 'two'],
+      },
+    })
   })
 
   it('validates an action proposal against the exact DSH tool schema', () => {
