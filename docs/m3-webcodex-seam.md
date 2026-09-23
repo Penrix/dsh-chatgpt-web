@@ -21,17 +21,19 @@ Chosen transport: direct REST `POST /api/actions/read_files`.
 
 Why REST rather than MCP for the first seam: WebCodex source proves the direct Action is an existing stable projection of the same ToolRuntime authority. It preserves Project authorization, Runner routing, path policy and ToolRuntime semantics while avoiding a new MCP client/protocol stack inside this repository. MCP remains the primary ChatGPT integration, but it is not required to prove this minimal DSH-to-runtime seam.
 
-Authentication: HTTP Bearer using an operator-supplied WebCodex credential. The token is registration configuration and is never model-visible. At the pinned WebCodex commit, `read_files` requires `project:read` authority; a bearer lacking that scope is rejected before tool execution with HTTP 403.
+Authentication: HTTP Bearer using an operator-supplied WebCodex credential. At the pinned WebCodex commit, `read_files` requires `project:read` authority; a bearer lacking that scope is rejected before tool execution with HTTP 403. Windows Desktop Local Full Runtime should use its protected managed-user PAT file through `bearerTokenFile`; the credential value is loaded only at request time and is never model-visible. The older inline `bearerToken` form remains supported for compatibility/testing.
 
 The installed root plugin exposes the seam only when `webcodexRead` is configured:
 
 ```yaml
 config:
   webcodexRead:
-    baseUrl: http://127.0.0.1:8080
-    bearerToken: <local WebCodex bearer credential>
-    project: <exact registered Project id>
+    baseUrl: http://127.0.0.1:<actual-port>
+    bearerTokenFile: C:\\...\\webcodex-user-token
+    project: <exact runtime Project id>
 ```
+
+For the current Windows Desktop managed-pairing path, the safe source of these values is documented in [m3-webcodex-windows-boot.md](./m3-webcodex-windows-boot.md): `desktop-state.json` supplies the non-secret base URL, PAT file path and `runtime_project_id`; the helper never prints the PAT.
 
 The M1 plugin keeps only `llm` as a hard dependency. When this optional config exists it uses Cordis `ctx.inject(['tools'], ...)`, so the capability is registered when the real DSH ToolRuntime service is present and is absent otherwise.
 
@@ -102,6 +104,7 @@ Non-`ToolResult` HTTP/auth/protocol failures become a DSH tool failure with stab
 - No write/effectful WebCodex tool is exposed by this packet.
 - The Project id is pinned at registration and copied verbatim into every request.
 - The Bearer credential is never part of the model-visible schema.
+- Windows Desktop acceptance prefers the protected `bearerTokenFile` handoff; the path may be persisted, the token value must not be printed or committed.
 - Future effectful seams must reconcile outcome-unknown before retry; this read-only seam retries nothing.
 
 ## Windows live acceptance
