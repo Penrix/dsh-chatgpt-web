@@ -24,26 +24,78 @@ const sessionId = SessionId(`penrix-m1-live-${Date.now()}`)
 const evidencePath = resolve(process.env.M1_LIVE_EVIDENCE || join(tmpdir(), `dsh-chatgpt-web-m1-live-${Date.now()}.json`))
 const profileExistedBefore = existsSync(profileDir)
 
-function waitForIdle(ctx, agent, timeoutMs) {
-  return new Promise((resolveIdle, rejectIdle) => {
-    let dispose = () => {}
+function summarizeError(error) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      ...(typeof error.code === 'string' ? { code: error.code } : {}),
+      ...(error.stack ? { stack: error.stack } : {}),
+      ...(error.cause ? { cause: summarizeError(error.cause) } : {}),
+    }
+  }
+  return { message: String(error) }
+}
+
+function waitForAgentRun(ctx, agent, timeoutMs, lifecycle) {
+  return new Promise((resolveRun, rejectRun) => {
+    let settled = false
+    let lastAgentError
+    let disposeStatus = () => {}
+    let disposeError = () => {}
+
+    const cleanup = () => {
+      disposeStatus()
+      disposeError()
+      clearTimeout(timer)
+    }
+
+    const finish = (error) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      if (error) rejectRun(error)
+      else resolveRun()
+    }
+
     const timer = setTimeout(() => {
-      dispose()
-      rejectIdle(new Error(`Timed out waiting for DSH AgentLoop idle after ${timeoutMs}ms.`))
+      finish(lastAgentError ?? new Error(`Timed out waiting for DSH AgentLoop activity after ${timeoutMs}ms.`))
     }, timeoutMs)
 
-    dispose = ctx.on('agent/status', ({ agent: subject, status }) => {
-      if (subject !== agent || status !== 'idle') return
-      clearTimeout(timer)
-      dispose()
-      resolveIdle()
+    lifecycle.initialStatus = agent.status
+
+    disposeStatus = ctx.on('agent/status', ({ agent: subject, status }) => {
+      if (subject !== agent) return
+      lifecycle.statusTransitions.push({ status, at: new Date().toISOString() })
+      if (status === 'running') lifecycle.sawRunning = true
+      if (status === 'idle' && lifecycle.sawRunning) {
+        finish(lastAgentError)
+      }
+    })
+
+    disposeError = ctx.on('agent/error', ({ agent: subject, turn, step, error }) => {
+      if (subject !== agent) return
+      lastAgentError = error instanceof Error ? error : new Error(String(error))
+      lifecycle.agentErrors.push({
+        turn,
+        step,
+        error: summarizeError(error),
+        at: new Date().toISOString(),
+      })
     })
   })
 }
 
 const ctx = new Context()
 let adapter
+let agent
 let echoExecutions = 0
+const lifecycle = {
+  initialStatus: null,
+  sawRunning: false,
+  statusTransitions: [],
+  agentErrors: [],
+}
 try {
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(SessionStore)
@@ -77,8 +129,8 @@ try {
     },
   }))
 
-  const agent = await ctx.agentLoop.create(sessionId, { provider, model })
-  const idle = waitForIdle(ctx, agent, overallTimeoutMs)
+  agent = await ctx.agentLoop.create(sessionId, { provider, model })
+  const run = waitForAgentRun(ctx, agent, overallTimeoutMs, lifecycle)
 
   agent.followup(createUserMessage({
     content: [{
@@ -93,7 +145,7 @@ try {
     source: { kind: 'user' },
   }))
 
-  await idle
+  await run
 
   const events = agent.session.snapshotEvents()
   const eventTypes = events.map(event => event.type)
@@ -138,7 +190,7 @@ try {
   assert.ok(existsSync(profileDir), 'dedicated ChatGPT provider profile must exist after a successful live run')
 
   const evidence = {
-    packet: 'WEB-M1-WIN-LIVE-009 rev 1',
+    packet: 'WEB-M1-WIN-LIVE-010 rev 1',
     accepted: true,
     provider,
     model,
@@ -146,6 +198,7 @@ try {
     profileDir,
     profileExistedBefore,
     profileExistsAfter: existsSync(profileDir),
+    lifecycle,
     echoExecutions,
     counts: {
       assistantMessages: assistantIndexes.length,
@@ -168,8 +221,9 @@ try {
   console.log('M1 live echo: PASS (real ChatGPT Web -> DSH echo -> second real inference)')
   console.log(`EVIDENCE: ${evidencePath}`)
 } catch (error) {
+  const events = agent?.session.snapshotEvents?.() ?? []
   const failure = {
-    packet: 'WEB-M1-WIN-LIVE-009 rev 1',
+    packet: 'WEB-M1-WIN-LIVE-010 rev 1',
     accepted: false,
     provider,
     model,
@@ -177,15 +231,16 @@ try {
     profileDir,
     profileExistedBefore,
     profileExistsAfter: existsSync(profileDir),
+    lifecycle,
     echoExecutions,
-    error: error instanceof Error
-      ? { name: error.name, message: error.message, stack: error.stack }
-      : { message: String(error) },
+    eventTypes: events.map(event => event.type),
+    events,
+    error: summarizeError(error),
     failedAt: new Date().toISOString(),
   }
   await writeFile(
     evidencePath,
-    JSON.stringify(failure, null, 2) + '\n',
+    JSON.stringify(failure, (_, value) => typeof value === 'bigint' ? value.toString() : value, 2) + '\n',
     'utf8',
   ).catch(() => {})
   console.error(`M1 live echo: FAIL; evidence: ${evidencePath}`)
