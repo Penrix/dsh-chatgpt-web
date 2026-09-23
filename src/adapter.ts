@@ -95,7 +95,7 @@ export class ChatGptWebAdapter extends LlmAdapter {
           timeoutMs: this.options.turnTimeoutMs,
           ...(options.signal ? { signal: options.signal } : {}),
         })
-        let reasoning
+        let reasoning: ReturnType<typeof parseReasoningResult>
         try {
           reasoning = parseReasoningResult(result.text)
         } catch (error) {
