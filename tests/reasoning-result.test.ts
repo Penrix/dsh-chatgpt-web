@@ -103,6 +103,21 @@ End.`
       .toThrow(/unsupported fields/i)
   })
 
+  it('normalizes one prose-wrapped action proposal with nested arguments as one object', () => {
+    const result = parseReasoningResult(
+      'Proposal follows:\n{"type":"action_proposal","action":"memory_remember","arguments":{"level":"fact","content":"Nested object stays inside one envelope.","keywords":["one","two"]}}\nEnd.',
+    )
+    expect(result).toEqual({
+      type: 'action_proposal',
+      action: 'memory_remember',
+      arguments: {
+        level: 'fact',
+        content: 'Nested object stays inside one envelope.',
+        keywords: ['one', 'two'],
+      },
+    })
+  })
+
   it('validates an action proposal against the exact DSH tool schema', () => {
     const result = parseReasoningResult(JSON.stringify({
       type: 'action_proposal',
