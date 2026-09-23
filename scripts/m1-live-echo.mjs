@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
@@ -23,6 +24,24 @@ const overallTimeoutMs = Number(process.env.M1_OVERALL_TIMEOUT_MS || 1_800_000)
 const sessionId = SessionId(`penrix-m1-live-${Date.now()}`)
 const evidencePath = resolve(process.env.M1_LIVE_EVIDENCE || join(tmpdir(), `dsh-chatgpt-web-m1-live-${Date.now()}.json`))
 const profileExistedBefore = existsSync(profileDir)
+
+function boundedReasoningEnvelopeDiagnostic(rawText, error) {
+  const maxPreviewChars = 2048
+  const headChars = 1536
+  const tailChars = 512
+  const preview = rawText.length <= maxPreviewChars
+    ? rawText
+    : `${rawText.slice(0, headChars)}\n…<truncated ${rawText.length - maxPreviewChars} chars>…\n${rawText.slice(-tailChars)}`
+  return {
+    rawLength: rawText.length,
+    sha256: createHash('sha256').update(rawText, 'utf8').digest('hex'),
+    startsWithBrace: rawText.trimStart().startsWith('{'),
+    endsWithBrace: rawText.trimEnd().endsWith('}'),
+    fenceMarkerCount: rawText.split('```').length - 1,
+    preview,
+    parseError: summarizeError(error),
+  }
+}
 
 function summarizeError(error) {
   if (error instanceof Error) {
@@ -90,6 +109,7 @@ const ctx = new Context()
 let adapter
 let agent
 let echoExecutions = 0
+let reasoningEnvelopeDiagnostic = null
 const lifecycle = {
   initialStatus: null,
   sawRunning: false,
@@ -114,6 +134,9 @@ try {
     composerMaxChars: 180_000,
     contextWindow: 90_000,
     maxTokens: 16_384,
+    onReasoningEnvelopeError({ rawText, error }) {
+      reasoningEnvelopeDiagnostic = boundedReasoningEnvelopeDiagnostic(rawText, error)
+    },
   })
   ctx.llm.registerAdapter([provider], adapter)
 
@@ -199,6 +222,7 @@ try {
     profileExistedBefore,
     profileExistsAfter: existsSync(profileDir),
     lifecycle,
+    reasoningEnvelopeDiagnostic,
     echoExecutions,
     counts: {
       assistantMessages: assistantIndexes.length,
