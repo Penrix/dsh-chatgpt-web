@@ -9,11 +9,19 @@ export const name = 'penrix-llm-chatgpt-web'
 export const inject = ['llm']
 export const PROVIDER = 'chatgpt-web'
 
-export interface WebCodexReadConfig {
-  baseUrl: string
-  bearerToken: string
-  project: string
-}
+export type WebCodexReadConfig =
+  | {
+      baseUrl: string
+      bearerToken: string
+      bearerTokenFile?: never
+      project: string
+    }
+  | {
+      baseUrl: string
+      bearerToken?: never
+      bearerTokenFile: string
+      project: string
+    }
 
 export interface Config {
   profileDir?: string
@@ -36,11 +44,18 @@ export const Config: z<Config> = z.object({
   composerMaxChars: z.number().step(1).min(1).default(180_000),
   contextWindow: z.number().step(1).min(1).default(90_000),
   maxTokens: z.number().step(1).min(1).default(16_384),
-  webcodexRead: z.union([z.object({
-    baseUrl: z.string().required(),
-    bearerToken: z.string().required(),
-    project: z.string().required(),
-  })]),
+  webcodexRead: z.union([
+    z.object({
+      baseUrl: z.string().required(),
+      bearerToken: z.string().required(),
+      project: z.string().required(),
+    }),
+    z.object({
+      baseUrl: z.string().required(),
+      bearerTokenFile: z.string().required(),
+      project: z.string().required(),
+    }),
+  ]),
 })
 
 export function apply(ctx: Context, config: Config): void {
@@ -75,6 +90,7 @@ export { compilePrompt } from './chatgpt/prompt.ts'
 export {
   WEBCODEX_READ_FILES_ACTION_PATH,
   WEBCODEX_READ_FILES_TOOL,
+  WebCodexCredentialError,
   WebCodexHttpError,
   invokeWebCodexReadFiles,
   registerWebCodexReadFilesTool,
