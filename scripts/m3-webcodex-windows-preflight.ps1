@@ -31,7 +31,9 @@ function Test-SameWindowsPath {
   try {
     return (Resolve-FullPath $Left).Equals((Resolve-FullPath $Right),[StringComparison]::OrdinalIgnoreCase)
   } catch {
-    return $Left.TrimEnd('\','/').Equals($Right.TrimEnd('\','/'),[StringComparison]::OrdinalIgnoreCase)
+    $leftTrimmed = $Left.TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)
+    $rightTrimmed = $Right.TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)
+    return $leftTrimmed.Equals($rightTrimmed,[StringComparison]::OrdinalIgnoreCase)
   }
 }
 
