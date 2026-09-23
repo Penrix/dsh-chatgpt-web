@@ -36,9 +36,8 @@ class CandidateAdapter extends LlmAdapter {
 
 class FailingAdapter extends LlmAdapter {
   override stream(): AsyncIterable<StreamChunk> {
-    return (async function* () {
+    return (async function* (): AsyncGenerator<StreamChunk> {
       throw new Error('dedicated browser failed before composer readiness')
-      yield { type: 'finish', reason: 'stop' } as StreamChunk
     })()
   }
 }
@@ -67,7 +66,7 @@ async function runAndObserve(
   }
 }
 
-async function createHarness(adapter: CandidateAdapter): Promise<Context> {
+async function createHarness(adapter: LlmAdapter): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(SessionStore)
@@ -135,7 +134,7 @@ describe('DSH 0.1.5-rc.2 native tool-loop compatibility', () => {
   })
 
   it('surfaces a provider failure on agent/error before any zero-tool assertion', async () => {
-    const ctx = await createHarness(new FailingAdapter() as unknown as CandidateAdapter)
+    const ctx = await createHarness(new FailingAdapter())
     contexts.push(ctx)
 
     let executions = 0
