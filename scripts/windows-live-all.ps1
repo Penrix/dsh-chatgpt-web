@@ -50,8 +50,8 @@ function Set-M2Environment([string]$EvidencePath) {
   Get-ChildItem Env:M2_LIVE_COMPOSITE_* -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
   $env:M2_WIN_INTEGRATION_REF = $ExpectedBranch
   $env:M2_WIN_INTEGRATION_HEAD = $Head
-  $env:M2_WIN_M2_SOURCE_HEAD = '8b69da5d952fc0e66250bc2ad0571398ae696d0d'
-  $env:M2_WIN_OVERLAY_PATHS = 'docs/m2-live-acceptance.md,scripts/m2-live.mjs,scripts/m2-profile-quiescence.mjs,tests/m2-profile-quiescence.test.ts'
+  $env:M2_WIN_M2_SOURCE_HEAD = 'f4b1415d45b210a9d681b4092cf9ba2a0154d93f'
+  $env:M2_WIN_OVERLAY_PATHS = 'docs/m2-live-acceptance.md,scripts/m2-live.mjs,scripts/m2-live-composite.ps1,scripts/m2-home-scope.mjs,scripts/m2-profile-quiescence.mjs,tests/m2-home-scope.test.ts,tests/m2-profile-quiescence.test.ts'
   Remove-Item Env:M2_WIN_CHANGED_PATHS -ErrorAction SilentlyContinue
 }
 
@@ -187,7 +187,7 @@ switch ($Phase) {
     Write-Host "Preserving existing M1 PASS evidence: $env:M1_LIVE_EVIDENCE"
     Write-Host "M1 completedAt: $($m1.completedAt)"
 
-    Set-M2Environment (Join-Path $EvidenceRoot 'm2-live-resume.json')
+    Set-M2Environment (Join-Path $EvidenceRoot 'm2-live-resume-rev7.json')
     Wait-M2ProfileQuiescence
 
     Write-Host ''
@@ -197,7 +197,7 @@ switch ($Phase) {
     Invoke-M3Live (Join-Path $EvidenceRoot 'm3-live.json')
 
     $summary = [pscustomobject]@{
-      packet = 'WEB-M2-WIN-LIVE-006 rev 1'
+      packet = 'WEB-M2-WIN-LIVE-007 rev 1'
       phase = 'ResumeM2'
       head = $Head
       profileDir = $ProfileDir
