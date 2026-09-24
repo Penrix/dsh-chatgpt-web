@@ -232,7 +232,7 @@ export async function waitForChatGptEffortSliderState(
     : sawVisibleContainer
       ? 'ChatGPT effort slider container was visible but its semantic slider did not attach'
       : 'ChatGPT effort slider container did not become visible'
-  throw new Error('ChatGPT model controls are unavailable. Reload ChatGPT and retry.', {
+  throw new Error(`ChatGPT model controls are unavailable: ${cause}. Reload ChatGPT and retry.`, {
     cause: new Error(cause),
   })
 }
