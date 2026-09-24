@@ -104,6 +104,22 @@ export interface CompiledPrompt {
   targetMessageIndex: number
 }
 
+function hasCompletedToolEvidence(messages: readonly Message[]): boolean {
+  const calls = new Set<string>()
+  const results = new Set<string>()
+  for (const message of messages) {
+    for (const block of message.content) {
+      const value = block as unknown as Record<string, unknown>
+      if (value.type === 'tool-call' && typeof value.id === 'string') calls.add(value.id)
+      if (value.type === 'tool-result' && typeof value.toolCallId === 'string') results.add(value.toolCallId)
+    }
+  }
+  for (const callId of calls) {
+    if (results.has(callId)) return true
+  }
+  return false
+}
+
 export function compilePrompt(options: GenerateOptions, maxChars: number): CompiledPrompt {
   if (options.temperature !== undefined) {
     throw new LlmError('Phase 1 ChatGPT Web provider does not support temperature.', 'UNSUPPORTED')
@@ -121,6 +137,7 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     parameters: tool.parameters,
   })) ?? []
   const toolActionsAllowed = options.purpose === undefined && tools.length > 0
+  const completedToolEvidence = hasCompletedToolEvidence(options.messages)
   const envelope = {
     version: 2,
     ...(options.system ? { system: options.system } : {}),
@@ -174,6 +191,12 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     '<dsh_context_json>',
     JSON.stringify(envelope),
     '</dsh_context_json>',
+    '',
+    'The complete authoritative DSH payload for this inference has already been supplied above. Do not ask the user to provide a payload, conversation state, messages, or tool history.',
+    'Read the supplied messages and tool history now, decide the next step, and return exactly one raw JSON object as the entire answer using only the already-defined allowed envelope shape.',
+    ...(completedToolEvidence
+      ? ['A supplied tool_call with its matching tool_result is completed DSH evidence. Decide the next step from that result now; do not request the payload again, claim the tool has not run, or repeat/re-execute the completed tool.']
+      : []),
   ].join('\n')
 
   if (text.length > maxChars) {
