@@ -113,9 +113,8 @@ export async function selectModelEffort(
     )
   }
   await throwIfRateLimitDialog(page)
-  let activation
   try {
-    activation = await activateChatGptEffortMenu(page, control)
+    await activateChatGptEffortMenu(page, control)
   } catch (error) {
     throw new LlmError(
       error instanceof Error ? error.message : String(error),
