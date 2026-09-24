@@ -27,6 +27,7 @@ interface FakeEffortState {
   generation: number
   evaluateReads: number
   detachReadsRemaining: number
+  pressDetachRemaining: number
   rawSequence: Array<{ min: string | null; max: string | null; now: string | null }>
   current: { min: string | null; max: string | null; now: string | null }
   globalSliderLookups: number
@@ -50,6 +51,7 @@ function fakeEffortProbe(config: Partial<FakeEffortState> = {}): {
     generation: 1,
     evaluateReads: 0,
     detachReadsRemaining: 0,
+    pressDetachRemaining: 0,
     rawSequence: [],
     current: { min: '0', max: '2', now: '2' },
     globalSliderLookups: 0,
@@ -73,6 +75,11 @@ function fakeEffortProbe(config: Partial<FakeEffortState> = {}): {
       },
       locator: () => ({
         press: async (key: string) => {
+          if (state.pressDetachRemaining > 0) {
+            state.pressDetachRemaining -= 1
+            state.generation += 1
+            throw new Error('detached-before-key')
+          }
           const now = Number(state.current.now)
           state.current = {
             ...state.current,
@@ -308,6 +315,19 @@ describe('ChatGPT model/effort mapping', () => {
     await expect(waitForChatGptEffortSliderState(probe.page, probe.control, 55))
       .rejects.toThrow(/aria-range-invalid\(min="0",max="99",now="2"\)/i)
     expect(Date.now() - started).toBeGreaterThanOrEqual(50)
+  })
+
+  it('re-resolves and retries when the slider is replaced at keyboard dispatch time', async () => {
+    const probe = fakeEffortProbe({
+      open: true,
+      containerVisible: true,
+      pressDetachRemaining: 1,
+      current: { min: '0', max: '2', now: '0' },
+    })
+    const initial = await waitForChatGptEffortSliderState(probe.page, probe.control, 100)
+    const final = await moveChatGptEffortSliderToTarget(probe.page, probe.control, initial, 2)
+    expect(final.state).toEqual({ min: 0, max: 2, value: 2 })
+    expect(probe.state.pressDetachRemaining).toBe(0)
   })
 
   it('re-resolves the owned slider after keyboard movement replaces the DOM node', async () => {
