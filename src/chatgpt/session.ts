@@ -262,6 +262,23 @@ export async function assertConnectorChatPage(page: Page): Promise<void> {
   assertChatGptSurfaceUrl(page.url(), 'connector')
 }
 
+export async function probeChatGptEffortCapabilities(
+  page: Page,
+  effortButton: Locator,
+  options: { timeoutMs?: number; activationSettleMs?: number } = {},
+): Promise<ChatGptWebAccountCapabilities> {
+  const timeout = options.timeoutMs ?? 70_000
+  try {
+    await activateChatGptEffortMenu(page, effortButton, {
+      settleMs: options.activationSettleMs ?? Math.min(3_000, Math.max(1, timeout)),
+    })
+    const { state } = await waitForChatGptEffortSliderState(page, timeout)
+    return { solAvailable: true, proAvailable: state.max - state.min + 1 >= 5 }
+  } finally {
+    await page.keyboard.press('Escape').catch(() => {})
+  }
+}
+
 export async function detectChatGptAccountCapabilities(
   page: Page,
   options: { selectorTimeoutMs?: number; stableAbsenceMs?: number } = {},
@@ -300,14 +317,7 @@ export async function detectChatGptAccountCapabilities(
     }
     await new Promise(resolveSleep => setTimeout(resolveSleep, 100))
   }
-  try {
-    const timeout = options.selectorTimeoutMs ?? 70_000
-    await activateChatGptEffortMenu(page, effortButton, {
-      settleMs: Math.min(3_000, Math.max(1, timeout)),
-    })
-    const { state } = await waitForChatGptEffortSliderState(page, timeout)
-    return { solAvailable: true, proAvailable: state.max - state.min + 1 >= 5 }
-  } finally {
-    await page.keyboard.press('Escape').catch(() => {})
-  }
+  return probeChatGptEffortCapabilities(page, effortButton, {
+    timeoutMs: options.selectorTimeoutMs ?? 70_000,
+  })
 }
