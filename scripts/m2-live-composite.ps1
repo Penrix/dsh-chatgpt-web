@@ -21,9 +21,11 @@ $RequiredM2Paths = @(
   "scripts/m2-home-scope.mjs",
   "scripts/m2-profile-quiescence.mjs",
   "scripts/m2-reasoning-diagnostic.mjs",
+  "scripts/m2-dream-gate.mjs",
   "tests/m2-home-scope.test.ts",
   "tests/m2-profile-quiescence.test.ts",
-  "tests/m2-reasoning-diagnostic.test.ts"
+  "tests/m2-reasoning-diagnostic.test.ts",
+  "tests/m2-dream-gate.test.ts"
 )
 
 Write-Host "Fetching current Windows integration and M2 source refs..."
@@ -133,7 +135,7 @@ try {
       throw "Dedicated ChatGPT profile did not become quiescent before M2."
     }
 
-    Write-Host "Starting WEB-M2-WIN-LIVE-008 real Windows/browser acceptance..."
+    Write-Host "Starting WEB-M2-WIN-LIVE-009 real Windows/browser acceptance..."
     npm run m2:live
     if ($LASTEXITCODE -ne 0) {
       throw "m2:live exited with code $LASTEXITCODE. Inspect the evidence JSON for the first exact blocker."
