@@ -152,12 +152,13 @@ export async function selectModelEffort(
     await sliderControl.press(key)
     const changeDeadline = Date.now() + 5_000
     do {
-      state = parseChatGptEffortSliderState(
+      const nextState = parseChatGptEffortSliderState(
         await slider.getAttribute('aria-valuemin'),
         await slider.getAttribute('aria-valuemax'),
         await slider.getAttribute('aria-valuenow'),
       )
-      if (!state) throw new LlmError('ChatGPT effort slider lost its semantic ARIA state.', 'PROVIDER_ERROR')
+      if (!nextState) throw new LlmError('ChatGPT effort slider lost its semantic ARIA state.', 'PROVIDER_ERROR')
+      state = nextState
       if (state.value !== previousValue) break
       await new Promise(resolveSleep => setTimeout(resolveSleep, 50))
     } while (Date.now() < changeDeadline)
