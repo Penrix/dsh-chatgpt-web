@@ -47,6 +47,7 @@ async function defaultSleep(delayMs: number, signal?: AbortSignal): Promise<void
       reject(new LlmError('ChatGPT fresh-page pacing aborted.', 'ABORTED'))
     }
     signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) onAbort()
   })
 }
 
