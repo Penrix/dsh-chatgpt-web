@@ -302,7 +302,17 @@ describe('ChatGPT model/effort mapping', () => {
     await expect(probeChatGptEffortCapabilities(invalid.page, invalid.control, {
       timeoutMs: 10,
       activationSettleMs: 1,
-    })).rejects.toThrow(/aria-range-invalid/i)
+    })).rejects.toThrow(/aria-range-too-large-or-empty/i)
+  })
+
+  it('distinguishes an out-of-range current value from an oversized range', async () => {
+    const probe = fakeEffortProbe({
+      open: true,
+      containerVisible: true,
+      current: { min: '0', max: '2', now: '9' },
+    })
+    await expect(waitForChatGptEffortSliderState(probe.page, probe.control, 10))
+      .rejects.toThrow(/aria-value-out-of-range/i)
   })
 
   it('fails only after the bounded wait and reports safe ARIA diagnostics for persistent invalid state', async () => {
@@ -313,7 +323,7 @@ describe('ChatGPT model/effort mapping', () => {
     })
     const started = Date.now()
     await expect(waitForChatGptEffortSliderState(probe.page, probe.control, 55))
-      .rejects.toThrow(/aria-range-invalid\(min="0",max="99",now="2"\)/i)
+      .rejects.toThrow(/aria-range-too-large-or-empty\(min="0",max="99",now="2"\)/i)
     expect(Date.now() - started).toBeGreaterThanOrEqual(50)
   })
 
