@@ -36,12 +36,45 @@ export async function moveChatGptEffortSliderToTarget(
     const direction = targetValue > state.value ? 1 : -1
     const key = direction > 0 ? 'ArrowRight' : 'ArrowLeft'
     const previousValue = state.value
-    const sliderControl = observation.slider.locator("xpath=ancestor::*[@role='menuitem'][1]")
-    await sliderControl.press(key)
-    observation = await waitForChatGptEffortSliderState(page, control, 5_000, {
-      valueMustDifferFrom: previousValue,
-    })
-    state = observation.state
+    const stepDeadline = Date.now() + 5_000
+
+    for (;;) {
+      const sliderControl = observation.slider.locator("xpath=ancestor::*[@role='menuitem'][1]")
+      try {
+        await sliderControl.press(key)
+      } catch {
+        observation = await waitForChatGptEffortSliderState(
+          page,
+          control,
+          Math.max(1, stepDeadline - Date.now()),
+        )
+        state = observation.state
+        if (state.value === previousValue + direction) break
+        if (state.value !== previousValue) {
+          throw new LlmError(
+            `ChatGPT effort slider moved unexpectedly with ${key} (before=${previousValue}; after=${state.value}).`,
+            'PROVIDER_ERROR',
+          )
+        }
+        if (Date.now() >= stepDeadline) {
+          throw new LlmError(
+            `ChatGPT effort slider did not move before the bounded ${key} deadline.`,
+            'PROVIDER_ERROR',
+          )
+        }
+        continue
+      }
+
+      observation = await waitForChatGptEffortSliderState(
+        page,
+        control,
+        Math.max(1, stepDeadline - Date.now()),
+        { valueMustDifferFrom: previousValue },
+      )
+      state = observation.state
+      break
+    }
+
     if (state.value !== previousValue + direction) {
       throw new LlmError(
         `ChatGPT effort slider did not move exactly one step with ${key} (before=${previousValue}; after=${state.value}).`,
