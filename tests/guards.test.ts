@@ -73,6 +73,16 @@ describe('conversation-history rate-limit guard', () => {
     expect(isHistoryRateLimitText('ordinary composer notice')).toBe(false)
   })
 
+  it('detects visible Chinese and English history-limit copy from semantic regions', async () => {
+    await expect(detectChatGptRateLimitClass(fakeRateLimitPage({
+      semanticTexts: ['你的请求过于频繁，请稍等几分钟后再重试。'],
+    }))).resolves.toBe('conversation-history')
+
+    await expect(detectChatGptRateLimitClass(fakeRateLimitPage({
+      semanticTexts: ['Your requests are too frequent. Please wait a few minutes and try again.'],
+    }))).resolves.toBe('conversation-history')
+  })
+
   it('records a 120-second cooldown on the same bound browser safety gate', async () => {
     let now = 0
     const gate = new FreshPageSafetyGate({
