@@ -64,6 +64,10 @@ export interface BrowserOptions {
 
 const PAGE_SAFETY_GATES = new WeakMap<Page, FreshPageSafetyGate>()
 
+export function bindPageFreshSafetyGate(page: Page, gate: FreshPageSafetyGate): void {
+  PAGE_SAFETY_GATES.set(page, gate)
+}
+
 export function noteHistoryRateLimitForPage(page: Page): FreshPageSafetyState | undefined {
   return PAGE_SAFETY_GATES.get(page)?.noteHistoryRateLimit()
 }
@@ -94,7 +98,7 @@ export class ChatGptBrowser {
         () => this.context!.newPage(),
         signal,
       )
-      PAGE_SAFETY_GATES.set(page, this.freshPageSafety)
+      bindPageFreshSafetyGate(page, this.freshPageSafety)
       return page
     } catch (error) {
       if (error instanceof LlmError) throw error
