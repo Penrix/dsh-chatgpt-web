@@ -14,7 +14,6 @@ import {
   CHATGPT_COMPOSER_SELECTOR,
   CHATGPT_EFFORT_CONTROL_SELECTOR,
   activateChatGptEffortMenu,
-  parseChatGptEffortSliderState,
   waitForChatGptEffortSliderState,
 } from './session.ts'
 import {
@@ -123,7 +122,7 @@ export async function selectModelEffort(
   }
   let observation
   try {
-    observation = await waitForChatGptEffortSliderState(page, 30_000)
+    observation = await waitForChatGptEffortSliderState(page, control, 30_000)
   } catch (error) {
     throw new LlmError(
       error instanceof Error && error.cause instanceof Error
@@ -134,7 +133,6 @@ export async function selectModelEffort(
       'PROVIDER_ERROR',
     )
   }
-  const slider = observation.slider
   let state = observation.state
   const targetValue = state.min + mode.uiEffortIndex
   if (targetValue > state.max) {
@@ -143,25 +141,25 @@ export async function selectModelEffort(
       'INVALID_REQUEST',
     )
   }
-  const sliderControl = slider.locator("xpath=ancestor::*[@role='menuitem'][1]")
   while (state.value !== targetValue) {
     await throwIfRateLimitDialog(page)
     const direction = targetValue > state.value ? 1 : -1
     const key = direction > 0 ? 'ArrowRight' : 'ArrowLeft'
     const previousValue = state.value
+    const sliderControl = observation.slider.locator("xpath=ancestor::*[@role='menuitem'][1]")
     await sliderControl.press(key)
-    const changeDeadline = Date.now() + 5_000
-    do {
-      const nextState = parseChatGptEffortSliderState(
-        await slider.getAttribute('aria-valuemin'),
-        await slider.getAttribute('aria-valuemax'),
-        await slider.getAttribute('aria-valuenow'),
+
+    try {
+      observation = await waitForChatGptEffortSliderState(page, control, 5_000, {
+        valueMustDifferFrom: previousValue,
+      })
+    } catch (error) {
+      throw new LlmError(
+        error instanceof Error ? error.message : String(error),
+        'PROVIDER_ERROR',
       )
-      if (!nextState) throw new LlmError('ChatGPT effort slider lost its semantic ARIA state.', 'PROVIDER_ERROR')
-      state = nextState
-      if (state.value !== previousValue) break
-      await new Promise(resolveSleep => setTimeout(resolveSleep, 50))
-    } while (Date.now() < changeDeadline)
+    }
+    state = observation.state
     if (state.value !== previousValue + direction) {
       throw new LlmError(
         `ChatGPT effort slider did not move exactly one step with ${key} (before=${previousValue}; after=${state.value}).`,
