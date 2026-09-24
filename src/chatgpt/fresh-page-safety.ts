@@ -34,21 +34,18 @@ async function defaultSleep(delayMs: number, signal?: AbortSignal): Promise<void
     throw new LlmError('ChatGPT fresh-page pacing aborted.', 'ABORTED')
   }
   await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(resolve, Math.max(0, delayMs))
+    const cleanup = () => signal?.removeEventListener('abort', onAbort)
+    const finish = () => {
+      cleanup()
+      resolve()
+    }
+    const timeout = setTimeout(finish, Math.max(0, delayMs))
     const onAbort = () => {
       clearTimeout(timeout)
+      cleanup()
       reject(new LlmError('ChatGPT fresh-page pacing aborted.', 'ABORTED'))
     }
     signal?.addEventListener('abort', onAbort, { once: true })
-    const cleanup = () => signal?.removeEventListener('abort', onAbort)
-    Promise.resolve().then(() => {}).finally(() => {
-      // cleanup is also performed by the timeout/abort continuations below
-    })
-    const originalResolve = resolve
-    resolve = () => {
-      cleanup()
-      originalResolve()
-    }
   })
 }
 
