@@ -103,10 +103,9 @@ function effortMenuSelectorForId(menuId: string): string {
   return `[id=${JSON.stringify(menuId)}]`
 }
 
-export async function chatGptEffortMenuForControl(page: Page, control: Locator): Promise<Locator> {
+export async function chatGptEffortMenuForControl(page: Page, control: Locator): Promise<Locator | undefined> {
   const menuId = await control.getAttribute('aria-controls').catch(() => null)
-  if (menuId) return page.locator(effortMenuSelectorForId(menuId))
-  return page.locator(CHATGPT_EFFORT_MENU_SELECTOR).filter({ visible: true }).last()
+  return menuId ? page.locator(effortMenuSelectorForId(menuId)) : undefined
 }
 
 async function visibleEffortSurface(
@@ -114,6 +113,7 @@ async function visibleEffortSurface(
   control: Locator,
 ): Promise<Omit<ChatGptEffortActivation, 'method'> | undefined> {
   const menu = await chatGptEffortMenuForControl(page, control)
+  if (!menu) return undefined
   const surface = chatGptEffortSlider(menu)
   if (await menu.isVisible().catch(() => false) || await surface.sliderContainer.isVisible().catch(() => false)) {
     return { menu, ...surface }
@@ -244,7 +244,7 @@ async function sampleOwnedEffortSlider(
   | { diagnostic: ChatGptEffortProbeDiagnostic }
 > {
   const menu = await chatGptEffortMenuForControl(page, control)
-  if (!await menu.isVisible().catch(() => false)) {
+  if (!menu || !await menu.isVisible().catch(() => false)) {
     return { diagnostic: { issue: 'menu-missing' } }
   }
 
