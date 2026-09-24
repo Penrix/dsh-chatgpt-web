@@ -56,31 +56,35 @@ function fakeEffortProbe(config: Partial<FakeEffortState> = {}): {
     ...config,
   }
 
-  const makeSlider = (generation: number) => ({
-    count: async () => state.sliderAttached ? 1 : 0,
-    evaluate: async () => {
-      state.evaluateReads += 1
-      if (generation !== state.generation || state.detachReadsRemaining > 0) {
-        if (state.detachReadsRemaining > 0) {
-          state.detachReadsRemaining -= 1
-          state.generation += 1
+  const makeSlider = (generation: number) => {
+    const slider = {
+      count: async () => state.sliderAttached ? 1 : 0,
+      evaluate: async () => {
+        state.evaluateReads += 1
+        if (generation !== state.generation || state.detachReadsRemaining > 0) {
+          if (state.detachReadsRemaining > 0) {
+            state.detachReadsRemaining -= 1
+            state.generation += 1
+          }
+          throw new Error('detached')
         }
-        throw new Error('detached')
-      }
-      const raw = state.rawSequence.length > 0 ? state.rawSequence.shift()! : state.current
-      return { ...raw }
-    },
-    locator: () => ({
-      press: async (key: string) => {
-        const now = Number(state.current.now)
-        state.current = {
-          ...state.current,
-          now: String(now + (key === 'ArrowRight' ? 1 : -1)),
-        }
-        state.generation += 1
+        const raw = state.rawSequence.length > 0 ? state.rawSequence.shift()! : state.current
+        return { ...raw }
       },
-    }),
-  })
+      locator: () => ({
+        press: async (key: string) => {
+          const now = Number(state.current.now)
+          state.current = {
+            ...state.current,
+            now: String(now + (key === 'ArrowRight' ? 1 : -1)),
+          }
+          state.generation += 1
+        },
+      }),
+      last: () => slider,
+    }
+    return slider
+  }
 
   const container = {
     isVisible: async () => state.open && state.containerVisible,
@@ -267,9 +271,7 @@ describe('ChatGPT model/effort mapping', () => {
   it('semantically verifies min=0 max=2 now=2 as the current High range', async () => {
     const probe = fakeEffortProbe({
       sliderAttached: true,
-      min: '0',
-      max: '2',
-      now: '2',
+      current: { min: '0', max: '2', now: '2' },
     })
     await expect(probeChatGptEffortCapabilities(probe.page, probe.control, {
       timeoutMs: 100,
@@ -284,7 +286,7 @@ describe('ChatGPT model/effort mapping', () => {
     await expect(probeChatGptEffortCapabilities(absent.page, absent.control, {
       timeoutMs: 10,
       activationSettleMs: 1,
-    })).rejects.toThrow(/semantic slider did not attach/i)
+    })).rejects.toThrow(/slider-unattached/i)
 
     const invalid = fakeEffortProbe({
       sliderAttached: true,
@@ -293,7 +295,19 @@ describe('ChatGPT model/effort mapping', () => {
     await expect(probeChatGptEffortCapabilities(invalid.page, invalid.control, {
       timeoutMs: 10,
       activationSettleMs: 1,
-    })).rejects.toThrow(/invalid ARIA range/i)
+    })).rejects.toThrow(/aria-range-invalid/i)
+  })
+
+  it('fails only after the bounded wait and reports safe ARIA diagnostics for persistent invalid state', async () => {
+    const probe = fakeEffortProbe({
+      open: true,
+      containerVisible: true,
+      current: { min: '0', max: '99', now: '2' },
+    })
+    const started = Date.now()
+    await expect(waitForChatGptEffortSliderState(probe.page, probe.control, 55))
+      .rejects.toThrow(/aria-range-invalid\(min="0",max="99",now="2"\)/i)
+    expect(Date.now() - started).toBeGreaterThanOrEqual(50)
   })
 
   it('re-resolves the owned slider after keyboard movement replaces the DOM node', async () => {
