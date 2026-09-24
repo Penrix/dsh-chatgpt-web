@@ -1,79 +1,112 @@
-# WEB-M2-WIN-LIVE-008 live acceptance
+# WEB-M2-WIN-LIVE-009 live acceptance
 
-This packet owns M2 acceptance diagnostics only. It does not change the production reasoning parser.
+This packet fixes an M2 acceptance-harness scheduling bug only. It does not change the production ChatGPT Web provider, schema, prompt, or parser.
 
-## Verified baseline
+## Verified Windows starting point
 
-- Integration tested before this packet: `web-win-live-001@f2ae9ac001babaa8e53a8fd6052812f0723514fd`.
-- M2 source tested before this packet: `f4b1415d45b210a9d681b4092cf9ba2a0154d93f`.
-- Rev 7 environment-scope fix is proven on real Windows: quiescence passed, `environment.restoredBeforeAdapter=true`, Chrome launched, and the request reached real ChatGPT Web.
-- Rev 7 first blocker is now a reasoning-envelope parse failure at `seed-real-memory` after one provider request.
-- No memory tool ran and M3 did not run.
+- Integration actually tested before this packet: `web-win-live-001@08cf425e6463373d67a36648fdb08bae75a5f7f5`.
+- Complete Prepare passed there: install, typecheck, 12 test files / 72 tests, build, smoke:load, smoke:pack.
+- Production numeric-bound compatibility is installed and its built `lib/index.js` matched the installed Desktop bundle.
+- M1 PASS remains preserved and was not rerun.
+- Current live evidence: `m2-live-resume-after-m1-012.json`.
+- Earlier network/effort pre-Send failures remain preserved separately.
 
-## Missing evidence addressed by Rev 8
+## Exact observed scheduling interference
 
-M2 previously constructed `ChatGptWebAdapter` without the existing `onReasoningEnvelopeError` diagnostic hook used by M1. The raw assistant reply was therefore lost after cleanup.
+The ordinary M2 context previously mounted meow-memory with automatic dream enabled from the beginning:
 
-Rev 8 ports the same bounded diagnostic discipline into M2 acceptance:
+```text
+dream.enabled = true
+dream.idleMinutes = 1
+dream.checkMinutes = 1
+suppressWindows = []
+```
 
-- raw response length;
-- SHA-256;
-- whether trimmed text starts/ends with `{` / `}`;
-- markdown fence marker count;
-- bounded preview only: 1536-character head + truncation marker + 512-character tail, maximum raw payload exposure equivalent to 2048 characters;
-- parser error summary.
+That allowed the already-idle seed session to fire `[meow-memory-dream]` while the main session was still completing ordinary memory-tool stages.
 
-The full raw response is never written to evidence.
+Observed global order:
 
-## Implementation
+1. main `memory_project` first inference;
+2. seed-session automatic dream inference;
+3. main `memory_project` post-tool continuation.
 
-`scripts/m2-reasoning-diagnostic.mjs` contains the bounded diagnostic helper.
+`memory_project` itself had already executed successfully with a non-error tool result before the provider/browser interference.
 
-`scripts/m2-live.mjs` wires `onReasoningEnvelopeError` into the existing `ChatGptWebAdapter` options and immediately stores only the bounded diagnostic at `evidence.reasoningEnvelopeDiagnostic`.
+The successful result text is retained exactly as evidence:
 
-Rev 7 HOME/USERPROFILE scoping remains unchanged. Rev 6 profile quiescence remains as a bounded safety check.
+`[project: m2-live-377097db-34d4-46ba-b284-64de6a7558df] No memory entries for this project yet.`
 
-No changes are made to:
+This packet does not reinterpret that result. Once the scheduling race is removed, existing assertions decide whether any semantic blocker remains.
 
-- `src/reasoning-result.ts`;
-- `src/chatgpt/**`;
-- production prompt/parser behavior;
-- M1 production code;
-- M3 production code.
+## Rev 9 scheduling boundary
 
-## Focused regression coverage
+The ordinary acceptance context now mounts meow-memory with:
 
-`tests/m2-reasoning-diagnostic.test.ts` proves:
+```text
+dream.enabled = false
+```
 
-- short responses keep complete bounded preview plus metadata;
-- SHA-256 and brace/fence metadata are recorded;
-- long responses are truncated to 1536 head + marker + 512 tail;
-- the middle of a long raw response is not dumped;
-- parser error summary is captured.
+It also has an explicit fail-closed provider guard. Any `[meow-memory-dream]` request before the dedicated final dream stage raises `M2_EARLY_DREAM`.
 
-Existing Rev 7 environment-scope and Rev 6 quiescence tests remain in place.
+After every ordinary memory, compaction, reinjection, and reflection stage completes, the harness:
+
+1. begins `automatic-dream-busy-turn-dogfood`;
+2. disposes the ordinary DSH context/provider so there is no same-profile provider race;
+3. creates a separate dream-only DSH context;
+4. mounts the same meow-memory 0.27.0 with real automatic dream enabled (`idleMinutes=1`, `checkMinutes=1`);
+5. creates one dedicated dream agent;
+6. arms the explicit dream gate for that agent only;
+7. runs one ordinary seed turn and lets that agent become genuinely idle;
+8. waits for the real scheduler-generated `[meow-memory-dream]` provider request;
+9. queues the existing busy-turn collision prompt only for that target dream agent and only once.
+
+The test is still automatic. It does not call `memory_dream`, and dream is not disabled forever.
+
+## Focused gate coverage
+
+`scripts/m2-dream-gate.mjs` owns the explicit arming state.
+
+`tests/m2-dream-gate.test.ts` proves:
+
+- an early dream is rejected while unarmed even when the simulated ordinary-stage elapsed time is 120 seconds, longer than the one-minute threshold;
+- after arming, a real dream request is permitted only for the selected dream session;
+- a wrong-session dream fails closed;
+- the busy-turn collision decision returns true only once for the selected dream session;
+- duplicate, wrong-agent, and non-dream requests cannot queue another collision.
+
+Existing environment-scope, profile-quiescence, and bounded reasoning diagnostics are preserved.
+
+## Ordinary stage semantics
+
+The existing ordinary stages and assertions are unchanged. The change only prevents automatic dream scheduling from racing them.
 
 ## Evidence preservation
 
-All prior files remain preserved:
+All existing evidence files remain preserved, including:
 
 ```text
 m2-live.json
 m2-live-resume.json
 m2-live-resume-rev7.json
+m2-live-resume-rev8.json
+m2-live-resume-after-m1-012.json
+m2-live-resume-after-m1-012-network-failure.json
+m2-live-resume-after-m1-012-effort-timeout.json
 ```
 
-Rev 8 writes:
+The next integration run writes:
 
 ```text
-m2-live-resume-rev8.json
+m2-live-resume-after-m1-013.json
 ```
 
 ## Packaging
 
-This packet changes scripts/tests/docs/integration orchestration only. No packed production bytes change.
+Rev 9 changes only scripts/tests/docs plus integration orchestration metadata.
 
-**No Prepare, repack, Desktop reinstall, or DesktopReadback is required.**
+No production provider/schema/parser source is changed, and no packed production bytes change.
+
+**Prepare, repack, and Desktop reinstall are not required. Pull the synchronized integration head and run `ResumeM2` only.**
 
 ## Exact Windows resume command
 
@@ -83,4 +116,4 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows-live-all.ps1 `
   -EvidenceRoot 'C:\Users\123\AppData\Local\Temp\dsh-chatgpt-web-win-live-evidence-ff62ba6c'
 ```
 
-The next Windows run is **diagnostic only**. It is intended to capture the bounded raw-reply evidence for the first real reasoning-envelope failure. No production parser fix is claimed by Rev 8.
+Remote work does not claim a new Windows live PASS. The next local run must determine the next real blocker after removing the dream scheduling race.
