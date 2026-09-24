@@ -27,6 +27,25 @@ describe('post-Send uncertainty boundary', () => {
   })
 })
 
+describe('Temporary Chat guarded Send boundary', () => {
+  it('preserves fail-closed ambiguity after a passing pre-Send guard', async () => {
+    const page = urlOnlyPage(() => 'https://chatgpt.com/?temporary-chat=true')
+    const order: string[] = []
+
+    await expect(dispatchTemporarySendFailClosed(
+      page,
+      async () => {
+        order.push('click-started')
+        throw new Error('transport lost after dispatch')
+      },
+      () => { order.push('delivery-possible') },
+      async () => { order.push('guard-passed') },
+    )).rejects.toThrow(/transport lost/)
+
+    expect(order).toEqual(['guard-passed', 'delivery-possible', 'click-started'])
+  })
+})
+
 describe('Temporary Chat pre-Send boundary', () => {
   it('does not mark or click Send when the page is non-temporary', async () => {
     const page = urlOnlyPage(() => 'https://chatgpt.com/')
