@@ -141,7 +141,7 @@ describe('compilePrompt', () => {
     expect(closingTag).toBeGreaterThanOrEqual(0)
     expect(terminalAnchor).toBeGreaterThan(closingTag)
     expect(result.text).toContain('Do not ask the user to provide a payload, conversation state, messages, or tool history.')
-    expect(result.text).toContain('return exactly one raw JSON object as the entire answer')
+    expect(result.text).toContain('Return exactly one lexically valid raw JSON object as the entire answer')
   })
 
   it('anchors a realistic post-tool continuation after matching tool evidence', () => {
