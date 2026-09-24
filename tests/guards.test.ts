@@ -42,8 +42,6 @@ function fakeRateLimitPage(options: FakeRateLimitPageOptions = {}): Page {
     isVisible: async () => options.exactHistoryVisible === true,
   })
   const generic = locatorShape({
-    filter: () => generic,
-    last: () => generic,
     isVisible: async () => options.genericVisible === true,
   })
 
