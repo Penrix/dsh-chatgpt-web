@@ -71,8 +71,10 @@ export async function dispatchTemporarySendFailClosed(
   page: Page,
   click: () => Promise<void>,
   markDeliveryPossible: () => void,
+  preSendGuard?: () => Promise<void>,
 ): Promise<void> {
   await assertTemporaryChatPage(page)
+  await preSendGuard?.()
   await dispatchSendFailClosed(click, markDeliveryPossible)
 }
 
@@ -109,11 +111,13 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
     if (options.signal?.aborted) throw new LlmError('ChatGPT turn aborted before Send.', 'ABORTED')
 
     await input.fill(prompt)
+    await throwIfRateLimitDialog(page)
     const button = await sendButton(page)
     await dispatchTemporarySendFailClosed(
       page,
       () => button.click(),
       () => { sent = true },
+      () => throwIfRateLimitDialog(page),
     )
 
     const tracker = new CompletionTracker(baselineAssistantCount, baselineCopyActionCount)
