@@ -15,6 +15,7 @@ import {
   CHATGPT_EFFORT_CONTROL_SELECTOR,
   activateChatGptEffortMenu,
   parseChatGptEffortSliderState,
+  waitForChatGptEffortSliderState,
 } from './session.ts'
 import {
   CHATGPT_WEB_LUNA_BACKEND_MODEL,
@@ -121,18 +122,21 @@ export async function selectModelEffort(
       'PROVIDER_ERROR',
     )
   }
-  const slider = activation.slider
-  const container = activation.sliderContainer
-  await container.waitFor({ state: 'visible', timeout: 30_000 })
-  await slider.waitFor({ state: 'attached', timeout: 30_000 })
-  let state = parseChatGptEffortSliderState(
-    await slider.getAttribute('aria-valuemin'),
-    await slider.getAttribute('aria-valuemax'),
-    await slider.getAttribute('aria-valuenow'),
-  )
-  if (!state) {
-    throw new LlmError('ChatGPT effort slider exposed an invalid ARIA range.', 'PROVIDER_ERROR')
+  let observation
+  try {
+    observation = await waitForChatGptEffortSliderState(page, 30_000)
+  } catch (error) {
+    throw new LlmError(
+      error instanceof Error && error.cause instanceof Error
+        ? error.cause.message
+        : error instanceof Error
+          ? error.message
+          : String(error),
+      'PROVIDER_ERROR',
+    )
   }
+  const slider = observation.slider
+  let state = observation.state
   const targetValue = state.min + mode.uiEffortIndex
   if (targetValue > state.max) {
     throw new LlmError(
