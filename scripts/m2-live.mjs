@@ -17,8 +17,9 @@ import BasicCompaction from '@deepseek-ai/dsh-compaction-basic'
 import { ChatGptWebAdapter, compilePrompt } from '../lib/index.js'
 import { restoreHomeEnvironment, snapshotHomeEnvironment, withTemporaryHome } from './m2-home-scope.mjs'
 import { boundedReasoningEnvelopeDiagnostic } from './m2-reasoning-diagnostic.mjs'
+import { createDreamGate } from './m2-dream-gate.mjs'
 
-const PACKET = 'WEB-M2-WIN-LIVE-008 rev 1'
+const PACKET = 'WEB-M2-WIN-LIVE-009 rev 1'
 const SOURCE_STARTING_HEAD = '476e9b31c4c07b18ae0f45ef168816e5f3c53453'
 const REFLECT_MARKER = '[meow-memory-reflect]'
 const DREAM_MARKER = '[meow-memory-dream]'
@@ -94,7 +95,10 @@ let currentStage = 'bootstrap'
 let ctx
 let adapter
 let mainAgent
-let dreamCollisionQueued = false
+let dreamCtx
+let dreamAdapter
+let dreamAgent
+const dreamGate = createDreamGate()
 
 function errorSummary(error) {
   return {
@@ -292,14 +296,14 @@ function finishStage(stage, status, details = {}) {
   writeEvidence()
 }
 
-function waitForIdle(agent, timeoutMs = stageTimeoutMs) {
+function waitForIdle(agent, timeoutMs = stageTimeoutMs, context = ctx) {
   return new Promise((resolvePromise, rejectPromise) => {
     let dispose = () => {}
     const timer = setTimeout(() => {
       dispose()
       rejectPromise(new Error('Timed out waiting for agent idle: ' + String(agent.session.id)))
     }, timeoutMs)
-    dispose = ctx.on('agent/status', ({ agent: subject, status }) => {
+    dispose = context.on('agent/status', ({ agent: subject, status }) => {
       if (subject !== agent || status !== 'idle') return
       clearTimeout(timer)
       dispose()
@@ -341,10 +345,10 @@ async function waitForCondition(label, predicate, timeoutMs, intervalMs = 250) {
   }
 }
 
-function pluginTargetRequest(fromOrdinal, marker) {
+function pluginTargetRequest(fromOrdinal, marker, agent = mainAgent) {
   return evidence.providerRequests.find((request) =>
     request.ordinal > fromOrdinal
-    && request.sessionId === String(mainAgent?.session.id)
+    && request.sessionId === String(agent?.session.id)
     && request.target?.source?.kind === 'plugin'
     && request.target?.source?.plugin === 'meow-memory'
     && request.target?.text?.includes(marker))
@@ -437,21 +441,11 @@ async function main() {
     ctx.on('llm/stream', (options, next) => {
       const request = summarizeProviderRequest(options)
       evidence.providerRequests.push(request)
-      writeEvidence()
-
-      if (dreamCollision && mainAgent && !dreamCollisionQueued
-        && request.sessionId === String(mainAgent.session.id)
-        && request.target?.source?.kind === 'plugin'
+      const isDream = request.target?.source?.kind === 'plugin'
         && request.target?.source?.plugin === 'meow-memory'
-        && request.target?.text?.includes(DREAM_MARKER)) {
-        dreamCollisionQueued = true
-        queueMicrotask(() => {
-          mainAgent.followup(createUserMessage({
-            content: [{ type: 'text', text: 'M2 dream collision dogfood: preserve this genuine user prompt while automatic dream is active.' }],
-            source: { kind: 'user' },
-          }))
-        })
-      }
+        && request.target?.text?.includes(DREAM_MARKER)
+      dreamGate.assertNoEarlyDream({ isDream, sessionId: request.sessionId })
+      writeEvidence()
       return next()
     })
 
@@ -482,7 +476,7 @@ async function main() {
       autoMigrate: false,
       promptLang: 'en',
       dream: {
-        enabled: true,
+        enabled: false,
         idleMinutes: 1,
         suppressWindows: [],
         suppressLeadMinutes: 0,
@@ -541,7 +535,7 @@ async function main() {
       seedAgent,
       'seed-real-memory',
       'Use memory_remember exactly once before answering. Store this exact fact: "' + seedToken
-        + ' is the seed fact for WEB-M2-WIN-LIVE-008." Use project "' + project
+        + ' is the seed fact for WEB-M2-WIN-LIVE-009." Use project "' + project
         + '", level "fact", importance 5, and keywords ["' + seedToken + '","m2-live-seed"].',
     )
     assertToolRoundTrip(seed, 'memory_remember')
@@ -716,22 +710,139 @@ async function main() {
 
     const dreamStage = beginStage('automatic-dream-busy-turn-dogfood')
     const dreamRequestStart = evidence.providerRequests.length
-    const dreamEventStart = mainAgent.session.snapshotEvents().length
     const dreamErrorStart = evidence.agentErrors.length
+
+    // The ordinary acceptance context keeps automatic dream disabled so no seed
+    // or main-session idle timer can race with the memory-tool stages. The final
+    // dogfood uses a separate context and only arms the gate after this stage
+    // has begun.
+    await ctx.fiber.dispose()
+    ctx = undefined
+    await adapter.dispose()
+    adapter = undefined
+
+    dreamCtx = new Context()
+    await dreamCtx.plugin(LlmRuntime)
+    await dreamCtx.plugin(SessionStore)
+    await dreamCtx.plugin(SessionProjectionRegistry)
+    await dreamCtx.plugin(SystemPrompt)
+    await dreamCtx.plugin(ToolRuntime)
+    await dreamCtx.plugin(AgentRegistry)
+    await dreamCtx.plugin(AgentLoop, { agents: [] })
+    await dreamCtx.plugin(TokenMeter)
+    await dreamCtx.plugin(BasicCompaction, { auto: false })
+
+    dreamAdapter = new ChatGptWebAdapter({
+      profileDir,
+      ...(process.env.M2_CHATGPT_CHROME ? { chromeExecutablePath: resolve(process.env.M2_CHATGPT_CHROME) } : {}),
+      headed: process.env.M2_CHATGPT_HEADLESS !== '1',
+      loginTimeoutMs,
+      turnTimeoutMs,
+      composerMaxChars,
+      contextWindow: 90000,
+      maxTokens: 16384,
+      onReasoningEnvelopeError({ rawText, error }) {
+        evidence.reasoningEnvelopeDiagnostic = boundedReasoningEnvelopeDiagnostic(rawText, error)
+        writeEvidence()
+      },
+    })
+    dreamCtx.llm.registerAdapter(['chatgpt-web'], dreamAdapter)
+
+    dreamCtx.on('llm/stream', (options, next) => {
+      const request = summarizeProviderRequest(options)
+      evidence.providerRequests.push(request)
+      const isDream = request.target?.source?.kind === 'plugin'
+        && request.target?.source?.plugin === 'meow-memory'
+        && request.target?.text?.includes(DREAM_MARKER)
+      dreamGate.assertNoEarlyDream({ isDream, sessionId: request.sessionId })
+      writeEvidence()
+
+      if (dreamCollision && dreamGate.shouldQueueCollision({ isDream, sessionId: request.sessionId })) {
+        queueMicrotask(() => {
+          dreamAgent.followup(createUserMessage({
+            content: [{ type: 'text', text: 'M2 dream collision dogfood: preserve this genuine user prompt while automatic dream is active.' }],
+            source: { kind: 'user' },
+          }))
+        })
+      }
+      return next()
+    })
+
+    dreamCtx.on('agent/status', ({ agent, status }) => {
+      evidence.agentStatuses.push({
+        at: new Date().toISOString(),
+        sessionId: String(agent.session.id),
+        status,
+      })
+      writeEvidence()
+    })
+
+    dreamCtx.on('agent/error', ({ agent, error }) => {
+      evidence.agentErrors.push({
+        at: new Date().toISOString(),
+        sessionId: String(agent.session.id),
+        error: errorSummary(error),
+      })
+      writeEvidence()
+    })
+
+    await dreamCtx.plugin(meowMemory, {
+      enabled: true,
+      projectDir: PROJECT_DIR,
+      hitTopK: 4,
+      reflect: false,
+      autoMigrate: false,
+      promptLang: 'en',
+      dream: {
+        enabled: true,
+        idleMinutes: 1,
+        suppressWindows: [],
+        suppressLeadMinutes: 0,
+        checkMinutes: 1,
+        timeZone: 'UTC',
+        rulesReviewDays: 0,
+      },
+    })
+
+    dreamAgent = await dreamCtx.agentLoop.create(
+      SessionId('m2-live-dream-' + runId),
+      { provider: 'chatgpt-web', model },
+      { cwd: workspace },
+    )
+    evidence.dreamSessionId = String(dreamAgent.session.id)
+    dreamGate.arm(dreamAgent.session.id)
+    dreamStage.gate = dreamGate.snapshot()
+    writeEvidence()
+
+    const dreamEventStart = dreamAgent.session.snapshotEvents().length
+    const seedIdle = waitForIdle(dreamAgent, stageTimeoutMs, dreamCtx)
+    dreamAgent.followup(createUserMessage({
+      content: [{
+        type: 'text',
+        text: 'M2 automatic dream dogfood seed. Reply briefly, then become idle so meow-memory can trigger its real automatic dream.',
+      }],
+      source: { kind: 'user' },
+    }))
+    await seedIdle
+    dreamStage.seedTurnEvents = relevantEvents(dreamAgent, dreamEventStart)
+    const idleAt = new Date().toISOString()
+    dreamStage.idleAt = idleAt
+    writeEvidence()
+
     const dreamRequest = await waitForCondition(
       'automatic meow-memory dream provider request',
-      () => pluginTargetRequest(dreamRequestStart, DREAM_MARKER),
+      () => pluginTargetRequest(dreamRequestStart, DREAM_MARKER, dreamAgent),
       dreamWaitMs,
       500,
     )
     dreamStage.request = dreamRequest
-    dreamStage.collisionPromptQueued = dreamCollisionQueued
+    dreamStage.collisionPromptQueued = dreamGate.snapshot().collisionQueued
     await waitForCondition(
       'dream/collision settlement',
       () => {
         const errors = evidence.agentErrors.slice(dreamErrorStart)
         if (errors.length > 0) return { kind: 'error', errors }
-        const events = relevantEvents(mainAgent, dreamEventStart)
+        const events = relevantEvents(dreamAgent, dreamEventStart)
         const dreamUser = events.find((event) => event.type === 'user/message'
           && event.source?.kind === 'plugin'
           && event.source?.plugin === 'meow-memory'
@@ -743,9 +854,13 @@ async function main() {
       stageTimeoutMs,
       500,
     )
-    dreamStage.events = relevantEvents(mainAgent, dreamEventStart)
+    dreamStage.events = relevantEvents(dreamAgent, dreamEventStart)
     dreamStage.agentErrors = evidence.agentErrors.slice(dreamErrorStart)
+    dreamStage.gate = dreamGate.snapshot()
     const dreamToolErrors = dreamStage.events.filter((event) => event.type === 'tool/result' && event.isError)
+    assert.equal(dreamStage.gate.armed, true, 'dream gate was not armed in the dedicated stage')
+    assert.equal(dreamStage.gate.targetSessionId, String(dreamAgent.session.id), 'dream gate target session drifted')
+    assert.equal(dreamStage.gate.collisionQueued, dreamCollision, 'dream collision hook did not queue exactly as configured')
     if (dreamStage.agentErrors.length > 0 || dreamToolErrors.length > 0) {
       finishStage(dreamStage, 'blocked-known-edge')
       evidence.firstBlocker = {
@@ -759,11 +874,13 @@ async function main() {
       process.exitCode = 2
       return
     }
-    finishStage(dreamStage, 'passed-no-collision-observed')
+    finishStage(dreamStage, 'passed')
 
     evidence.persistence.final = dbEvidence()
     evidence.finalStatus = 'passed'
   } finally {
+    if (dreamCtx) await dreamCtx.fiber.dispose().catch(() => {})
+    if (dreamAdapter) await dreamAdapter.dispose().catch(() => {})
     if (ctx) await ctx.fiber.dispose().catch(() => {})
     if (adapter) await adapter.dispose().catch(() => {})
     restoreHomeEnvironment(originalHomeEnvironment)
