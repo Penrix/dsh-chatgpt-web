@@ -192,6 +192,51 @@ export function parseChatGptEffortSliderState(
   return { min, max, value }
 }
 
+export interface ChatGptEffortSliderObservation {
+  sliderContainer: Locator
+  slider: Locator
+  state: ChatGptEffortSliderState
+}
+
+export async function waitForChatGptEffortSliderState(
+  page: Page,
+  timeoutMs: number,
+): Promise<ChatGptEffortSliderObservation> {
+  const deadline = Date.now() + timeoutMs
+  let sawVisibleContainer = false
+  let sawAttachedSlider = false
+
+  do {
+    const { sliderContainer, slider } = chatGptEffortSlider(page)
+    const containerVisible = await sliderContainer.isVisible().catch(() => false)
+    if (containerVisible) {
+      sawVisibleContainer = true
+      const sliderCount = await slider.count().catch(() => 0)
+      if (sliderCount > 0) {
+        sawAttachedSlider = true
+        const state = parseChatGptEffortSliderState(
+          await slider.getAttribute('aria-valuemin').catch(() => null),
+          await slider.getAttribute('aria-valuemax').catch(() => null),
+          await slider.getAttribute('aria-valuenow').catch(() => null),
+        )
+        if (state) return { sliderContainer, slider, state }
+      }
+    }
+
+    if (Date.now() >= deadline) break
+    await new Promise(resolveSleep => setTimeout(resolveSleep, 50))
+  } while (true)
+
+  const cause = sawAttachedSlider
+    ? 'ChatGPT effort slider exposed an invalid ARIA range'
+    : sawVisibleContainer
+      ? 'ChatGPT effort slider container was visible but its semantic slider did not attach'
+      : 'ChatGPT effort slider container did not become visible'
+  throw new Error('ChatGPT model controls are unavailable. Reload ChatGPT and retry.', {
+    cause: new Error(cause),
+  })
+}
+
 async function anyVisible(locator: Locator): Promise<boolean> {
   const count = await locator.count()
   for (let index = 0; index < count; index += 1) {
@@ -255,28 +300,12 @@ export async function detectChatGptAccountCapabilities(
     }
     await new Promise(resolveSleep => setTimeout(resolveSleep, 100))
   }
-  const menu = page.locator(CHATGPT_EFFORT_MENU_SELECTOR).last()
-  const menuVisible = await menu.isVisible().catch(() => false)
-  const menuExpanded = await effortButton.getAttribute('aria-expanded').catch(() => null)
-  if (!menuVisible && menuExpanded !== 'true') await effortButton.press('Enter')
   try {
-    const { sliderContainer, slider } = chatGptEffortSlider(page)
     const timeout = options.selectorTimeoutMs ?? 70_000
-    // Model radio rows can hydrate before the effort control. They carry no evidence
-    // of the account's reasoning range, so an absent slider must fail, not cache false.
-    await sliderContainer.waitFor({ state: 'visible', timeout })
-    await slider.waitFor({ state: 'attached', timeout })
-    const state = parseChatGptEffortSliderState(
-      await slider.getAttribute('aria-valuemin'),
-      await slider.getAttribute('aria-valuemax'),
-      await slider.getAttribute('aria-valuenow'),
-    )
-    if (!state) {
-      throw new Error(
-        'ChatGPT model controls are unavailable. Reload ChatGPT and retry.',
-        { cause: new Error('ChatGPT effort slider exposed an invalid ARIA range') },
-      )
-    }
+    await activateChatGptEffortMenu(page, effortButton, {
+      settleMs: Math.min(3_000, Math.max(1, timeout)),
+    })
+    const { state } = await waitForChatGptEffortSliderState(page, timeout)
     return { solAvailable: true, proAvailable: state.max - state.min + 1 >= 5 }
   } finally {
     await page.keyboard.press('Escape').catch(() => {})
