@@ -166,8 +166,12 @@ export async function activateChatGptEffortMenu(
   })
   const pointerSurface = await waitForEffortSurface(page, control, settleMs)
   if (pointerSurface) return { method: 'pointerdown', ...pointerSurface }
+  const finalSample = await sampleOwnedEffortSlider(page, control)
+  const detail = 'diagnostic' in finalSample
+    ? boundedEffortDiagnostics([finalSample.diagnostic])
+    : 'owned semantic slider was present but activation did not stabilize'
   throw new Error(
-    'ChatGPT effort control did not expose its owned menu or structural slider after click and primary pointerdown',
+    `ChatGPT effort control did not expose a stable owned surface after click and primary pointerdown: ${detail}`,
   )
 }
 
@@ -205,7 +209,8 @@ type ChatGptEffortProbeIssue =
   | 'slider-unattached'
   | 'slider-detached'
   | 'aria-missing-or-noninteger'
-  | 'aria-range-invalid'
+  | 'aria-range-too-large-or-empty'
+  | 'aria-value-out-of-range'
 
 interface ChatGptEffortProbeDiagnostic {
   issue: ChatGptEffortProbeIssue
@@ -222,10 +227,11 @@ function classifyEffortSliderRaw(
   const value = safeIntegerAttribute(rawValue)
   if (min === undefined || max === undefined || value === undefined) return 'aria-missing-or-noninteger'
   const optionCount = max - min + 1
-  if (optionCount < 1 || optionCount > CHATGPT_EFFORT_SLIDER_MAX_OPTIONS || value < min || value > max) {
-    return 'aria-range-invalid'
+  if (optionCount < 1 || optionCount > CHATGPT_EFFORT_SLIDER_MAX_OPTIONS) {
+    return 'aria-range-too-large-or-empty'
   }
-  return 'aria-range-invalid'
+  if (value < min || value > max) return 'aria-value-out-of-range'
+  return 'aria-value-out-of-range'
 }
 
 function boundedEffortDiagnostics(entries: readonly ChatGptEffortProbeDiagnostic[]): string {
