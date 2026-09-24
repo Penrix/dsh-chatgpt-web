@@ -21,151 +21,26 @@ import {
   CHATGPT_WEB_SOL_BACKEND_MODEL,
   resolveChatGptWebModelMode,
 } from './model.ts'
-import type { ChatGptWebAccountCapabilities } from './session.ts'
+import type { ChatGptEffortSliderObservation, ChatGptWebAccountCapabilities } from './session.ts'
 import { throwIfRateLimitDialog, throwIfSessionFailureAlert } from './guards.ts'
 
-/** DSH model slug → upstream backend + effort. */
-export function resolveSlugBackend(model: string): { backend: string; effort: string } {
-  switch (model) {
-    case 'chatgpt-web/luna': return { backend: CHATGPT_WEB_LUNA_BACKEND_MODEL, effort: 'low' }
-    case 'chatgpt-web/think': return { backend: CHATGPT_WEB_LUNA_BACKEND_MODEL, effort: 'medium' }
-    case 'chatgpt-web/light': return { backend: CHATGPT_WEB_SOL_BACKEND_MODEL, effort: 'low' }
-    case 'chatgpt-web/medium': return { backend: CHATGPT_WEB_SOL_BACKEND_MODEL, effort: 'medium' }
-    case 'chatgpt-web/high': return { backend: CHATGPT_WEB_SOL_BACKEND_MODEL, effort: 'high' }
-    case 'chatgpt-web/extra-high': return { backend: CHATGPT_WEB_SOL_BACKEND_MODEL, effort: 'xhigh' }
-    case 'chatgpt-web/pro': return { backend: CHATGPT_WEB_SOL_BACKEND_MODEL, effort: 'max' }
-    default:
-      throw new LlmError(
-        `ChatGPT Web model is not supported: ${model}. Available: chatgpt-web/luna|think|light|medium|high|extra-high|pro.`,
-        'INVALID_REQUEST',
-      )
-  }
-}
-
-async function setThinkMode(composerForm: Locator, enabled: boolean): Promise<void> {
-  const controls = composerForm
-    .getByRole('button', { name: 'Think', exact: true })
-    .filter({ visible: true })
-  const count = await controls.count()
-  if (count === 0) {
-    if (enabled) throw new LlmError('ChatGPT Think control is not available on this Luna-only account.', 'INVALID_REQUEST')
-    return
-  }
-  if (count !== 1) throw new LlmError(`ChatGPT exposed ${count} visible Think controls.`, 'PROVIDER_ERROR')
-  const control = controls.first()
-  const target = enabled ? 'true' : 'false'
-  let pressed = await control.getAttribute('aria-pressed')
-  if (pressed !== 'true' && pressed !== 'false') {
-    throw new LlmError('ChatGPT Think control has no semantic pressed state.', 'PROVIDER_ERROR')
-  }
-  if (pressed !== target) {
-    await control.click()
-    const deadline = Date.now() + 5_000
-    while (Date.now() < deadline) {
-      pressed = await control.getAttribute('aria-pressed')
-      if (pressed === target) break
-      if (pressed !== 'true' && pressed !== 'false') {
-        throw new LlmError('ChatGPT Think control lost its semantic pressed state.', 'PROVIDER_ERROR')
-      }
-      await new Promise(resolveSleep => setTimeout(resolveSleep, 100))
-    }
-    if (pressed !== target) {
-      throw new LlmError(`ChatGPT did not ${enabled ? 'enable' : 'disable'} Think mode.`, 'PROVIDER_ERROR')
-    }
-  }
-}
-
-/**
- * Select the model+eﬀort for one turn. Every turn starts on a fresh page at
- * the default eﬀort, so this runs unconditionally before submit.
- */
-export async function selectModelEffort(
+export async function moveChatGptEffortSliderToTarget(
   page: Page,
-  model: string,
-  capabilities: ChatGptWebAccountCapabilities,
-): Promise<string> {
-  const { backend, effort } = resolveSlugBackend(model)
-  let mode
-  try {
-    mode = resolveChatGptWebModelMode(backend, effort, { ...capabilities, localToolsEnabled: false })
-  } catch (error) {
-    throw new LlmError(
-      error instanceof Error ? error.message : String(error),
-      'INVALID_REQUEST',
-    )
-  }
-  const composer = page.locator(CHATGPT_COMPOSER_SELECTOR).filter({ visible: true }).last()
-  const composerForm = composer.locator('xpath=ancestor::form[1]')
-  if (mode.uiEffortIndex === null) {
-    await throwIfRateLimitDialog(page)
-    await setThinkMode(composerForm, mode.thinkEnabled)
-    return mode.displayLabel
-  }
-  const control = composerForm.locator(CHATGPT_EFFORT_CONTROL_SELECTOR).last()
-  try {
-    await control.waitFor({ state: 'visible', timeout: 30_000 })
-  } catch {
-    await throwIfSessionFailureAlert(page)
-    throw new LlmError(
-      'ChatGPT rendered the composer but its model/effort control did not become ready.',
-      'PROVIDER_ERROR',
-    )
-  }
-  await throwIfRateLimitDialog(page)
-  try {
-    await activateChatGptEffortMenu(page, control)
-  } catch (error) {
-    throw new LlmError(
-      error instanceof Error ? error.message : String(error),
-      'PROVIDER_ERROR',
-    )
-  }
-  let observation
-  try {
-    observation = await waitForChatGptEffortSliderState(page, control, 30_000)
-  } catch (error) {
-    throw new LlmError(
-      error instanceof Error && error.cause instanceof Error
-        ? error.cause.message
-        : error instanceof Error
-          ? error.message
-          : String(error),
-      'PROVIDER_ERROR',
-    )
-  }
+  control: Locator,
+  initial: ChatGptEffortSliderObservation,
+  targetValue: number,
+): Promise<ChatGptEffortSliderObservation> {
+  let observation = initial
   let state = observation.state
-  const targetValue = state.min + mode.uiEffortIndex
-  if (targetValue > state.max) {
-    throw new LlmError(
-      `ChatGPT effort slider does not expose ${mode.displayLabel} (min=${state.min}; max=${state.max}). The account may have hit a usage limit.`,
-      'INVALID_REQUEST',
-    )
-  }
-  while (state.value !== targetValue) {
-    await throwIfRateLimitDialog(page)
-    const direction = targetValue > state.value ? 1 : -1
-    const key = direction > 0 ? 'ArrowRight' : 'ArrowLeft'
-    const previousValue = state.value
-    const sliderControl = observation.slider.locator("xpath=ancestor::*[@role='menuitem'][1]")
-    await sliderControl.press(key)
-
-    try {
-      observation = await waitForChatGptEffortSliderState(page, control, 5_000, {
-        valueMustDifferFrom: previousValue,
-      })
-    } catch (error) {
-      throw new LlmError(
-        error instanceof Error ? error.message : String(error),
-        'PROVIDER_ERROR',
-      )
-    }
+  try {
+    observation = await moveChatGptEffortSliderToTarget(page, control, observation, targetValue)
     state = observation.state
-    if (state.value !== previousValue + direction) {
-      throw new LlmError(
-        `ChatGPT effort slider did not move exactly one step with ${key} (before=${previousValue}; after=${state.value}).`,
-        'PROVIDER_ERROR',
-      )
-    }
+  } catch (error) {
+    if (error instanceof LlmError) throw error
+    throw new LlmError(
+      error instanceof Error ? error.message : String(error),
+      'PROVIDER_ERROR',
+    )
   }
   await page.keyboard.press('Escape').catch(() => {})
   return mode.displayLabel
