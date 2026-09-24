@@ -99,7 +99,7 @@ export class FreshPageSafetyGate {
     this.strikes += 1
     this.lastHistoryLimitAt = now
     const index = Math.min(this.strikes - 1, HISTORY_COOLDOWN_MS.length - 1)
-    const cooldown = HISTORY_COOLDOWN_MS[index] ?? HISTORY_COOLDOWN_MS[HISTORY_COOLDOWN_MS.length - 1]
+    const cooldown = HISTORY_COOLDOWN_MS[index] ?? 600_000
     this.cooldownUntil = Math.max(this.cooldownUntil, now + cooldown)
     return this.state()
   }
