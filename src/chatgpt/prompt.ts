@@ -193,9 +193,13 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     '</dsh_context_json>',
     '',
     'The complete authoritative DSH payload for this inference has already been supplied above. Do not ask the user to provide a payload, conversation state, messages, or tool history.',
-    'Read the supplied messages and tool history now, decide the next step, and return exactly one raw JSON object as the entire answer using only the already-defined allowed envelope shape.',
+    'Return exactly one lexically valid raw JSON object as the entire answer using only the already-defined allowed envelope shape. JSON.parse on the complete assistant reply must succeed directly.',
+    'Inside JSON strings, use only valid JSON escapes: \\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t, or \\uXXXX.',
+    'Never apply Markdown escaping inside JSON strings: never write \\_, \\*, or a backslash before backticks. Ordinary underscores and identifiers must remain unescaped.',
+    'Do not output Markdown fences, prose before or after the JSON object, or a second JSON object.',
+    'Read the supplied messages and tool history now and decide the next step.',
     ...(completedToolEvidence
-      ? ['A supplied tool_call with its matching tool_result is completed DSH evidence. Decide the next step from that result now; do not request the payload again, claim the tool has not run, or repeat/re-execute the completed tool.']
+      ? ['A supplied tool_call with its matching tool_result is completed DSH evidence. Decide the next step from that result now; do not request the payload again, claim the tool has not run, or repeat/re-execute the completed tool. The same lexical JSON rules above still apply to this post-tool continuation.']
       : []),
   ].join('\n')
 
