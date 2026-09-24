@@ -6,6 +6,22 @@ import {
   validateActionProposal,
 } from '../src/reasoning-result.ts'
 
+const memorySearch = {
+  name: 'memory_search',
+  description: 'Search durable memory.',
+  parameters: {
+    type: 'object',
+    properties: {
+      project: { type: 'string' },
+      query: { type: 'string' },
+      days: { type: 'integer', minimum: 1, maximum: 3650 },
+      k: { type: 'integer', minimum: 1, maximum: 50 },
+      content_max: { type: 'integer', minimum: 0, maximum: 5000 },
+    },
+    required: ['query'],
+    additionalProperties: false,
+  },
+} as unknown as ToolSchema
 const memoryRemember: ToolSchema = {
   name: 'memory_remember',
   description: 'Store one durable memory.',
@@ -36,6 +52,82 @@ describe('reasoning result protocol', () => {
     })
   })
 
+  it('normalizes the exact Windows-captured markdown underscore escapes', () => {
+    const result = parseReasoningResult(
+      String.raw`{"type":"action\_proposal","action":"echo","arguments":{"text":"M1\_LIVE\_PING"}}`,
+    )
+    expect(result).toEqual({
+      type: 'action_proposal',
+      action: 'echo',
+      arguments: { text: 'M1_LIVE_PING' },
+    })
+  })
+
+  it('preserves standard JSON escapes while normalizing only markdown underscore escapes', () => {
+    const result = parseReasoningResult(
+      String.raw`{"type":"final","content":"slash \\ quote \" newline \n path C:\\Users\\123 token M1\_LIVE"}`,
+    )
+    expect(result).toEqual({
+      type: 'final',
+      content: 'slash \\ quote " newline \n path C:\\Users\\123 token M1_LIVE',
+    })
+  })
+
+  it('preserves a valid JSON-escaped literal backslash before an underscore', () => {
+    const result = parseReasoningResult(
+      String.raw`{"type":"final","content":"literal \\_ pair"}`,
+    )
+    expect(result).toEqual({
+      type: 'final',
+      content: 'literal \\_ pair',
+    })
+  })
+
+  it('rejects unsupported invalid JSON escapes instead of guessing a repair', () => {
+    expect(() => parseReasoningResult(
+      String.raw`{"type":"final","content":"bad\qescape"}`,
+    )).toThrow(/invalid reasoning envelope/i)
+    expect(() => parseReasoningResult(
+      String.raw`{"type":"final","content":"not-proven\*markdown"}`,
+    )).toThrow(/invalid reasoning envelope/i)
+  })
+
+  it('normalizes the exact Windows-captured M2 structural array escapes', () => {
+    const raw = String.raw`{"type":"action\_proposal","action":"memory\_remember","arguments":{"content":"M2SEED\_5ca7f302-39a4-435e-9071-24965048427c is the seed fact for WEB-M2-WIN-LIVE-008.","level":"fact","project":"m2-live-5ca7f302-39a4-435e-9071-24965048427c","importance":5,"keywords":\["M2SEED\_5ca7f302-39a4-435e-9071-24965048427c","m2-live-seed"\]},"reason":"Store the requested seed fact exactly once before answering."}`
+    expect(raw).toHaveLength(404)
+
+    const result = parseReasoningResult(raw)
+    expect(result.type).toBe('action_proposal')
+    if (result.type !== 'action_proposal') throw new Error('expected action proposal')
+
+    expect(result.action).toBe('memory_remember')
+    expect(result.arguments).toMatchObject({
+      content: 'M2SEED_5ca7f302-39a4-435e-9071-24965048427c is the seed fact for WEB-M2-WIN-LIVE-008.',
+      level: 'fact',
+      project: 'm2-live-5ca7f302-39a4-435e-9071-24965048427c',
+      importance: 5,
+      keywords: [
+        'M2SEED_5ca7f302-39a4-435e-9071-24965048427c',
+        'm2-live-seed',
+      ],
+    })
+  })
+
+  it('does not normalize markdown bracket escapes inside JSON strings', () => {
+    expect(() => parseReasoningResult(
+      String.raw`{"type":"final","content":"literal \[brackets\] stay strict"}`,
+    )).toThrow(/invalid reasoning envelope/i)
+  })
+
+  it('rejects unsupported structural markdown escapes other than array delimiters', () => {
+    expect(() => parseReasoningResult(
+      String.raw`{"type":"final","content":"done","extra":\{\}}`,
+    )).toThrow(/invalid reasoning envelope/i)
+    expect(() => parseReasoningResult(
+      String.raw`{"type":"final","content":\*"done"}`,
+    )).toThrow(/invalid reasoning envelope/i)
+  })
+
   it('accepts one outer JSON code fence as transport tolerance', () => {
     expect(parseReasoningResult('```json\n{"type":"final","content":"done"}\n```')).toEqual({
       type: 'final',
@@ -43,9 +135,59 @@ describe('reasoning result protocol', () => {
     })
   })
 
-  it('rejects prose around the JSON result', () => {
-    expect(() => parseReasoningResult('Here you go: {"type":"final","content":"done"}'))
-      .toThrow(/invalid reasoning envelope/i)
+  it('accepts one unambiguous JSON object with presentation-only surrounding prose', () => {
+    expect(parseReasoningResult('Here is the exact transport object:\n{"type":"final","content":"done"}\nEnd of response.')).toEqual({
+      type: 'final',
+      content: 'done',
+    })
+  })
+
+  it('keeps escaped quotes, braces, and Windows paths inside the single JSON object string', () => {
+    const raw = String.raw`Here is the object:
+{"type":"final","content":"Path C:\\Users\\123, quoted \"{ok}\""}
+End.`
+    expect(parseReasoningResult(raw)).toEqual({
+      type: 'final',
+      content: 'Path C:\\Users\\123, quoted "{ok}"',
+    })
+  })
+
+  it('accepts one JSON code fence even when presentation prose surrounds it', () => {
+    expect(parseReasoningResult('Here is the object:\n\`\`\`json\n{"type":"final","content":"done"}\n\`\`\`\nThat is the complete object.')).toEqual({
+      type: 'final',
+      content: 'done',
+    })
+  })
+
+  it('accepts a JSON fence without a newline before the closing fence', () => {
+    expect(parseReasoningResult('\`\`\`json\n{"type":"final","content":"done"}\`\`\`')).toEqual({
+      type: 'final',
+      content: 'done',
+    })
+  })
+
+  it('rejects multiple JSON objects as ambiguous presentation', () => {
+    expect(() => parseReasoningResult(
+      '{"type":"final","content":"one"}\n{"type":"final","content":"two"}',
+    )).toThrow(/expected exactly one JSON object|invalid reasoning envelope presentation/i)
+  })
+
+  it('rejects JSON-like structure outside the single object', () => {
+    expect(() => parseReasoningResult(
+      'Wrapper [metadata] {"type":"final","content":"done"}',
+    )).toThrow(/ambiguous|invalid reasoning envelope presentation/i)
+  })
+
+  it('rejects multiple fenced blocks even when one contains a valid object', () => {
+    expect(() => parseReasoningResult(
+      '\`\`\`json\n{"type":"final","content":"one"}\n\`\`\`\n\`\`\`json\n{"type":"final","content":"two"}\n\`\`\`',
+    )).toThrow(/multiple Markdown code fences|invalid reasoning envelope presentation/i)
+  })
+
+  it('rejects non-json fence labels instead of guessing transport meaning', () => {
+    expect(() => parseReasoningResult(
+      '\`\`\`javascript\n{"type":"final","content":"done"}\n\`\`\`',
+    )).toThrow(/fence must be unlabeled or json|invalid reasoning envelope presentation/i)
   })
 
   it('rejects extra final fields rather than silently ignoring them', () => {
@@ -53,6 +195,140 @@ describe('reasoning result protocol', () => {
       .toThrow(/unsupported fields/i)
   })
 
+  it('normalizes one prose-wrapped action proposal with nested arguments as one object', () => {
+    const result = parseReasoningResult(
+      'Proposal follows:\n{"type":"action_proposal","action":"memory_remember","arguments":{"level":"fact","content":"Nested object stays inside one envelope.","keywords":["one","two"]}}\nEnd.',
+    )
+    expect(result).toEqual({
+      type: 'action_proposal',
+      action: 'memory_remember',
+      arguments: {
+        level: 'fact',
+        content: 'Nested object stays inside one envelope.',
+        keywords: ['one', 'two'],
+      },
+    })
+  })
+
+  it('accepts real memory_search numeric bounds when arguments are in range', () => {
+    const result = parseReasoningResult(JSON.stringify({
+      type: 'action_proposal',
+      action: 'memory_search',
+      arguments: { project: 'm2-live-project', query: 'seed fact', days: 30, k: 10, content_max: 1200 },
+    }))
+    if (result.type !== 'action_proposal') throw new Error('expected action proposal')
+    expect(() => validateActionProposal(result, [memorySearch])).not.toThrow()
+  })
+
+  it('accepts the real memory_search shape with query as the only required argument', () => {
+    const result = parseReasoningResult(JSON.stringify({
+      type: 'action_proposal',
+      action: 'memory_search',
+      arguments: { query: 'seed fact' },
+    }))
+    if (result.type !== 'action_proposal') throw new Error('expected action proposal')
+    expect(() => validateActionProposal(result, [memorySearch])).not.toThrow()
+  })
+  it('rejects memory_search integers outside numeric bounds', () => {
+    const invalid = [
+      { project: 'p', query: 'q', days: 0, k: 10, content_max: 100 },
+      { project: 'p', query: 'q', days: 30, k: 51, content_max: 100 },
+      { project: 'p', query: 'q', days: 30, k: 10, content_max: 5001 },
+    ]
+    for (const argumentsValue of invalid) {
+      const result = parseReasoningResult(JSON.stringify({ type: 'action_proposal', action: 'memory_search', arguments: argumentsValue }))
+      if (result.type !== 'action_proposal') throw new Error('expected action proposal')
+      expect(() => validateActionProposal(result, [memorySearch])).toThrow(/greater than or equal|less than or equal/i)
+    }
+  })
+
+  it('preserves integer type enforcement with numeric bounds', () => {
+    const result = parseReasoningResult(JSON.stringify({
+      type: 'action_proposal',
+      action: 'memory_search',
+      arguments: { project: 'p', query: 'q', days: 1.5 },
+    }))
+    if (result.type !== 'action_proposal') throw new Error('expected action proposal')
+    expect(() => validateActionProposal(result, [memorySearch])).toThrow(/must be an integer/i)
+  })
+
+  it('uses numeric bounds when selecting a nested oneOf branch', () => {
+    const boundedUnion = {
+      name: 'bounded_union',
+      description: 'Test exact-one branch selection with bounds.',
+      parameters: {
+        type: 'object',
+        properties: {
+          bucket: { oneOf: [
+            { type: 'integer', minimum: 1, maximum: 5 },
+            { type: 'integer', minimum: 10, maximum: 20 },
+          ] },
+        },
+        required: ['bucket'],
+        additionalProperties: false,
+      },
+    } as unknown as ToolSchema
+    const accepted = parseReasoningResult(JSON.stringify({ type: 'action_proposal', action: 'bounded_union', arguments: { bucket: 12 } }))
+    if (accepted.type !== 'action_proposal') throw new Error('expected action proposal')
+    expect(() => validateActionProposal(accepted, [boundedUnion])).not.toThrow()
+    const rejected = parseReasoningResult(JSON.stringify({ type: 'action_proposal', action: 'bounded_union', arguments: { bucket: 7 } }))
+    if (rejected.type !== 'action_proposal') throw new Error('expected action proposal')
+    expect(() => validateActionProposal(rejected, [boundedUnion])).toThrow(/exactly one oneOf branch/i)
+  })
+
+  it('enforces number bounds recursively through array items', () => {
+    const boundedArray = {
+      name: 'bounded_array',
+      description: 'Test recursive numeric bounds for array items.',
+      parameters: {
+        type: 'object',
+        properties: {
+          values: { type: 'array', items: { type: 'number', minimum: -1.5, maximum: 1.5 } },
+        },
+        required: ['values'],
+        additionalProperties: false,
+      },
+    } as unknown as ToolSchema
+    const accepted = parseReasoningResult(JSON.stringify({
+      type: 'action_proposal', action: 'bounded_array', arguments: { values: [-1.5, 0.25, 1.5] },
+    }))
+    if (accepted.type !== 'action_proposal') throw new Error('expected action proposal')
+    expect(() => validateActionProposal(accepted, [boundedArray])).not.toThrow()
+    const rejected = parseReasoningResult(JSON.stringify({
+      type: 'action_proposal', action: 'bounded_array', arguments: { values: [0, 2] },
+    }))
+    if (rejected.type !== 'action_proposal') throw new Error('expected action proposal')
+    expect(() => validateActionProposal(rejected, [boundedArray])).toThrow(/less than or equal/i)
+  })
+  it('rejects malformed numeric bounds and unrelated unsupported keywords', () => {
+    const malformedSchemas: unknown[] = [
+      { type: 'object', properties: { value: { type: 'string', minimum: 1 } } },
+      { type: 'object', properties: { value: { type: 'integer', minimum: Number.NaN } } },
+      { type: 'object', properties: { value: { type: 'integer', maximum: Number.POSITIVE_INFINITY } } },
+      { type: 'object', properties: { value: { type: 'integer', minimum: -0 } } },
+      { type: 'object', properties: { value: { type: 'integer', minimum: 10, maximum: 2 } } },
+      { type: 'object', properties: { value: { type: 'string', pattern: '[a-z]+' } } },
+    ]
+    for (const parameters of malformedSchemas) {
+      const tool = { name: 'malformed_bounds', description: 'Malformed schema fixture.', parameters } as unknown as ToolSchema
+      const result = parseReasoningResult(JSON.stringify({ type: 'action_proposal', action: 'malformed_bounds', arguments: { value: 3 } }))
+      if (result.type !== 'action_proposal') throw new Error('expected action proposal')
+      expect(() => validateActionProposal(result, [tool])).toThrow(/unsupported JSON schema/i)
+    }
+  })
+
+  it('does not mutate the raw numeric-bound schema during validation', () => {
+    const before = structuredClone(memorySearch.parameters)
+    const serializedBefore = JSON.stringify(memorySearch.parameters)
+    const result = parseReasoningResult(JSON.stringify({
+      type: 'action_proposal', action: 'memory_search',
+      arguments: { project: 'p', query: 'q', days: 7, k: 3, content_max: 500 },
+    }))
+    if (result.type !== 'action_proposal') throw new Error('expected action proposal')
+    validateActionProposal(result, [memorySearch])
+    expect(memorySearch.parameters).toEqual(before)
+    expect(JSON.stringify(memorySearch.parameters)).toBe(serializedBefore)
+  })
   it('validates an action proposal against the exact DSH tool schema', () => {
     const result = parseReasoningResult(JSON.stringify({
       type: 'action_proposal',
