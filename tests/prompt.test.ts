@@ -110,6 +110,22 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('DSH alone validates, authorizes, and executes')
   })
 
+  it('places the lexical JSON contract after the complete DSH payload', () => {
+    const result = compilePrompt({
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [message('u1', 'user', 'answer directly', 'user')],
+    } satisfies GenerateOptions, 100_000)
+
+    const closingTag = result.text.lastIndexOf('</dsh_context_json>')
+    const lexicalRule = result.text.indexOf('JSON.parse on the complete assistant reply must succeed directly.')
+    expect(lexicalRule).toBeGreaterThan(closingTag)
+    expect(result.text).toContain('Inside JSON strings, use only valid JSON escapes:')
+    expect(result.text).toContain('never write \\_, \\*, or a backslash before backticks')
+    expect(result.text).toContain('Ordinary underscores and identifiers must remain unescaped.')
+    expect(result.text).toContain('Do not output Markdown fences, prose before or after the JSON object, or a second JSON object.')
+  })
+
   it('places the terminal anchor after the complete DSH payload', () => {
     const options = {
       provider: 'chatgpt-web',
@@ -171,6 +187,9 @@ describe('compilePrompt', () => {
     expect(result.text.split(humanText).length - 1).toBe(1)
     expect(result.text.split(resultText).length - 1).toBe(1)
     expect(result.text).toContain('do not request the payload again, claim the tool has not run, or repeat/re-execute the completed tool')
+    expect(result.text).toContain('The same lexical JSON rules above still apply to this post-tool continuation.')
+    expect(result.text).toContain('JSON.parse on the complete assistant reply must succeed directly.')
+    expect(result.text).toContain('never write \\_, \\*, or a backslash before backticks')
   })
   it('keeps a tool result as evidence while retaining the human task target', () => {
     const options = {
@@ -293,7 +312,22 @@ describe('compilePrompt', () => {
     expect(result.text).not.toContain('{"type":"action_proposal"')
     expect(result.text.indexOf('The complete authoritative DSH payload for this inference has already been supplied above.'))
       .toBeGreaterThan(result.text.lastIndexOf('</dsh_context_json>'))
+    expect(result.text).toContain('JSON.parse on the complete assistant reply must succeed directly.')
+    expect(result.text).toContain('never write \\_, \\*, or a backslash before backticks')
   })
+  it('keeps the lexical contract generic and free of concrete live-run markers', () => {
+    const result = compilePrompt({
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [message('u1', 'user', 'store an identifier with underscores', 'user')],
+    } satisfies GenerateOptions, 100_000)
+
+    expect(result.text).toContain('Ordinary underscores and identifiers must remain unescaped.')
+    expect(result.text).not.toContain('M2DURABLE')
+    expect(result.text).not.toContain('m2-live-resume-after-m1-017')
+    expect(result.text).not.toContain('fcedad33dabb882ceb49997c346044630ff66f1598a8e9295019dd27da117a7a')
+  })
+
   it('keeps meow-memory plugin snapshots as context and still targets the real human message', () => {
     const options = {
       provider: 'chatgpt-web',
