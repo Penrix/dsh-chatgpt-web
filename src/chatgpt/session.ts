@@ -92,11 +92,11 @@ export interface ChatGptEffortActivation {
   slider: Locator
 }
 
-export function chatGptEffortSlider(page: Page): { sliderContainer: Locator; slider: Locator } {
-  const sliderContainer = page.locator(CHATGPT_EFFORT_SLIDER_CONTAINER_SELECTOR).filter({ visible: true }).last()
+export function chatGptEffortSlider(menu: Locator): { sliderContainer: Locator; slider: Locator } {
+  const sliderContainer = menu.locator(CHATGPT_EFFORT_SLIDER_CONTAINER_SELECTOR).filter({ visible: true }).last()
   // The current picker keeps ARIA values on a zero-width, aria-hidden semantic input.
-  // Its visible container proves the active surface; the input proves the effort range.
-  return { sliderContainer, slider: sliderContainer.locator('[role="slider"]') }
+  // Scope both structural and semantic nodes to the activated control's owned menu.
+  return { sliderContainer, slider: sliderContainer.locator('[role="slider"]').last() }
 }
 
 function effortMenuSelectorForId(menuId: string): string {
@@ -114,7 +114,7 @@ async function visibleEffortSurface(
   control: Locator,
 ): Promise<Omit<ChatGptEffortActivation, 'method'> | undefined> {
   const menu = await chatGptEffortMenuForControl(page, control)
-  const surface = chatGptEffortSlider(page)
+  const surface = chatGptEffortSlider(menu)
   if (await menu.isVisible().catch(() => false) || await surface.sliderContainer.isVisible().catch(() => false)) {
     return { menu, ...surface }
   }
@@ -193,48 +193,112 @@ export function parseChatGptEffortSliderState(
 }
 
 export interface ChatGptEffortSliderObservation {
+  menu: Locator
   sliderContainer: Locator
   slider: Locator
   state: ChatGptEffortSliderState
 }
 
+type ChatGptEffortProbeIssue =
+  | 'menu-missing'
+  | 'container-missing'
+  | 'slider-unattached'
+  | 'slider-detached'
+  | 'aria-missing-or-noninteger'
+  | 'aria-range-invalid'
+
+interface ChatGptEffortProbeDiagnostic {
+  issue: ChatGptEffortProbeIssue
+  raw?: { min: string | null; max: string | null; now: string | null }
+}
+
+function classifyEffortSliderRaw(
+  rawMin: string | null,
+  rawMax: string | null,
+  rawValue: string | null,
+): ChatGptEffortProbeIssue {
+  const min = safeIntegerAttribute(rawMin)
+  const max = safeIntegerAttribute(rawMax)
+  const value = safeIntegerAttribute(rawValue)
+  if (min === undefined || max === undefined || value === undefined) return 'aria-missing-or-noninteger'
+  const optionCount = max - min + 1
+  if (optionCount < 1 || optionCount > CHATGPT_EFFORT_SLIDER_MAX_OPTIONS || value < min || value > max) {
+    return 'aria-range-invalid'
+  }
+  return 'aria-range-invalid'
+}
+
+function boundedEffortDiagnostics(entries: readonly ChatGptEffortProbeDiagnostic[]): string {
+  return entries.slice(-4).map(entry => {
+    if (!entry.raw) return entry.issue
+    const safe = (value: string | null) => value === null ? 'null' : JSON.stringify(value.slice(0, 24))
+    return `${entry.issue}(min=${safe(entry.raw.min)},max=${safe(entry.raw.max)},now=${safe(entry.raw.now)})`
+  }).join(' -> ')
+}
+
+async function sampleOwnedEffortSlider(
+  page: Page,
+  control: Locator,
+): Promise<
+  | { observation: ChatGptEffortSliderObservation }
+  | { diagnostic: ChatGptEffortProbeDiagnostic }
+> {
+  const menu = await chatGptEffortMenuForControl(page, control)
+  if (!await menu.isVisible().catch(() => false)) {
+    return { diagnostic: { issue: 'menu-missing' } }
+  }
+
+  const { sliderContainer, slider } = chatGptEffortSlider(menu)
+  if (!await sliderContainer.isVisible().catch(() => false)) {
+    return { diagnostic: { issue: 'container-missing' } }
+  }
+  if (await slider.count().catch(() => 0) < 1) {
+    return { diagnostic: { issue: 'slider-unattached' } }
+  }
+
+  let raw: { min: string | null; max: string | null; now: string | null }
+  try {
+    raw = await slider.evaluate(element => ({
+      min: element.getAttribute('aria-valuemin'),
+      max: element.getAttribute('aria-valuemax'),
+      now: element.getAttribute('aria-valuenow'),
+    }))
+  } catch {
+    return { diagnostic: { issue: 'slider-detached' } }
+  }
+
+  const state = parseChatGptEffortSliderState(raw.min, raw.max, raw.now)
+  if (!state) {
+    return { diagnostic: { issue: classifyEffortSliderRaw(raw.min, raw.max, raw.now), raw } }
+  }
+  return { observation: { menu, sliderContainer, slider, state } }
+}
+
 export async function waitForChatGptEffortSliderState(
   page: Page,
+  control: Locator,
   timeoutMs: number,
+  options: { valueMustDifferFrom?: number } = {},
 ): Promise<ChatGptEffortSliderObservation> {
   const deadline = Date.now() + timeoutMs
-  let sawVisibleContainer = false
-  let sawAttachedSlider = false
+  const diagnostics: ChatGptEffortProbeDiagnostic[] = []
 
   do {
-    const { sliderContainer, slider } = chatGptEffortSlider(page)
-    const containerVisible = await sliderContainer.isVisible().catch(() => false)
-    if (containerVisible) {
-      sawVisibleContainer = true
-      const sliderCount = await slider.count().catch(() => 0)
-      if (sliderCount > 0) {
-        sawAttachedSlider = true
-        const state = parseChatGptEffortSliderState(
-          await slider.getAttribute('aria-valuemin').catch(() => null),
-          await slider.getAttribute('aria-valuemax').catch(() => null),
-          await slider.getAttribute('aria-valuenow').catch(() => null),
-        )
-        if (state) return { sliderContainer, slider, state }
+    const sampled = await sampleOwnedEffortSlider(page, control)
+    if ('observation' in sampled) {
+      if (options.valueMustDifferFrom === undefined || sampled.observation.state.value !== options.valueMustDifferFrom) {
+        return sampled.observation
       }
+    } else {
+      diagnostics.push(sampled.diagnostic)
     }
 
     if (Date.now() >= deadline) break
     await new Promise(resolveSleep => setTimeout(resolveSleep, 50))
   } while (true)
 
-  const cause = sawAttachedSlider
-    ? 'ChatGPT effort slider exposed an invalid ARIA range'
-    : sawVisibleContainer
-      ? 'ChatGPT effort slider container was visible but its semantic slider did not attach'
-      : 'ChatGPT effort slider container did not become visible'
-  throw new Error(`ChatGPT model controls are unavailable: ${cause}. Reload ChatGPT and retry.`, {
-    cause: new Error(cause),
-  })
+  const detail = diagnostics.length > 0 ? boundedEffortDiagnostics(diagnostics) : 'valid-slider-value-did-not-change'
+  throw new Error(`ChatGPT effort slider did not reach a valid owned semantic state before timeout: ${detail}`)
 }
 
 async function anyVisible(locator: Locator): Promise<boolean> {
@@ -272,7 +336,7 @@ export async function probeChatGptEffortCapabilities(
     await activateChatGptEffortMenu(page, effortButton, {
       settleMs: options.activationSettleMs ?? Math.min(3_000, Math.max(1, timeout)),
     })
-    const { state } = await waitForChatGptEffortSliderState(page, timeout)
+    const { state } = await waitForChatGptEffortSliderState(page, effortButton, timeout)
     return { solAvailable: true, proAvailable: state.max - state.min + 1 >= 5 }
   } finally {
     await page.keyboard.press('Escape').catch(() => {})
