@@ -110,6 +110,68 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('DSH alone validates, authorizes, and executes')
   })
 
+  it('places the terminal anchor after the complete DSH payload', () => {
+    const options = {
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [
+        message('u1', 'user', 'answer from the supplied state', 'user'),
+      ],
+    } satisfies GenerateOptions
+
+    const result = compilePrompt(options, 100_000)
+    const closingTag = result.text.lastIndexOf('</dsh_context_json>')
+    const terminalAnchor = result.text.indexOf('The complete authoritative DSH payload for this inference has already been supplied above.')
+    expect(closingTag).toBeGreaterThanOrEqual(0)
+    expect(terminalAnchor).toBeGreaterThan(closingTag)
+    expect(result.text).toContain('Do not ask the user to provide a payload, conversation state, messages, or tool history.')
+    expect(result.text).toContain('return exactly one raw JSON object as the entire answer')
+  })
+
+  it('anchors a realistic post-tool continuation after matching tool evidence', () => {
+    const humanText = 'Find the saved rule and answer me.'
+    const resultText = 'The saved rule says DSH owns the session.'
+    const options = {
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [
+        message('u1', 'user', humanText, 'user'),
+        {
+          id: MessageId('a-tool'),
+          role: 'assistant',
+          content: [{
+            type: 'tool-call',
+            id: ToolCallId('call-1'),
+            name: 'memory_search',
+            arguments: '{"query":"rule"}',
+          }],
+          source: { kind: 'model', provider: 'chatgpt-web', model: 'chatgpt-web/high' },
+        },
+        toolResultMessage('tr1', 'call-1', resultText),
+      ],
+      tools: [{
+        name: 'memory_search',
+        description: 'Search memory.',
+        parameters: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query'],
+          additionalProperties: false,
+        },
+      }],
+    } satisfies GenerateOptions
+
+    const result = compilePrompt(options, 100_000)
+    const closingTag = result.text.lastIndexOf('</dsh_context_json>')
+    const continuationAnchor = result.text.indexOf('A supplied tool_call with its matching tool_result is completed DSH evidence.')
+    expect(continuationAnchor).toBeGreaterThan(closingTag)
+    expect(result.text).toContain('"type":"tool_call"')
+    expect(result.text).toContain('"type":"tool_result"')
+    expect(result.text).toContain('"tool_call_id":"call-1"')
+    expect(result.text.split(humanText).length - 1).toBe(1)
+    expect(result.text.split(resultText).length - 1).toBe(1)
+    expect(result.text).toContain('do not request the payload again, claim the tool has not run, or repeat/re-execute the completed tool')
+  })
   it('keeps a tool result as evidence while retaining the human task target', () => {
     const options = {
       provider: 'chatgpt-web',
@@ -171,6 +233,8 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('Inside JSON string tokens, use standard JSON escaping only')
     expect(result.text).toContain('write action_proposal, never action\\_proposal')
     expect(result.text).not.toContain('Decide only the next DSH assistant step.')
+    expect(result.text).toContain('{"type":"final","content":"answer for this request"}')
+    expect(result.text).not.toContain('A supplied tool_call with its matching tool_result is completed DSH evidence.')
     },
   )
 
@@ -216,6 +280,20 @@ describe('compilePrompt', () => {
     expect(result.targetMessageIndex).toBe(0)
   })
 
+  it('keeps normal no-tools calls final-only with the terminal anchor', () => {
+    const options = {
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [message('u1', 'user', 'answer directly', 'user')],
+    } satisfies GenerateOptions
+
+    const result = compilePrompt(options, 100_000)
+    expect(result.text).toContain('This request exposes no callable DSH tools.')
+    expect(result.text).toContain('{"type":"final","content":"answer for this request"}')
+    expect(result.text).not.toContain('{"type":"action_proposal"')
+    expect(result.text.indexOf('The complete authoritative DSH payload for this inference has already been supplied above.'))
+      .toBeGreaterThan(result.text.lastIndexOf('</dsh_context_json>'))
+  })
   it('keeps meow-memory plugin snapshots as context and still targets the real human message', () => {
     const options = {
       provider: 'chatgpt-web',
