@@ -111,13 +111,13 @@ describe('reasoning result protocol', () => {
         'm2-live-seed',
       ],
     })
-  }
+  })
 
   it('does not normalize markdown bracket escapes inside JSON strings', () => {
     expect(() => parseReasoningResult(
       String.raw`{"type":"final","content":"literal \[brackets\] stay strict"}`,
     )).toThrow(/invalid reasoning envelope/i)
-  }
+  })
 
   it('rejects unsupported structural markdown escapes other than array delimiters', () => {
     expect(() => parseReasoningResult(
@@ -126,7 +126,7 @@ describe('reasoning result protocol', () => {
     expect(() => parseReasoningResult(
       String.raw`{"type":"final","content":\*"done"}`,
     )).toThrow(/invalid reasoning envelope/i)
-  }
+  })
 
   it('accepts one outer JSON code fence as transport tolerance', () => {
     expect(parseReasoningResult('```json\n{"type":"final","content":"done"}\n```')).toEqual({
