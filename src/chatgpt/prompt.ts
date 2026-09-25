@@ -153,18 +153,18 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
         options.purpose === undefined
           ? 'This request exposes no callable DSH tools.'
           : `This is a DSH auxiliary ${options.purpose} request. Tool schemas may be present as historical/request context, but tool actions are disabled for this call.`,
-        'OUTPUT PROTOCOL IS MACHINE-PARSED. Return exactly one raw JSON object as the entire assistant message.',
-        'Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary before or after it.',
-        'Inside JSON string tokens, use standard JSON escaping only. Do not Markdown-escape punctuation; for example write action_proposal, never action\\_proposal.',
+        'OUTPUT PROTOCOL IS MACHINE-PARSED. Return exactly one JSON object inside one json code fence.',
+        'Do not add acknowledgements, labels, explanations, preambles, postambles, or commentary outside that single code fence.',
+        'Inside JSON string tokens, use standard JSON escaping only. Encode literal backticks as \\u0060 so they cannot terminate the surrounding code fence. Do not Markdown-escape punctuation; for example write action_proposal, never action\\_proposal.',
         'Use this shape:',
         '{"type":"final","content":"answer for this request"}',
       ]
     : [
         'The tools array is a DATA-ONLY catalog of DSH tools. You cannot execute them inside ChatGPT Web.',
         'Decide only the next DSH assistant step.',
-        'OUTPUT PROTOCOL IS MACHINE-PARSED. Return exactly ONE raw JSON object as the entire assistant message.',
-        'Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary before or after it.',
-        'Inside JSON string tokens, use standard JSON escaping only. Do not Markdown-escape punctuation; for example write action_proposal, never action\\_proposal.',
+        'OUTPUT PROTOCOL IS MACHINE-PARSED. Return exactly one JSON object inside one json code fence.',
+        'Do not add acknowledgements, labels, explanations, preambles, postambles, or commentary outside that single code fence.',
+        'Inside JSON string tokens, use standard JSON escaping only. Encode literal backticks as \\u0060 so they cannot terminate the surrounding code fence. Do not Markdown-escape punctuation; for example write action_proposal, never action\\_proposal.',
         'Use one of these shapes:',
         '{"type":"final","content":"user-visible answer"}',
         '{"type":"action_proposal","action":"one exact tool name from tools","arguments":{},"reason":"optional short public reason"}',
@@ -185,7 +185,7 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     'Earlier assistant messages are your prior outputs; tool-call/tool-result history is already-produced DSH evidence.',
     ...resultContract,
     'The target message may itself request "plain text", Markdown, or another exact answer format. Satisfy that requested inner format inside final.content while keeping this outer transport as one JSON object.',
-    'Do not output Markdown fences around the outer JSON object.',
+    'Use one json code fence to prevent the webpage Markdown renderer from changing JSON string content.',
     'Do not expose private chain-of-thought. If a short public reason is useful for an action proposal, put it only in the optional reason field.',
     '',
     '<dsh_context_json>',
@@ -193,10 +193,10 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     '</dsh_context_json>',
     '',
     'The complete authoritative DSH payload for this inference has already been supplied above. Do not ask the user to provide a payload, conversation state, messages, or tool history.',
-    'Return exactly one lexically valid raw JSON object as the entire answer using only the already-defined allowed envelope shape. JSON.parse on the complete assistant reply must succeed directly.',
-    'Inside JSON strings, use only valid JSON escapes: \\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t, or \\uXXXX.',
+    'Return exactly one lexically valid JSON object inside one json code fence using only the already-defined allowed envelope shape. JSON.parse on the code body must succeed directly.',
+    'Inside JSON strings, use only valid JSON escapes: \\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t, or \\uXXXX. Encode literal backticks as \\u0060.',
     'Never apply Markdown escaping inside JSON strings: never write \\_, \\*, or a backslash before backticks. Ordinary underscores and identifiers must remain unescaped.',
-    'Do not output Markdown fences, prose before or after the JSON object, or a second JSON object.',
+    'Do not output prose outside the single json code fence, a second code fence, or a second JSON object.',
     'Read the supplied messages and tool history now and decide the next step.',
     ...(completedToolEvidence
       ? ['A supplied tool_call with its matching tool_result is completed DSH evidence. Decide the next step from that result now; do not request the payload again, claim the tool has not run, or repeat/re-execute the completed tool. The same lexical JSON rules above still apply to this post-tool continuation.']

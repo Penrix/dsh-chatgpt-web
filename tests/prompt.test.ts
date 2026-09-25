@@ -104,8 +104,9 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('"toolActionsAllowed":true')
     expect(result.text).toContain('"type":"action_proposal"')
     expect(result.text).toContain('OUTPUT PROTOCOL IS MACHINE-PARSED')
-    expect(result.text).toContain('Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary')
+    expect(result.text).toContain('Do not add acknowledgements, labels, explanations, preambles, postambles, or commentary')
     expect(result.text).toContain('Inside JSON string tokens, use standard JSON escaping only')
+    expect(result.text).toContain('Encode literal backticks as \\u0060')
     expect(result.text).toContain('write action_proposal, never action\\_proposal')
     expect(result.text).toContain('DSH alone validates, authorizes, and executes')
   })
@@ -118,12 +119,12 @@ describe('compilePrompt', () => {
     } satisfies GenerateOptions, 100_000)
 
     const closingTag = result.text.lastIndexOf('</dsh_context_json>')
-    const lexicalRule = result.text.indexOf('JSON.parse on the complete assistant reply must succeed directly.')
+    const lexicalRule = result.text.indexOf('JSON.parse on the code body must succeed directly.')
     expect(lexicalRule).toBeGreaterThan(closingTag)
     expect(result.text).toContain('Inside JSON strings, use only valid JSON escapes:')
     expect(result.text).toContain('never write \\_, \\*, or a backslash before backticks')
     expect(result.text).toContain('Ordinary underscores and identifiers must remain unescaped.')
-    expect(result.text).toContain('Do not output Markdown fences, prose before or after the JSON object, or a second JSON object.')
+    expect(result.text).toContain('Do not output prose outside the single json code fence, a second code fence, or a second JSON object.')
   })
 
   it('places the terminal anchor after the complete DSH payload', () => {
@@ -141,7 +142,7 @@ describe('compilePrompt', () => {
     expect(closingTag).toBeGreaterThanOrEqual(0)
     expect(terminalAnchor).toBeGreaterThan(closingTag)
     expect(result.text).toContain('Do not ask the user to provide a payload, conversation state, messages, or tool history.')
-    expect(result.text).toContain('Return exactly one lexically valid raw JSON object as the entire answer')
+    expect(result.text).toContain('Return exactly one lexically valid JSON object inside one json code fence')
   })
 
   it('anchors a realistic post-tool continuation after matching tool evidence', () => {
@@ -188,7 +189,7 @@ describe('compilePrompt', () => {
     expect(result.text.split(resultText).length - 1).toBe(1)
     expect(result.text).toContain('do not request the payload again, claim the tool has not run, or repeat/re-execute the completed tool')
     expect(result.text).toContain('The same lexical JSON rules above still apply to this post-tool continuation.')
-    expect(result.text).toContain('JSON.parse on the complete assistant reply must succeed directly.')
+    expect(result.text).toContain('JSON.parse on the code body must succeed directly.')
     expect(result.text).toContain('never write \\_, \\*, or a backslash before backticks')
   })
   it('keeps a tool result as evidence while retaining the human task target', () => {
@@ -248,7 +249,7 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('"toolActionsAllowed":false')
     expect(result.text).toContain('Tool schemas may be present')
     expect(result.text).toContain('OUTPUT PROTOCOL IS MACHINE-PARSED')
-    expect(result.text).toContain('Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary')
+    expect(result.text).toContain('Do not add acknowledgements, labels, explanations, preambles, postambles, or commentary')
     expect(result.text).toContain('Inside JSON string tokens, use standard JSON escaping only')
     expect(result.text).toContain('write action_proposal, never action\\_proposal')
     expect(result.text).not.toContain('Decide only the next DSH assistant step.')
@@ -312,7 +313,7 @@ describe('compilePrompt', () => {
     expect(result.text).not.toContain('{"type":"action_proposal"')
     expect(result.text.indexOf('The complete authoritative DSH payload for this inference has already been supplied above.'))
       .toBeGreaterThan(result.text.lastIndexOf('</dsh_context_json>'))
-    expect(result.text).toContain('JSON.parse on the complete assistant reply must succeed directly.')
+    expect(result.text).toContain('JSON.parse on the code body must succeed directly.')
     expect(result.text).toContain('never write \\_, \\*, or a backslash before backticks')
   })
   it('keeps the lexical contract generic for arbitrary identifiers', () => {
@@ -324,7 +325,7 @@ describe('compilePrompt', () => {
 
     expect(result.text).toContain('Ordinary underscores and identifiers must remain unescaped.')
     expect(result.text).toContain('Never apply Markdown escaping inside JSON strings')
-    expect(result.text).toContain('JSON.parse on the complete assistant reply must succeed directly.')
+    expect(result.text).toContain('JSON.parse on the code body must succeed directly.')
   })
 
   it('keeps meow-memory plugin snapshots as context and still targets the real human message', () => {

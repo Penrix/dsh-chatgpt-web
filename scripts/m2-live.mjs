@@ -18,6 +18,8 @@ import { ChatGptWebAdapter, compilePrompt } from '../lib/index.js'
 import { restoreHomeEnvironment, snapshotHomeEnvironment, withTemporaryHome } from './m2-home-scope.mjs'
 import { boundedReasoningEnvelopeDiagnostic } from './m2-reasoning-diagnostic.mjs'
 import { createDreamGate } from './m2-dream-gate.mjs'
+import { reserveEvidenceFile } from './evidence-file.mjs'
+import { assertHighOrAboveForLiveTest } from './live-model-policy.mjs'
 
 const PACKET = 'WEB-M2-WIN-LIVE-009 rev 1'
 const SOURCE_STARTING_HEAD = '476e9b31c4c07b18ae0f45ef168816e5f3c53453'
@@ -26,6 +28,7 @@ const DREAM_MARKER = '[meow-memory-dream]'
 const PROJECT_DIR = '.dsh-meow-live'
 const runId = (process.env.M2_LIVE_RUN_ID || randomUUID()).replace(/[^a-zA-Z0-9_-]/g, '')
 const model = process.env.M2_CHATGPT_MODEL || 'chatgpt-web/high'
+assertHighOrAboveForLiveTest(model)
 const originalHome = homedir()
 const profileDir = resolve(process.env.M2_CHATGPT_PROFILE || join(originalHome, '.dsh-chatgpt-web-penrix', 'chrome-profile'))
 const workspace = resolve(process.env.M2_LIVE_WORKSPACE || join(tmpdir(), 'dsh-chatgpt-web-m2-live-' + runId))
@@ -43,6 +46,7 @@ if (platform() !== 'win32' && process.env.M2_ALLOW_NON_WINDOWS !== '1') {
 
 mkdirSync(workspace, { recursive: true })
 mkdirSync(dirname(evidencePath), { recursive: true })
+reserveEvidenceFile(evidencePath)
 const meowHome = join(workspace, '.m2-home')
 mkdirSync(meowHome, { recursive: true })
 const originalHomeEnvironment = snapshotHomeEnvironment()

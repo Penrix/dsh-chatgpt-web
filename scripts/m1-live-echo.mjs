@@ -13,9 +13,12 @@ import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { ChatGptWebAdapter } from '../lib/index.js'
+import { reserveEvidenceFile } from './evidence-file.mjs'
+import { assertHighOrAboveForLiveTest } from './live-model-policy.mjs'
 
 const provider = 'chatgpt-web'
 const model = process.env.M1_MODEL || 'chatgpt-web/high'
+assertHighOrAboveForLiveTest(model)
 const profileDir = resolve(process.env.M1_PROFILE_DIR || join(homedir(), '.dsh-chatgpt-web-penrix', 'chrome-profile'))
 const chromeExecutablePath = process.env.M1_CHROME_EXECUTABLE || undefined
 const loginTimeoutMs = Number(process.env.M1_LOGIN_TIMEOUT_MS || 600_000)
@@ -24,6 +27,7 @@ const overallTimeoutMs = Number(process.env.M1_OVERALL_TIMEOUT_MS || 1_800_000)
 const sessionId = SessionId(`penrix-m1-live-${Date.now()}`)
 const evidencePath = resolve(process.env.M1_LIVE_EVIDENCE || join(tmpdir(), `dsh-chatgpt-web-m1-live-${Date.now()}.json`))
 const profileExistedBefore = existsSync(profileDir)
+reserveEvidenceFile(evidencePath)
 
 function boundedReasoningEnvelopeDiagnostic(rawText, error) {
   const maxPreviewChars = 2048

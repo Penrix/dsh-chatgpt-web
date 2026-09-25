@@ -1,8 +1,8 @@
-import TurndownService from 'turndown'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import type { Page } from 'playwright-core'
 import { CompletionTracker } from './completion.ts'
 import { selectModelEffort } from './effort.ts'
+import type { SendSafetyLease } from './send-safety.ts'
 import {
   CHATGPT_ASSISTANT_TURN_SELECTOR,
   CHATGPT_COMPLETION_ACTION_SELECTOR,
@@ -24,6 +24,7 @@ const SEND = 'button[data-testid="send-button"], #composer-submit-button'
 export interface TurnOptions {
   model: string
   timeoutMs: number
+  sendSafety: SendSafetyLease
   signal?: AbortSignal
 }
 
@@ -78,14 +79,34 @@ export async function dispatchTemporarySendFailClosed(
   await dispatchSendFailClosed(click, markDeliveryPossible)
 }
 
-async function markdownFromLastAssistant(page: Page): Promise<string> {
+export async function extractReasoningText(page: Page): Promise<string> {
   const assistant = page.locator(CHATGPT_ASSISTANT_TURN_SELECTOR).last()
-  const markdown = assistant.locator('.markdown').last()
-  const html = await markdown.innerHTML().catch(async () => await assistant.innerHTML())
-  const turndown = new TurndownService({ codeBlockStyle: 'fenced', bulletListMarker: '-' })
-  const result = turndown.turndown(html).trim()
-  if (result) return result
-  return (await assistant.innerText()).trim()
+  const messageBodies = assistant.locator('[data-message-author-role="assistant"]')
+  const body = await messageBodies.count() > 0 ? messageBodies.last() : assistant
+  const blocks = body.locator('.markdown')
+  if (await blocks.count() === 0) {
+    throw new Error('ChatGPT reply has no identifiable answer body; refusing to parse UI controls.')
+  }
+  // Read displayed text, never re-encode it as Markdown. Preserve all answer
+  // blocks so a second JSON object cannot disappear during extraction.
+  const texts = await blocks.evaluateAll(roots => roots.map(root => {
+    const copy = root.cloneNode(true) as HTMLElement
+    for (const control of copy.querySelectorAll('button')) control.remove()
+    const codeBlocks = copy.querySelectorAll('pre')
+    if (codeBlocks.length > 0) {
+      if (codeBlocks.length !== 1) throw new Error('Reply contains multiple code blocks.')
+      const pre = codeBlocks[0]!
+      const code = pre.querySelector('code')
+      if (!code) throw new Error('Reply code block has no code body.')
+      const text = code.textContent ?? ''
+      pre.remove()
+      if (copy.textContent?.trim()) throw new Error('Reply contains content outside the JSON code block.')
+      return text
+    }
+    for (const br of copy.querySelectorAll('br')) br.replaceWith(document.createTextNode('\n'))
+    return copy.textContent ?? ''
+  }))
+  return texts.join('\n').trim()
 }
 
 async function stopGenerationBestEffort(page: Page): Promise<void> {
@@ -113,12 +134,14 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
     await input.fill(prompt)
     await throwIfRateLimitDialog(page)
     const button = await sendButton(page)
-    await dispatchTemporarySendFailClosed(
-      page,
-      () => button.click(),
-      () => { sent = true },
-      () => throwIfRateLimitDialog(page),
-    )
+    await options.sendSafety.dispatch(async () => {
+      await dispatchTemporarySendFailClosed(
+        page,
+        () => button.click(),
+        () => { sent = true },
+        () => throwIfRateLimitDialog(page),
+      )
+    }, options.signal)
 
     const tracker = new CompletionTracker(baselineAssistantCount, baselineCopyActionCount)
     const deadline = Date.now() + options.timeoutMs
@@ -141,8 +164,9 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
         : ''
 
       if (tracker.update({ assistantCount, copyActionCount, running, text })) {
-        const final = await markdownFromLastAssistant(page)
+        const final = await extractReasoningText(page)
         if (!final) throw new PostSendFailure('ChatGPT completed without an extractable final answer.')
+        await options.sendSafety.complete()
         return { text: final }
       }
 
@@ -157,6 +181,12 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
       await page.waitForTimeout(500)
     }
   } catch (error) {
+    if (error instanceof LlmError && error.code === 'RATE_LIMIT') {
+      await options.sendSafety.block()
+      if (!sent) {
+        throw new LlmError('ChatGPT 已限流，本次运行停止；请人工核对后恢复。', 'PROVIDER_ERROR', { cause: error })
+      }
+    }
     // Once Send may have happened, even a typed browser/rate-limit failure is
     // no longer safe to replay automatically. Preserve the uncertainty
     // boundary before preserving the original error taxonomy.

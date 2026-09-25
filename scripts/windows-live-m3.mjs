@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { reserveEvidenceFile } from './evidence-file.mjs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
@@ -75,6 +76,7 @@ function textFromSuccess(value) {
   return typeof text === 'string' ? text : undefined
 }
 
+reserveEvidenceFile(evidencePath)
 const ctx = new Context()
 let disposeTool
 try {

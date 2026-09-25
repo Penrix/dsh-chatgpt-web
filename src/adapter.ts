@@ -1,4 +1,4 @@
-import { LlmAdapter, LlmError } from '@deepseek-ai/dsh-llm'
+import { LlmAdapter, LlmError, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
 import type {
   GenerateOptions,
   LlmModelInfo,
@@ -10,6 +10,7 @@ import { ChatGptBrowser } from './chatgpt/browser.ts'
 import type { BrowserOptions } from './chatgpt/browser.ts'
 import { compilePrompt } from './chatgpt/prompt.ts'
 import { runFreshTurn } from './chatgpt/turn.ts'
+import { SendSafetyLease } from './chatgpt/send-safety.ts'
 import { parseReasoningResult, reasoningResultChunks } from './reasoning-result.ts'
 
 export interface AdapterOptions extends BrowserOptions {
@@ -43,6 +44,10 @@ export class ChatGptWebAdapter extends LlmAdapter {
     return { id: provider, name: 'Penrix ChatGPT Web' }
   }
 
+  override providerRetryPolicy() {
+    return resolveRetryPolicy({ mode: 'normal', maxRetries: 0 }, 'chatgpt-web.retryPolicy')
+  }
+
   override listModels(provider: string): Promise<readonly LlmModelInfo[]> {
     return Promise.resolve(MODELS.map(model => ({
       provider,
@@ -66,7 +71,7 @@ export class ChatGptWebAdapter extends LlmAdapter {
       id: model,
       name: entry.name,
       inputModalities: ['text'],
-      context: { contextWindow: entry.contextWindow || this.options.contextWindow },
+      context: { contextWindow: Math.min(this.options.contextWindow, entry.contextWindow) },
       defaultMaxTokens: this.options.maxTokens,
     })
   }
@@ -88,38 +93,46 @@ export class ChatGptWebAdapter extends LlmAdapter {
 
     try {
       const compiled = compilePrompt(options, this.options.composerMaxChars)
-      const page = await this.browser.newTurnPage(options.signal)
+      const safety = await SendSafetyLease.acquire()
       try {
-        const result = await runFreshTurn(page, compiled.text, {
-          model: options.model,
-          timeoutMs: this.options.turnTimeoutMs,
-          ...(options.signal ? { signal: options.signal } : {}),
-        })
-        let reasoning: ReturnType<typeof parseReasoningResult>
+        const page = await this.browser.newTurnPage(options.signal)
         try {
-          reasoning = parseReasoningResult(result.text)
-        } catch (error) {
+          const result = await runFreshTurn(page, compiled.text, {
+            model: options.model,
+            timeoutMs: this.options.turnTimeoutMs,
+            sendSafety: safety,
+            ...(options.signal ? { signal: options.signal } : {}),
+          })
+          let reasoning: ReturnType<typeof parseReasoningResult>
           try {
-            this.options.onReasoningEnvelopeError?.({ rawText: result.text, error })
-          } catch {
-            // Acceptance diagnostics are best-effort and must never replace the parser failure.
+            reasoning = parseReasoningResult(result.text)
+          } catch (error) {
+            try {
+              this.options.onReasoningEnvelopeError?.({ rawText: result.text, error })
+            } catch {
+              // Diagnostics must never replace the parser failure.
+            }
+            throw error
           }
-          throw error
-        }
-        const callableTools = options.purpose === undefined ? options.tools : undefined
-        const chunks = reasoningResultChunks(reasoning, callableTools)
-        const usage = {
-          inputTokens: Math.max(1, Math.ceil(compiled.text.length / 4)),
-          outputTokens: Math.max(1, Math.ceil(result.text.length / 4)),
-        }
-        for (const chunk of chunks) {
-          if (chunk.type === 'finish') {
-            yield { type: 'usage', usage }
+          const callableTools = options.purpose === undefined ? options.tools : undefined
+          const chunks = reasoningResultChunks(reasoning, callableTools)
+          // Estimates, not provider-reported token counts. The independent
+          // composer character limit remains enforced by compilePrompt.
+          const usage = {
+            inputTokens: Math.max(1, Math.ceil(compiled.text.length / 4)),
+            outputTokens: Math.max(1, Math.ceil(result.text.length / 4)),
           }
-          yield chunk
+          for (const chunk of chunks) {
+            if (chunk.type === 'finish') {
+              yield { type: 'usage', usage }
+            }
+            yield chunk
+          }
+        } finally {
+          await page.close().catch(() => {})
         }
       } finally {
-        await page.close().catch(() => {})
+        await safety.release()
       }
     } finally {
       release()

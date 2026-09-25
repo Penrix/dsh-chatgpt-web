@@ -21,7 +21,7 @@ class FakeTime {
 }
 
 describe('FreshPageSafetyGate', () => {
-  it('enforces a 20-second minimum cadence without real sleeping', async () => {
+  it('enforces a 30-second minimum cadence without real sleeping', async () => {
     const time = new FakeTime()
     const gate = new FreshPageSafetyGate({ now: time.now, sleep: time.sleep })
 
@@ -38,7 +38,7 @@ describe('FreshPageSafetyGate', () => {
     const gate = new FreshPageSafetyGate({ now: time.now, sleep: time.sleep })
 
     for (let index = 0; index < 8; index += 1) await gate.waitForSlot()
-    expect(time.nowMs).toBe(140_000)
+    expect(time.nowMs).toBe(210_000)
 
     await gate.waitForSlot()
     expect(time.nowMs).toBe(FRESH_PAGE_WINDOW_MS)

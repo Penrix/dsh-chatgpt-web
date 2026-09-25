@@ -20,6 +20,7 @@ $StageRoot = [IO.Path]::GetFullPath($StageRoot)
 
 if (-not $EvidenceRoot) { $EvidenceRoot = Join-Path $env:TEMP ('dsh-chatgpt-web-win-live-evidence-' + $Head.Substring(0,8)) }
 $EvidenceRoot = [IO.Path]::GetFullPath($EvidenceRoot)
+$RunId = [Guid]::NewGuid().ToString('N')
 
 if (-not $ProfileDir) { $ProfileDir = Join-Path $HOME '.dsh-chatgpt-web-penrix\chrome-profile' }
 $ProfileDir = [IO.Path]::GetFullPath($ProfileDir)
@@ -187,14 +188,14 @@ switch ($Phase) {
     Write-Host "Preserving existing M1 PASS evidence: $env:M1_LIVE_EVIDENCE"
     Write-Host "M1 completedAt: $($m1.completedAt)"
 
-    Set-M2Environment (Join-Path $EvidenceRoot 'm2-live-resume-after-m1-018.json')
+    Set-M2Environment (Join-Path $EvidenceRoot "m2-live-resume-$RunId.json")
     Wait-M2ProfileQuiescence
 
     Write-Host ''
-    Write-Host '=== M2 live meow-memory (resume; M1 not rerun) ==='
+    Write-Host '=== M2 从头验收（仅保留 M1 证据，不是 M2 阶段断点续跑）==='
     Invoke-Checked node @('scripts/m2-live.mjs')
 
-    Invoke-M3Live (Join-Path $EvidenceRoot 'm3-live.json')
+    Invoke-M3Live (Join-Path $EvidenceRoot "m3-live-$RunId.json")
 
     $summary = [pscustomobject]@{
       packet = 'WEB-M2-WIN-LIVE-009 rev 1'
@@ -206,7 +207,7 @@ switch ($Phase) {
       m3Evidence = $env:WEBCODEX_LIVE_EVIDENCE
       completedAt = (Get-Date).ToUniversalTime().ToString('o')
     }
-    $summaryPath = Join-Path $EvidenceRoot 'windows-live-resume-m2-summary.json'
+    $summaryPath = Join-Path $EvidenceRoot "windows-live-resume-m2-summary-$RunId.json"
     $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding utf8
 
     Write-Host ''
