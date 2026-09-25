@@ -128,6 +128,11 @@ function textFromContent(content) {
   return out.join('\n')
 }
 
+function isMeowSource(source) {
+  return source?.kind === 'plugin:meow-memory'
+    || (source?.kind === 'plugin' && source?.plugin === 'meow-memory')
+}
+
 function messageSummary(message) {
   if (!message) return null
   const source = message.source || {}
@@ -135,7 +140,7 @@ function messageSummary(message) {
     role: message.role,
     source: {
       kind: source.kind,
-      plugin: source.plugin,
+      plugin: isMeowSource(source) ? 'meow-memory' : source.plugin,
       form: source.form,
       callId: source.callId,
     },
@@ -145,7 +150,7 @@ function messageSummary(message) {
 
 function memoryMeta(message) {
   const source = message?.source
-  if (!source || source.kind !== 'plugin' || source.plugin !== 'meow-memory') return undefined
+  if (!isMeowSource(source)) return undefined
   const sections = Array.isArray(source.sections) ? source.sections : []
   const meta = sections.find((section) => section && section.name === '__meta__')
   if (!meta || typeof meta.text !== 'string') return undefined
@@ -167,7 +172,7 @@ function summarizeProviderRequest(options) {
   const targetIndex = compiled?.targetMessageIndex
   const target = typeof targetIndex === 'number' ? options.messages[targetIndex] : undefined
   const memoryMessages = options.messages
-    .filter((message) => message.source?.kind === 'plugin' && message.source?.plugin === 'meow-memory')
+    .filter((message) => isMeowSource(message.source))
     .map((message) => ({
       ...messageSummary(message),
       meta: memoryMeta(message),
@@ -214,7 +219,7 @@ function summarizeEvent(event) {
         turn: data.turn,
         step: data.step,
         callId: String(data.message?.source?.callId || ''),
-        isError: Boolean(data.message?.content?.some?.((block) => block?.type === 'tool-result' && block.isError)),
+        isError: data.message?.isError === true,
         text: textFromContent(data.message?.content).slice(0, 20000),
         error: data.error,
       }
@@ -353,8 +358,7 @@ function pluginTargetRequest(fromOrdinal, marker, agent = mainAgent) {
   return evidence.providerRequests.find((request) =>
     request.ordinal > fromOrdinal
     && request.sessionId === String(agent?.session.id)
-    && request.target?.source?.kind === 'plugin'
-    && request.target?.source?.plugin === 'meow-memory'
+    && isMeowSource(request.target?.source)
     && request.target?.text?.includes(marker))
 }
 
@@ -378,7 +382,7 @@ async function main() {
   const manifestPath = require.resolve('meow-memory/package.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
   assert.equal(manifest.name, 'meow-memory')
-  assert.equal(manifest.version, '0.27.0')
+  assert.equal(manifest.version, '0.29.0')
   assert.match(String(manifest.repository?.url || ''), /Phant0Meow\/dsh-meow-memory/)
   evidence.plugin = {
     ...evidence.plugin,
@@ -388,7 +392,7 @@ async function main() {
     manifestPath,
   }
 
-  // meow-memory 0.27.0 captures several homedir-owned diagnostic/prompt/window
+  // meow-memory captures several homedir-owned diagnostic/prompt/window
   // paths at module import. Scope the fake home to that import only. The project
   // DB is independently isolated by workspace + PROJECT_DIR.
   let meowMemory
@@ -445,8 +449,7 @@ async function main() {
     ctx.on('llm/stream', (options, next) => {
       const request = summarizeProviderRequest(options)
       evidence.providerRequests.push(request)
-      const isDream = request.target?.source?.kind === 'plugin'
-        && request.target?.source?.plugin === 'meow-memory'
+      const isDream = isMeowSource(request.target?.source)
         && request.target?.text?.includes(DREAM_MARKER)
       dreamGate.assertNoEarlyDream({ isDream, sessionId: request.sessionId })
       writeEvidence()
@@ -691,8 +694,7 @@ async function main() {
       () => mainAgent.session.snapshotEvents().map(summarizeEvent).find((event) =>
         event.type === 'user/message'
         && event.seq >= (mainAgent.session.snapshotEvents()[reflectEventStart]?.seq ?? 0)
-        && event.source?.kind === 'plugin'
-        && event.source?.plugin === 'meow-memory'
+        && isMeowSource(event.source)
         && String(event.text || '').includes(REFLECT_MARKER)),
       stageTimeoutMs,
     )
@@ -704,8 +706,8 @@ async function main() {
     reflectionStage.request = reflectRequest
     reflectionStage.events = relevantEvents(mainAgent, reflectEventStart)
     reflectionStage.proof = {
-      targetIsPlugin: reflectRequest.target?.source?.kind === 'plugin',
-      plugin: reflectRequest.target?.source?.plugin,
+      targetIsPlugin: isMeowSource(reflectRequest.target?.source),
+      plugin: isMeowSource(reflectRequest.target?.source) ? 'meow-memory' : undefined,
       marker: REFLECT_MARKER,
     }
     assert.equal(reflectionStage.proof.targetIsPlugin, true)
@@ -755,8 +757,7 @@ async function main() {
     dreamCtx.on('llm/stream', (options, next) => {
       const request = summarizeProviderRequest(options)
       evidence.providerRequests.push(request)
-      const isDream = request.target?.source?.kind === 'plugin'
-        && request.target?.source?.plugin === 'meow-memory'
+      const isDream = isMeowSource(request.target?.source)
         && request.target?.text?.includes(DREAM_MARKER)
       dreamGate.assertNoEarlyDream({ isDream, sessionId: request.sessionId })
       writeEvidence()
@@ -848,8 +849,7 @@ async function main() {
         if (errors.length > 0) return { kind: 'error', errors }
         const events = relevantEvents(dreamAgent, dreamEventStart)
         const dreamUser = events.find((event) => event.type === 'user/message'
-          && event.source?.kind === 'plugin'
-          && event.source?.plugin === 'meow-memory'
+          && isMeowSource(event.source)
           && String(event.text || '').includes(DREAM_MARKER))
         if (!dreamUser) return undefined
         const laterEnd = events.find((event) => event.type === 'turn/end' && event.seq > dreamUser.seq)

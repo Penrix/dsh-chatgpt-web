@@ -27,6 +27,7 @@ const REQUIRED_TOOLS = [
 const EXPECTED_MEMORY_TOOLS = [
   'memory_dream',
   'memory_find_similar',
+  'memory_home',
   'memory_project',
   'memory_read',
   'memory_remember',
@@ -46,7 +47,7 @@ function schemaMap(schemas: readonly CapturedToolSchema[]): Map<string, JsonSche
   ] as const))
 }
 
-describe('meow-memory 0.27.0 sibling-plugin contract on DSH 0.1.5-rc.2', () => {
+describe('meow-memory 0.29.0 sibling-plugin contract on DSH 0.1.7-rc.2', () => {
   it('loads the real package and registers the expected memory tool schemas', async () => {
     const require = createRequire(import.meta.url)
     const manifestPath = require.resolve('meow-memory/package.json')
@@ -57,7 +58,7 @@ describe('meow-memory 0.27.0 sibling-plugin contract on DSH 0.1.5-rc.2', () => {
     }
 
     expect(manifest.name).toBe('meow-memory')
-    expect(manifest.version).toBe('0.27.0')
+    expect(manifest.version).toBe('0.29.0')
     expect(manifest.repository?.url).toContain('Phant0Meow/dsh-meow-memory')
 
     const sandboxHome = mkdtempSync(join(tmpdir(), 'dsh-meow-contract-'))

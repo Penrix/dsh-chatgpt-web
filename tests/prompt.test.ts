@@ -4,28 +4,34 @@ import { compilePrompt } from '../src/chatgpt/prompt.ts'
 import type { GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
 
 function message(id: string, role: 'user' | 'assistant', text: string, source: 'user' | 'model'): Message {
-  return {
-    id: MessageId(id),
-    role,
-    content: [{ type: 'text', text }],
-    source: source === 'user'
-      ? { kind: 'user' }
-      : { kind: 'model', provider: 'chatgpt-web', model: 'chatgpt-web/current' },
+  if (role === 'assistant' && source === 'model') {
+    return {
+      id: MessageId(id),
+      role,
+      content: [{ type: 'text', text }],
+      source: { kind: 'model', provider: 'chatgpt-web', model: 'chatgpt-web/current' },
+    }
   }
+  if (role === 'user' && source === 'user') {
+    return {
+      id: MessageId(id),
+      role,
+      content: [{ type: 'text', text }],
+      source: { kind: 'user' },
+    }
+  }
+  throw new Error(`unsupported test message role/source pair: ${role}/${source}`)
 }
 
 function toolResultMessage(id: string, callId: string, text: string): Message {
   const brandedCallId = ToolCallId(callId)
   return {
     id: MessageId(id),
-    role: 'user',
-    content: [{
-      type: 'tool-result',
-      toolCallId: brandedCallId,
-      content: [{ type: 'text', text }],
-      isError: false,
-    }],
+    role: 'tool',
+    content: [{ type: 'text', text }],
     source: { kind: 'tool', callId: brandedCallId },
+    toolCallId: brandedCallId,
+    isError: false,
   }
 }
 
@@ -35,12 +41,11 @@ function pluginMessage(id: string, text: string, form: 'snapshot' | 'notice'): M
     role: 'user',
     content: [{ type: 'text', text }],
     source: {
-      kind: 'plugin',
-      plugin: 'meow-memory',
+      kind: 'plugin:meow-memory',
       ...(form === 'snapshot'
         ? { form, sections: [] }
         : { form, summary: text.slice(0, 40) }),
-    } as Message['source'],
+    } as unknown as Message['source'],
   }
 }
 
@@ -50,9 +55,8 @@ function noFormPluginMessage(id: string, text: string): Message {
     role: 'user',
     content: [{ type: 'text', text }],
     source: {
-      kind: 'plugin',
-      plugin: 'meow-memory',
-    } as Message['source'],
+      kind: 'plugin:meow-memory',
+    } as unknown as Message['source'],
   }
 }
 
@@ -74,6 +78,18 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('"answer"')
     expect(result.text).toContain('"second"')
     expect(result.text).toContain('"targetMessageIndex":2')
+  })
+
+  it('accepts an identity-free one-shot user input as the task target', () => {
+    const result = compilePrompt({
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'one-shot request' }] }],
+    } satisfies GenerateOptions, 100_000)
+
+    expect(result.targetMessageIndex).toBe(0)
+    expect(result.text).toContain('"role":"user","content"')
+    expect(result.text).toContain('whose source is absent for a one-shot request')
   })
 
   it('serializes exact DSH tool schemas as data and enables one-step action proposals', () => {
@@ -180,10 +196,10 @@ describe('compilePrompt', () => {
 
     const result = compilePrompt(options, 100_000)
     const closingTag = result.text.lastIndexOf('</dsh_context_json>')
-    const continuationAnchor = result.text.indexOf('A supplied tool_call with its matching tool_result is completed DSH evidence.')
+    const continuationAnchor = result.text.indexOf('A supplied tool_call with its matching tool-role result is completed DSH evidence.')
     expect(continuationAnchor).toBeGreaterThan(closingTag)
     expect(result.text).toContain('"type":"tool_call"')
-    expect(result.text).toContain('"type":"tool_result"')
+    expect(result.text).toContain('"role":"tool"')
     expect(result.text).toContain('"tool_call_id":"call-1"')
     expect(result.text.split(humanText).length - 1).toBe(1)
     expect(result.text.split(resultText).length - 1).toBe(1)
@@ -254,7 +270,7 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('write action_proposal, never action\\_proposal')
     expect(result.text).not.toContain('Decide only the next DSH assistant step.')
     expect(result.text).toContain('{"type":"final","content":"answer for this request"}')
-    expect(result.text).not.toContain('A supplied tool_call with its matching tool_result is completed DSH evidence.')
+    expect(result.text).not.toContain('A supplied tool_call with its matching tool-role result is completed DSH evidence.')
     },
   )
 
@@ -282,7 +298,7 @@ describe('compilePrompt', () => {
     const result = compilePrompt(options, 100_000)
     expect(result.targetMessageIndex).toBe(2)
     expect(result.text).toContain('[meow-memory-reflect]')
-    expect(result.text).toContain('opaque/no-form or relay plugin message may itself be the task')
+    expect(result.text).toContain('opaque/no-form or relay producer message may itself be the task')
   })
 
   it('skips passive meow-memory snapshot/notice context when selecting the task target', () => {
@@ -341,8 +357,7 @@ describe('compilePrompt', () => {
 
     const result = compilePrompt(options, 100_000)
     expect(result.targetMessageIndex).toBe(2)
-    expect(result.text).toContain('"kind":"plugin"')
-    expect(result.text).toContain('"plugin":"meow-memory"')
+    expect(result.text).toContain('"kind":"plugin:meow-memory"')
     expect(result.text).toContain('"form":"snapshot"')
     expect(result.text).toContain('passive context forms')
     expect(result.text).toContain('actual current request')

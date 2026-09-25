@@ -116,7 +116,7 @@ switch ($Phase) {
 
     Write-Host ''
     Write-Host 'PREPARE COMPLETE.'
-    Write-Host 'Install through DSH Desktop main app -> sidebar Plugins page (shared Web Plugin Manager) using the printed PLUGIN SPEC. Settings plugin inventory is read-only; do not use public dsh CLI against the reserved desktop profile.'
+    Write-Host 'Install the printed local package path from the official DeepSeek Harness sidebar Plugins page. Do not mutate the reserved desktop profile with the CLI.'
     Write-Host 'After the Plugin Manager finishes, run this script again with -Phase Live using the same StageRoot/ProfileDir.'
     break
   }

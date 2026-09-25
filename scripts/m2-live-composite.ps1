@@ -76,8 +76,8 @@ try {
     if ($Package.scripts.'m2:live' -ne "npm run build && node scripts/m2-live.mjs") {
       throw "Current integration head does not contain the required M2 script wiring."
     }
-    if ($Package.devDependencies.'meow-memory' -ne "0.27.0") {
-      throw "Current integration head does not pin meow-memory@0.27.0."
+    if ($Package.devDependencies.'meow-memory' -ne "0.29.0") {
+      throw "Current integration head does not pin meow-memory@0.29.0."
     }
 
     # Old WEB-M2-LIVE-004 composite metadata described PR #10/#11, not the
