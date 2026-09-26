@@ -47,3 +47,4 @@ What did we explicitly choose not to do, and why?
 
 - [ADR-0001 — Authority split and system spine](0001-authority-split-and-system-spine.md)
 - [ADR-0002 — Adopt dsh-meow-memory](0002-adopt-dsh-meow-memory.md)
+- [ADR-0003 — Lossless replies and send safety](0003-lossless-replies-and-send-safety.md)

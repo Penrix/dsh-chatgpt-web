@@ -56,6 +56,8 @@ export const CHATGPT_CONNECTOR_PILL_SELECTOR = '[data-id^="plugin:"][data-keywor
 export const CHATGPT_EFFORT_CONTROL_SELECTOR = [
   'button[aria-haspopup="menu"][data-tone="neutral"]',
   'button[data-testid="model-switcher-dropdown-button"][aria-haspopup="menu"]',
+  'button[aria-haspopup="menu"][aria-label="选择 ChatGPT 模型"]',
+  'button[aria-haspopup="menu"][aria-label="Choose ChatGPT model"]',
 ].join(', ')
 export const CHATGPT_EFFORT_MENU_SELECTOR = [
   '[data-testid="composer-intelligence-picker-content"]:has([role="menuitemradio"], [data-model-reasoning-effort-slider])',
@@ -66,8 +68,20 @@ export const CHATGPT_EFFORT_ITEM_SELECTOR = '[role="menuitemradio"]'
 export const CHATGPT_EFFORT_SLIDER_CONTAINER_SELECTOR = '[data-model-reasoning-effort-slider]'
 export const CHATGPT_EFFORT_SLIDER_SELECTOR = '[data-model-reasoning-effort-slider] [role="slider"]'
 export const CHATGPT_EFFORT_SLIDER_MAX_OPTIONS = 5
-export const CHATGPT_STOP_BUTTON_SELECTOR = '[data-testid="stop-button"]'
-export const CHATGPT_COMPLETION_ACTION_SELECTOR = 'button[data-testid="copy-turn-action-button"]'
+export const CHATGPT_STOP_BUTTON_SELECTOR = [
+  '[data-testid="stop-button"]',
+  'form[data-chatgpt-composer] button[type="button"][aria-label="Stop"]',
+  'button[aria-label="停止生成"]',
+  'button[aria-label="Stop generating"]',
+].join(', ')
+export const CHATGPT_COMPLETION_ACTION_SELECTOR = [
+  'button[data-testid="copy-turn-action-button"]',
+  'button[aria-label="复制回复"]',
+  'button[aria-label="Copy response"]',
+  '[role="group"][aria-label="回复操作"] button[aria-label="复制"]',
+  '[role="group"][aria-label="Message actions"] button[aria-label="Copy"]',
+  '[data-turn-key] .turn-action-controls button',
+].join(', ')
 export const CHATGPT_ASSISTANT_TURN_SELECTOR = [
   '[data-testid^="conversation-turn-"][data-turn="assistant"]',
   '[data-testid^="conversation-turn-"][data-message-author-role="assistant"]',
@@ -94,9 +108,10 @@ export interface ChatGptEffortActivation {
 
 export function chatGptEffortSlider(menu: Locator): { sliderContainer: Locator; slider: Locator } {
   const sliderContainer = menu.locator(CHATGPT_EFFORT_SLIDER_CONTAINER_SELECTOR).filter({ visible: true }).last()
-  // The current picker keeps ARIA values on a zero-width, aria-hidden semantic input.
-  // Scope both structural and semantic nodes to the activated control's owned menu.
-  return { sliderContainer, slider: sliderContainer.locator('[role="slider"]').last() }
+  // The current picker keeps ARIA values on a zero-width, aria-hidden semantic
+  // input and no longer exposes the old data attribute on its visual wrapper.
+  // The aria-controls-owned menu is the stable ownership boundary.
+  return { sliderContainer, slider: menu.locator('[role="slider"]').last() }
 }
 
 function effortMenuSelectorForId(menuId: string): string {
@@ -255,9 +270,6 @@ async function sampleOwnedEffortSlider(
   }
 
   const { sliderContainer, slider } = chatGptEffortSlider(menu)
-  if (!await sliderContainer.isVisible().catch(() => false)) {
-    return { diagnostic: { issue: 'container-missing' } }
-  }
   if (await slider.count().catch(() => 0) < 1) {
     return { diagnostic: { issue: 'slider-unattached' } }
   }

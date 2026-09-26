@@ -1,5 +1,7 @@
 # Windows M1 local acceptance
 
+> Current official target (2026-09-25): DeepSeek Harness Desktop `0.1.7-rc.2` at `%LOCALAPPDATA%\Programs\DeepSeek Harness`, with DSH packages `0.1.7-rc.2`, Cordis `4.0.4`, Schemastery `3.18.4`, and `meow-memory@0.29.0`. The older packet details below are retained as historical evidence for the third-party Desktop baseline and must not be used to install the current candidate.
+
 > Active packet: `WEB-M1-LIVE-008 rev 1`
 > Candidate branch: `web-m1-live-008`
 > Target: DSH Desktop 2.0.13; DSH packages 0.1.5-rc.2; Cordis 4.0.2; Schemastery 3.18.2.

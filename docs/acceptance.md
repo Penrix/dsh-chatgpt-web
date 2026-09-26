@@ -6,6 +6,17 @@ These are product invariants, not aspirational prose.
 
 ## A. Provider invariants
 
+- Fenced JSON answer extraction must preserve string values (paths, punctuation,
+  Unicode and escapes) through parsing and native tool-call emission. Offline
+  DOM coverage is opt-in with `RUN_OFFLINE_DOM_TESTS=1 npm test`; it uses an empty
+  nonpersistent local browser with all page network requests blocked.
+- Updated adapters share persisted Send spacing of at least 30 seconds and an
+  exclusive turn lock. Rate limits stop the run; automatic retries are disabled.
+- Repository live-test entrypoints reject any ChatGPT route below High.
+- `contextWindow` is an operator budget cap bounded by the route catalog value,
+  not a claim of verified Web capacity. The composer character cap is separate;
+  reported usage is an estimate, not provider token telemetry.
+
 - DSH remains the canonical live session.
 - Every ChatGPT Web inference can be recreated from DSH-visible state.
 - A provider page/conversation may be discarded without losing canonical task identity.
@@ -32,6 +43,10 @@ These are product invariants, not aspirational prose.
 - A suspected bad memory can be checked against raw DSH/DVR evidence.
 
 ## D. WebCodex invariants
+
+`scripts/windows-live-m3.mjs` proves the DSH ToolRuntime -> WebCodex -> local-file
+seam only. It does not exercise ChatGPT or same-session result reasoning. Do not
+label its PASS as full model-to-file end-to-end acceptance.
 
 - WebCodex remains authoritative for local effect truth.
 - Files/Git/Jobs are never reconstructed from model claims when WebCodex can report them directly.

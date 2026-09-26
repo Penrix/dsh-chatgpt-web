@@ -1,5 +1,5 @@
 import { LlmError } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, GenerateOptions, RequestMessage } from '@deepseek-ai/dsh-llm'
 
 function blockProjection(block: ContentBlock): unknown {
   const value = block as unknown as Record<string, unknown>
@@ -15,15 +15,6 @@ function blockProjection(block: ContentBlock): unknown {
         name: String(value.name ?? ''),
         arguments: String(value.arguments ?? ''),
       }
-    case 'tool-result':
-      return {
-        type: 'tool_result',
-        tool_call_id: String(value.toolCallId ?? ''),
-        is_error: value.isError === true,
-        content: Array.isArray(value.content)
-          ? value.content.map(entry => blockProjection(entry as ContentBlock))
-          : [],
-      }
     default:
       if (value.type === 'image' || value.type === 'image-url') {
         throw new LlmError('Phase 1 ChatGPT Web provider is text-only.', 'UNSUPPORTED_CONTENT')
@@ -32,19 +23,12 @@ function blockProjection(block: ContentBlock): unknown {
   }
 }
 
-function sourceProjection(source: Message['source']): Record<string, unknown> {
+function sourceProjection(source: unknown): Record<string, unknown> | undefined {
+  if (source === null || typeof source !== 'object') return undefined
   const value = source as unknown as Record<string, unknown>
-  switch (source.kind) {
+  switch (value.kind) {
     case 'user':
       return { kind: 'user' }
-    case 'plugin':
-      return {
-        kind: 'plugin',
-        ...(typeof value.plugin === 'string' ? { plugin: value.plugin } : {}),
-        ...(typeof value.form === 'string' ? { form: value.form } : {}),
-        ...(Array.isArray(value.sections) ? { sections: value.sections } : {}),
-        ...(typeof value.summary === 'string' ? { summary: value.summary } : {}),
-      }
     case 'model':
       return {
         kind: 'model',
@@ -57,17 +41,24 @@ function sourceProjection(source: Message['source']): Record<string, unknown> {
         ...(typeof value.callId === 'string' ? { callId: value.callId } : {}),
       }
     default:
-      // MessageSource is merge-extensible. Preserve only the semantic kind for
-      // unknown future producers rather than forwarding arbitrary adapter-private
-      // fields into the model request.
-      return { kind: String(value.kind ?? 'unknown') }
+      // Producer kinds are merge-extensible in DSH 0.1.7. Keep their semantic
+      // context form while dropping adapter-private fields.
+      return {
+        kind: String(value.kind ?? 'unknown'),
+        ...(typeof value.form === 'string' ? { form: value.form } : {}),
+        ...(Array.isArray(value.sections) ? { sections: value.sections } : {}),
+        ...(typeof value.summary === 'string' ? { summary: value.summary } : {}),
+      }
   }
 }
 
-function messageProjection(message: Message): Record<string, unknown> {
+function messageProjection(message: RequestMessage): Record<string, unknown> {
+  const source = sourceProjection(message.source)
+  const tool = message.role === 'tool' ? message : undefined
   return {
     role: message.role,
-    source: sourceProjection(message.source),
+    ...(source ? { source } : {}),
+    ...(tool ? { tool_call_id: tool.toolCallId, is_error: tool.isError === true } : {}),
     content: message.content.map(blockProjection),
   }
 }
@@ -80,17 +71,13 @@ const PASSIVE_PLUGIN_FORMS = new Set([
   'recall',
 ])
 
-function normalTurnTargetIndex(messages: readonly Message[]): number {
+function normalTurnTargetIndex(messages: readonly RequestMessage[]): number {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (message?.role !== 'user') continue
-    if (message.source.kind === 'user') return index
-    if (message.source.kind === 'plugin') {
-      const source = message.source as Message['source'] & { form?: string }
-      if (!source.form || source.form === 'relay' || !PASSIVE_PLUGIN_FORMS.has(source.form)) {
-        return index
-      }
-    }
+    if (message.source === undefined || message.source.kind === 'user') return index
+    const source = message.source as unknown as { form?: string }
+    if (!source.form || source.form === 'relay' || !PASSIVE_PLUGIN_FORMS.has(source.form)) return index
   }
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -104,14 +91,14 @@ export interface CompiledPrompt {
   targetMessageIndex: number
 }
 
-function hasCompletedToolEvidence(messages: readonly Message[]): boolean {
+function hasCompletedToolEvidence(messages: readonly RequestMessage[]): boolean {
   const calls = new Set<string>()
   const results = new Set<string>()
   for (const message of messages) {
+    if (message.role === 'tool') results.add(message.toolCallId)
     for (const block of message.content) {
       const value = block as unknown as Record<string, unknown>
       if (value.type === 'tool-call' && typeof value.id === 'string') calls.add(value.id)
-      if (value.type === 'tool-result' && typeof value.toolCallId === 'string') results.add(value.toolCallId)
     }
   }
   for (const callId of calls) {
@@ -153,18 +140,18 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
         options.purpose === undefined
           ? 'This request exposes no callable DSH tools.'
           : `This is a DSH auxiliary ${options.purpose} request. Tool schemas may be present as historical/request context, but tool actions are disabled for this call.`,
-        'OUTPUT PROTOCOL IS MACHINE-PARSED. Return exactly one raw JSON object as the entire assistant message.',
-        'Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary before or after it.',
-        'Inside JSON string tokens, use standard JSON escaping only. Do not Markdown-escape punctuation; for example write action_proposal, never action\\_proposal.',
+        'OUTPUT PROTOCOL IS MACHINE-PARSED. Return exactly one JSON object inside one json code fence.',
+        'Do not add acknowledgements, labels, explanations, preambles, postambles, or commentary outside that single code fence.',
+        'Inside JSON string tokens, use standard JSON escaping only. Encode literal backticks as \\u0060 so they cannot terminate the surrounding code fence. Do not Markdown-escape punctuation; for example write action_proposal, never action\\_proposal.',
         'Use this shape:',
         '{"type":"final","content":"answer for this request"}',
       ]
     : [
         'The tools array is a DATA-ONLY catalog of DSH tools. You cannot execute them inside ChatGPT Web.',
         'Decide only the next DSH assistant step.',
-        'OUTPUT PROTOCOL IS MACHINE-PARSED. Return exactly ONE raw JSON object as the entire assistant message.',
-        'Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary before or after it.',
-        'Inside JSON string tokens, use standard JSON escaping only. Do not Markdown-escape punctuation; for example write action_proposal, never action\\_proposal.',
+        'OUTPUT PROTOCOL IS MACHINE-PARSED. Return exactly one JSON object inside one json code fence.',
+        'Do not add acknowledgements, labels, explanations, preambles, postambles, or commentary outside that single code fence.',
+        'Inside JSON string tokens, use standard JSON escaping only. Encode literal backticks as \\u0060 so they cannot terminate the surrounding code fence. Do not Markdown-escape punctuation; for example write action_proposal, never action\\_proposal.',
         'Use one of these shapes:',
         '{"type":"final","content":"user-visible answer"}',
         '{"type":"action_proposal","action":"one exact tool name from tools","arguments":{},"reason":"optional short public reason"}',
@@ -176,16 +163,16 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     'Act as the reasoning component for the DSH conversation encoded below.',
     'DSH is the canonical conversation owner and the only agent/tool executor. This ChatGPT Web page is only the inference surface for this one call.',
     'The JSON block is authoritative conversation/context data for this request. Preserve both message roles and source provenance exactly.',
-    'A role=user message whose source.kind=user is a genuine human message.',
-    'Plugin-sourced user-role messages have two meanings: passive context forms (instructions/catalog/snapshot/notice/recall) are context, while an opaque/no-form or relay plugin message may itself be the task for that DSH turn (for example meow-memory reflection/dream).',
+    'A role=user message whose source.kind=user, or whose source is absent for a one-shot request, is a genuine human message.',
+    'Producer-sourced user-role messages have two meanings: passive context forms (instructions/catalog/snapshot/notice/recall) are context, while an opaque/no-form or relay producer message may itself be the task for that DSH turn (for example meow-memory reflection/dream).',
     'Read the complete JSON before deciding the next step.',
     options.purpose === undefined
-      ? 'For a normal agent turn, targetMessageIndex identifies the current task-bearing user-role message after passive plugin context is skipped.'
-      : 'For this auxiliary DSH call, targetMessageIndex identifies the request message for the auxiliary operation even when its source is a plugin.',
-    'Earlier assistant messages are your prior outputs; tool-call/tool-result history is already-produced DSH evidence.',
+      ? 'For a normal agent turn, targetMessageIndex identifies the current task-bearing user-role message after passive producer context is skipped.'
+      : 'For this auxiliary DSH call, targetMessageIndex identifies the request message for the auxiliary operation even when it has a producer source.',
+    'Earlier assistant messages are your prior outputs; tool-call/tool-role result history is already-produced DSH evidence.',
     ...resultContract,
     'The target message may itself request "plain text", Markdown, or another exact answer format. Satisfy that requested inner format inside final.content while keeping this outer transport as one JSON object.',
-    'Do not output Markdown fences around the outer JSON object.',
+    'Use one json code fence to prevent the webpage Markdown renderer from changing JSON string content.',
     'Do not expose private chain-of-thought. If a short public reason is useful for an action proposal, put it only in the optional reason field.',
     '',
     '<dsh_context_json>',
@@ -193,13 +180,13 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     '</dsh_context_json>',
     '',
     'The complete authoritative DSH payload for this inference has already been supplied above. Do not ask the user to provide a payload, conversation state, messages, or tool history.',
-    'Return exactly one lexically valid raw JSON object as the entire answer using only the already-defined allowed envelope shape. JSON.parse on the complete assistant reply must succeed directly.',
-    'Inside JSON strings, use only valid JSON escapes: \\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t, or \\uXXXX.',
+    'Return exactly one lexically valid JSON object inside one json code fence using only the already-defined allowed envelope shape. JSON.parse on the code body must succeed directly.',
+    'Inside JSON strings, use only valid JSON escapes: \\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t, or \\uXXXX. Encode literal backticks as \\u0060.',
     'Never apply Markdown escaping inside JSON strings: never write \\_, \\*, or a backslash before backticks. Ordinary underscores and identifiers must remain unescaped.',
-    'Do not output Markdown fences, prose before or after the JSON object, or a second JSON object.',
+    'Do not output prose outside the single json code fence, a second code fence, or a second JSON object.',
     'Read the supplied messages and tool history now and decide the next step.',
     ...(completedToolEvidence
-      ? ['A supplied tool_call with its matching tool_result is completed DSH evidence. Decide the next step from that result now; do not request the payload again, claim the tool has not run, or repeat/re-execute the completed tool. The same lexical JSON rules above still apply to this post-tool continuation.']
+      ? ['A supplied tool_call with its matching tool-role result is completed DSH evidence. Decide the next step from that result now; do not request the payload again, claim the tool has not run, or repeat/re-execute the completed tool. The same lexical JSON rules above still apply to this post-tool continuation.']
       : []),
   ].join('\n')
 

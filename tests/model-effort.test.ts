@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Locator, Page } from 'playwright-core'
 import {
   assertChatGptSurfaceUrl,
+  CHATGPT_EFFORT_CONTROL_SELECTOR,
   parseChatGptEffortSliderState,
   probeChatGptEffortCapabilities,
   waitForChatGptEffortSliderState,
@@ -101,6 +102,7 @@ function fakeEffortProbe(config: Partial<FakeEffortState> = {}): {
   const ownedMenu = {
     isVisible: async () => state.open,
     locator: (selector: string) => {
+      if (selector.includes('[role="slider"]')) return makeSlider(state.generation)
       if (selector.includes('data-model-reasoning-effort-slider')) return {
         filter: () => ({
           last: () => container,
@@ -179,6 +181,11 @@ function fakeEffortProbe(config: Partial<FakeEffortState> = {}): {
 }
 
 describe('ChatGPT model/effort mapping', () => {
+  it('recognizes the current localized ChatGPT model button', () => {
+    expect(CHATGPT_EFFORT_CONTROL_SELECTOR).toContain('aria-label="选择 ChatGPT 模型"')
+    expect(CHATGPT_EFFORT_CONTROL_SELECTOR).toContain('aria-label="Choose ChatGPT model"')
+  })
+
   const sol = { localToolsEnabled: false, solAvailable: true, proAvailable: false }
   const pro = { localToolsEnabled: false, solAvailable: true, proAvailable: true }
   const lunaOnly = { localToolsEnabled: false, solAvailable: false, proAvailable: false }
@@ -279,6 +286,18 @@ describe('ChatGPT model/effort mapping', () => {
     const probe = fakeEffortProbe({
       sliderAttached: true,
       current: { min: '0', max: '2', now: '2' },
+    })
+    await expect(probeChatGptEffortCapabilities(probe.page, probe.control, {
+      timeoutMs: 100,
+      activationSettleMs: 5,
+    })).resolves.toEqual({ solAvailable: true, proAvailable: false })
+  })
+
+  it('accepts the current menu-owned slider without the legacy container attribute', async () => {
+    const probe = fakeEffortProbe({
+      open: true,
+      containerVisible: false,
+      current: { min: '0', max: '2', now: '1' },
     })
     await expect(probeChatGptEffortCapabilities(probe.page, probe.control, {
       timeoutMs: 100,
