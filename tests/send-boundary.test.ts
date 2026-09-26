@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Page } from 'playwright-core'
 import {
+  CHATGPT_SEND_SELECTOR,
   dispatchSendFailClosed,
   dispatchTemporarySendFailClosed,
 } from '../src/chatgpt/turn.ts'
@@ -11,6 +12,11 @@ function urlOnlyPage(readUrl: () => string): Page {
 }
 
 describe('post-Send uncertainty boundary', () => {
+  it('recognizes the current localized Send button', () => {
+    expect(CHATGPT_SEND_SELECTOR).toContain('aria-label="发送"')
+    expect(CHATGPT_SEND_SELECTOR).toContain('aria-label="Send"')
+  })
+
   it('marks delivery possible before awaiting a click that later rejects', async () => {
     const order: string[] = []
     await expect(dispatchSendFailClosed(

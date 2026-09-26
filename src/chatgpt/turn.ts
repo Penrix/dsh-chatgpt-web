@@ -19,7 +19,12 @@ import {
   throwIfTerminalError,
 } from './guards.ts'
 
-const SEND = 'button[data-testid="send-button"], #composer-submit-button'
+export const CHATGPT_SEND_SELECTOR = [
+  'button[data-testid="send-button"]',
+  '#composer-submit-button',
+  'button[aria-label="发送"]',
+  'button[aria-label="Send"]',
+].join(', ')
 
 export interface TurnOptions {
   model: string
@@ -46,7 +51,7 @@ async function composer(page: Page) {
 }
 
 async function sendButton(page: Page) {
-  const node = page.locator(SEND).filter({ visible: true }).first()
+  const node = page.locator(CHATGPT_SEND_SELECTOR).filter({ visible: true }).first()
   await node.waitFor({ state: 'visible', timeout: 30_000 })
   return node
 }

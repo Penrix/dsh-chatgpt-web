@@ -56,6 +56,8 @@ export const CHATGPT_CONNECTOR_PILL_SELECTOR = '[data-id^="plugin:"][data-keywor
 export const CHATGPT_EFFORT_CONTROL_SELECTOR = [
   'button[aria-haspopup="menu"][data-tone="neutral"]',
   'button[data-testid="model-switcher-dropdown-button"][aria-haspopup="menu"]',
+  'button[aria-haspopup="menu"][aria-label="选择 ChatGPT 模型"]',
+  'button[aria-haspopup="menu"][aria-label="Choose ChatGPT model"]',
 ].join(', ')
 export const CHATGPT_EFFORT_MENU_SELECTOR = [
   '[data-testid="composer-intelligence-picker-content"]:has([role="menuitemradio"], [data-model-reasoning-effort-slider])',
@@ -94,9 +96,10 @@ export interface ChatGptEffortActivation {
 
 export function chatGptEffortSlider(menu: Locator): { sliderContainer: Locator; slider: Locator } {
   const sliderContainer = menu.locator(CHATGPT_EFFORT_SLIDER_CONTAINER_SELECTOR).filter({ visible: true }).last()
-  // The current picker keeps ARIA values on a zero-width, aria-hidden semantic input.
-  // Scope both structural and semantic nodes to the activated control's owned menu.
-  return { sliderContainer, slider: sliderContainer.locator('[role="slider"]').last() }
+  // The current picker keeps ARIA values on a zero-width, aria-hidden semantic
+  // input and no longer exposes the old data attribute on its visual wrapper.
+  // The aria-controls-owned menu is the stable ownership boundary.
+  return { sliderContainer, slider: menu.locator('[role="slider"]').last() }
 }
 
 function effortMenuSelectorForId(menuId: string): string {
@@ -255,9 +258,6 @@ async function sampleOwnedEffortSlider(
   }
 
   const { sliderContainer, slider } = chatGptEffortSlider(menu)
-  if (!await sliderContainer.isVisible().catch(() => false)) {
-    return { diagnostic: { issue: 'container-missing' } }
-  }
   if (await slider.count().catch(() => 0) < 1) {
     return { diagnostic: { issue: 'slider-unattached' } }
   }
