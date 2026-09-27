@@ -114,7 +114,6 @@ export function buildRelayRequest(turn: ChatGptRelayTurn): Record<string, unknow
     }],
     stream: false,
     max_output_tokens: turn.maxOutputTokens,
-    prompt_cache_key: threadId,
     client_metadata: {
       'x-codex-turn-metadata': JSON.stringify({
         thread_id: threadId,
