@@ -1,7 +1,8 @@
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { ChatGptWebAdapter } from './adapter.ts'
-import { defaultProfileDir } from './chatgpt/browser.ts'
 import { registerWebCodexReadFilesTool } from './webcodex/read-files.ts'
 
 export const name = 'penrix-llm-chatgpt-web'
@@ -28,7 +29,7 @@ export interface Config {
 }
 
 export const Config: z<Config> = z.object({
-  profileDir: z.string().default(defaultProfileDir()),
+  profileDir: z.string().default(join(homedir(), '.dsh-chatgpt-web-penrix', 'chrome-profile')),
   chromeExecutablePath: z.string(),
   headed: z.boolean().default(true),
   loginTimeoutMs: z.number().min(1).default(600_000),
@@ -43,12 +44,12 @@ export const Config: z<Config> = z.object({
       bearerTokenFile: z.string().required(),
       project: z.string().required(),
     }),
-  ])
+  ]),
 })
 
 export function apply(ctx: Context, config: Config): void {
   const adapter = new ChatGptWebAdapter({
-    profileDir: config.profileDir ?? defaultProfileDir(),
+    profileDir: config.profileDir ?? join(homedir(), '.dsh-chatgpt-web-penrix', 'chrome-profile'),
     ...(config.chromeExecutablePath ? { chromeExecutablePath: config.chromeExecutablePath } : {}),
     headed: config.headed ?? true,
     loginTimeoutMs: config.loginTimeoutMs ?? 600_000,
@@ -56,7 +57,7 @@ export function apply(ctx: Context, config: Config): void {
     composerMaxChars: config.composerMaxChars ?? 180_000,
     contextWindow: config.contextWindow ?? 90_000,
     maxTokens: config.maxTokens ?? 16_384,
-    ...(config.relayBaseUrl ? { relayBaseUrl: config.relayBaseUrl } : {}),
+    ...(config.relayBaseUrl !== undefined ? { relayBaseUrl: config.relayBaseUrl } : {}),
   })
 
   ctx.llm.registerAdapter([PROVIDER], adapter)
