@@ -120,7 +120,7 @@ Also preserve this distinction:
 
 > “DSH directly calls ChatGPT Web” describes logical provider authority, not a requirement that DSH itself own Playwright/DOM automation.
 
-Per ADR-0003, prefer the specialized `codex-chatgpt-web` transport boundary for ChatGPT-specific browser mechanics while keeping DSH authoritative for Session/context/tool semantics.
+Per ADR-0004, prefer the specialized `codex-chatgpt-web` transport boundary for ChatGPT-specific browser mechanics while keeping DSH authoritative for Session/context/tool semantics.
 
 For the first proof, prefer browser-only transport. Do not introduce Full Harness / official Tunnel / ChatGPT connector as an M1 dependency merely to obtain local tools; DSH already owns local tool execution.
 
@@ -128,7 +128,7 @@ For the first proof, prefer browser-only transport. Do not introduce Full Harnes
 
 Current intended ownership:
 
-- `Penrix/dsh-chatgpt-web`: DSH-facing provider semantics, provenance/tool-loop integration, context/session experiments and context projection. It should not be the primary owner of ChatGPT-specific DOM transport after ADR-0003.
+- `Penrix/dsh-chatgpt-web`: DSH-facing provider semantics, provenance/tool-loop integration, context/session experiments and context projection. It should not be the primary owner of ChatGPT-specific DOM transport after ADR-0004.
 - `Penrix/codex-chatgpt-web`: preferred specialized ChatGPT Web transport / Responses relay. Reuse its browser submission, turn identity, completion and recovery machinery through a seam before copying it.
 - `Penrix/webcodex`: durable local body/execution substrate.
 - `Penrix/chatgpt-continuity`: raw conversation DVR/evidence.
