@@ -70,3 +70,32 @@ non-empty assistant reply whose generation has stopped and whose text is stable;
 it no longer depends on reply-toolbar controls. The model control selector also
 uses only model-specific test IDs or accessible names, so another neutral
 composer menu such as plugin insertion cannot be clicked by position.
+
+
+## 2026-09-27 WEB-SIMPLIFY-AUDIT-001
+
+A source audit of the current Windows transport found no additional
+evidence-backed production simplification beyond the two live-proven changes
+already present at `450e5e8`:
+
+- completion no longer depends on reply-toolbar controls;
+- effort selection no longer uses a generic neutral-menu selector, and the
+  already-verified effort menu stays open for the following selection step.
+
+The audit intentionally keeps the following mechanisms because each protects a
+real required boundary rather than merely adding conservatism:
+
+- durable account-wide/cross-process 30-second page and Send spacing;
+- the additional rolling 8-per-300-second fresh-page gate and 2/4/8/10-minute
+  observed history-limit cooldowns;
+- `maxRetries=0`, the post-Send uncertainty boundary, and the durable pending
+  lock;
+- rate-limit/account-warning stop behavior;
+- menu ownership plus semantic ARIA validation for effort selection;
+- answer-body isolation before strict reasoning-envelope parsing;
+- exact exposed tool-name and JSON-schema validation.
+
+No selector fallback, parser repair, automatic retry, monitoring subsystem, or
+new dependency was added by this audit. Further simplification requires new
+local evidence showing that a retained mechanism itself creates a false
+failure.
