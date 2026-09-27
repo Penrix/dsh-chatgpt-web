@@ -64,7 +64,7 @@ export class ChatGptWebAdapter extends LlmAdapter {
       provider,
       id: model.id,
       name: model.name,
-      description: 'Phase 1: fresh Temporary Chat on every DSH inference.',
+      description: 'DSH-owned inference through ChatGPT Web.',
       inputModalities: ['text' as const],
     })))
   }
