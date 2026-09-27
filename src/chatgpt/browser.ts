@@ -4,6 +4,11 @@ import { join, resolve } from 'node:path'
 import { chromium, type BrowserContext, type Page } from 'playwright-core'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import { CHATGPT_COMPOSER_SELECTOR, assertAuthenticatedChatGptPage } from './session.ts'
+import {
+  FreshPageSafetyGate,
+  createFreshPageAfterGate,
+  type FreshPageSafetyState,
+} from './fresh-page-safety.ts'
 
 function expandHome(path: string): string {
   if (path === '~') return homedir()
@@ -57,9 +62,20 @@ export interface BrowserOptions {
   loginTimeoutMs: number
 }
 
+const PAGE_SAFETY_GATES = new WeakMap<Page, FreshPageSafetyGate>()
+
+export function bindPageFreshSafetyGate(page: Page, gate: FreshPageSafetyGate): void {
+  PAGE_SAFETY_GATES.set(page, gate)
+}
+
+export function noteHistoryRateLimitForPage(page: Page): FreshPageSafetyState | undefined {
+  return PAGE_SAFETY_GATES.get(page)?.noteHistoryRateLimit()
+}
+
 export class ChatGptBrowser {
   private context: BrowserContext | undefined
   private opening: Promise<void> | undefined
+  private readonly freshPageSafety = new FreshPageSafetyGate()
 
   constructor(private readonly options: BrowserOptions) {}
 
@@ -77,8 +93,15 @@ export class ChatGptBrowser {
     await this.ensureReady(signal)
     if (!this.context) throw new LlmError('ChatGPT browser context is unavailable.', 'TRANSPORT')
     try {
-      return await this.context.newPage()
+      const page = await createFreshPageAfterGate(
+        this.freshPageSafety,
+        () => this.context!.newPage(),
+        signal,
+      )
+      bindPageFreshSafetyGate(page, this.freshPageSafety)
+      return page
     } catch (error) {
+      if (error instanceof LlmError) throw error
       throw new LlmError('Failed to open a fresh ChatGPT page.', 'TRANSPORT', { cause: error })
     }
   }

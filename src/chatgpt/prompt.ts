@@ -104,6 +104,22 @@ export interface CompiledPrompt {
   targetMessageIndex: number
 }
 
+function hasCompletedToolEvidence(messages: readonly Message[]): boolean {
+  const calls = new Set<string>()
+  const results = new Set<string>()
+  for (const message of messages) {
+    for (const block of message.content) {
+      const value = block as unknown as Record<string, unknown>
+      if (value.type === 'tool-call' && typeof value.id === 'string') calls.add(value.id)
+      if (value.type === 'tool-result' && typeof value.toolCallId === 'string') results.add(value.toolCallId)
+    }
+  }
+  for (const callId of calls) {
+    if (results.has(callId)) return true
+  }
+  return false
+}
+
 export function compilePrompt(options: GenerateOptions, maxChars: number): CompiledPrompt {
   if (options.temperature !== undefined) {
     throw new LlmError('Phase 1 ChatGPT Web provider does not support temperature.', 'UNSUPPORTED')
@@ -121,6 +137,7 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     parameters: tool.parameters,
   })) ?? []
   const toolActionsAllowed = options.purpose === undefined && tools.length > 0
+  const completedToolEvidence = hasCompletedToolEvidence(options.messages)
   const envelope = {
     version: 2,
     ...(options.system ? { system: options.system } : {}),
@@ -136,13 +153,19 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
         options.purpose === undefined
           ? 'This request exposes no callable DSH tools.'
           : `This is a DSH auxiliary ${options.purpose} request. Tool schemas may be present as historical/request context, but tool actions are disabled for this call.`,
-        'Return exactly one raw JSON object with this shape:',
+        'OUTPUT PROTOCOL IS MACHINE-PARSED. Return exactly one raw JSON object as the entire assistant message.',
+        'Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary before or after it.',
+        'Inside JSON string tokens, use standard JSON escaping only. Do not Markdown-escape punctuation; for example write action_proposal, never action\\_proposal.',
+        'Use this shape:',
         '{"type":"final","content":"answer for this request"}',
       ]
     : [
         'The tools array is a DATA-ONLY catalog of DSH tools. You cannot execute them inside ChatGPT Web.',
         'Decide only the next DSH assistant step.',
-        'Return exactly ONE raw JSON object and nothing else, using one of these shapes:',
+        'OUTPUT PROTOCOL IS MACHINE-PARSED. Return exactly ONE raw JSON object as the entire assistant message.',
+        'Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary before or after it.',
+        'Inside JSON string tokens, use standard JSON escaping only. Do not Markdown-escape punctuation; for example write action_proposal, never action\\_proposal.',
+        'Use one of these shapes:',
         '{"type":"final","content":"user-visible answer"}',
         '{"type":"action_proposal","action":"one exact tool name from tools","arguments":{},"reason":"optional short public reason"}',
         'For action_proposal, arguments must satisfy that exact tool parameters JSON Schema.',
@@ -168,6 +191,16 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
     '<dsh_context_json>',
     JSON.stringify(envelope),
     '</dsh_context_json>',
+    '',
+    'The complete authoritative DSH payload for this inference has already been supplied above. Do not ask the user to provide a payload, conversation state, messages, or tool history.',
+    'Return exactly one lexically valid raw JSON object as the entire answer using only the already-defined allowed envelope shape. JSON.parse on the complete assistant reply must succeed directly.',
+    'Inside JSON strings, use only valid JSON escapes: \\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t, or \\uXXXX.',
+    'Never apply Markdown escaping inside JSON strings: never write \\_, \\*, or a backslash before backticks. Ordinary underscores and identifiers must remain unescaped.',
+    'Do not output Markdown fences, prose before or after the JSON object, or a second JSON object.',
+    'Read the supplied messages and tool history now and decide the next step.',
+    ...(completedToolEvidence
+      ? ['A supplied tool_call with its matching tool_result is completed DSH evidence. Decide the next step from that result now; do not request the payload again, claim the tool has not run, or repeat/re-execute the completed tool. The same lexical JSON rules above still apply to this post-tool continuation.']
+      : []),
   ].join('\n')
 
   if (text.length > maxChars) {

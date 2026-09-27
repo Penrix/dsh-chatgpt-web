@@ -1,13 +1,31 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-const result = spawnSync(npm, ['pack', '--dry-run', '--json'], { encoding: 'utf8' })
+const npmArgs = ['pack', '--dry-run', '--json']
+const npmExecPath = process.env.npm_execpath
+const command = npmExecPath
+  ? process.execPath
+  : process.platform === 'win32'
+    ? process.env.ComSpec || 'cmd.exe'
+    : 'npm'
+const args = npmExecPath
+  ? [npmExecPath, ...npmArgs]
+  : process.platform === 'win32'
+    ? ['/d', '/s', '/c', `npm ${npmArgs.join(' ')}`]
+    : npmArgs
+
+const result = spawnSync(command, args, { encoding: 'utf8' })
+if (result.error) throw result.error
+if (result.status === null) {
+  throw new Error(`npm pack terminated without an exit status${result.signal ? ` (signal: ${result.signal})` : ''}`)
+}
 if (result.status !== 0) {
-  process.stderr.write(result.stderr || result.stdout)
-  process.exit(result.status ?? 1)
+  const output = result.stderr || result.stdout
+  if (output) process.stderr.write(output)
+  process.exit(result.status)
 }
 
+assert.equal(typeof result.stdout, 'string', 'npm pack produced no stdout')
 const report = JSON.parse(result.stdout)
 assert.equal(Array.isArray(report), true)
 assert.equal(report.length, 1)
@@ -27,4 +45,4 @@ for (const path of files) {
   assert.equal(path.startsWith('src/'), false, `source file leaked into candidate pack: ${path}`)
   assert.equal(path.startsWith('tests/'), false, `test file leaked into candidate pack: ${path}`)
 }
-console.log(`M1 pack smoke: PASS (${files.size} packed files)`) 
+console.log(`M1 pack smoke: PASS (${files.size} packed files)`)

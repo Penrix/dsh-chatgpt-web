@@ -29,7 +29,7 @@ function toolResultMessage(id: string, callId: string, text: string): Message {
   }
 }
 
-function pluginMessage(id: string, text: string, form: 'snapshot' | 'notice' | undefined = 'snapshot'): Message {
+function pluginMessage(id: string, text: string, form: 'snapshot' | 'notice'): Message {
   return {
     id: MessageId(id),
     role: 'user',
@@ -37,11 +37,21 @@ function pluginMessage(id: string, text: string, form: 'snapshot' | 'notice' | u
     source: {
       kind: 'plugin',
       plugin: 'meow-memory',
-      ...(form === undefined
-        ? {}
-        : form === 'snapshot'
-          ? { form, sections: [] }
-          : { form, summary: text.slice(0, 40) }),
+      ...(form === 'snapshot'
+        ? { form, sections: [] }
+        : { form, summary: text.slice(0, 40) }),
+    } as Message['source'],
+  }
+}
+
+function noFormPluginMessage(id: string, text: string): Message {
+  return {
+    id: MessageId(id),
+    role: 'user',
+    content: [{ type: 'text', text }],
+    source: {
+      kind: 'plugin',
+      plugin: 'meow-memory',
     } as Message['source'],
   }
 }
@@ -93,9 +103,94 @@ describe('compilePrompt', () => {
     expect(result.text).toContain('"required":["content","keywords"]')
     expect(result.text).toContain('"toolActionsAllowed":true')
     expect(result.text).toContain('"type":"action_proposal"')
+    expect(result.text).toContain('OUTPUT PROTOCOL IS MACHINE-PARSED')
+    expect(result.text).toContain('Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary')
+    expect(result.text).toContain('Inside JSON string tokens, use standard JSON escaping only')
+    expect(result.text).toContain('write action_proposal, never action\\_proposal')
     expect(result.text).toContain('DSH alone validates, authorizes, and executes')
   })
 
+  it('places the lexical JSON contract after the complete DSH payload', () => {
+    const result = compilePrompt({
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [message('u1', 'user', 'answer directly', 'user')],
+    } satisfies GenerateOptions, 100_000)
+
+    const closingTag = result.text.lastIndexOf('</dsh_context_json>')
+    const lexicalRule = result.text.indexOf('JSON.parse on the complete assistant reply must succeed directly.')
+    expect(lexicalRule).toBeGreaterThan(closingTag)
+    expect(result.text).toContain('Inside JSON strings, use only valid JSON escapes:')
+    expect(result.text).toContain('never write \\_, \\*, or a backslash before backticks')
+    expect(result.text).toContain('Ordinary underscores and identifiers must remain unescaped.')
+    expect(result.text).toContain('Do not output Markdown fences, prose before or after the JSON object, or a second JSON object.')
+  })
+
+  it('places the terminal anchor after the complete DSH payload', () => {
+    const options = {
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [
+        message('u1', 'user', 'answer from the supplied state', 'user'),
+      ],
+    } satisfies GenerateOptions
+
+    const result = compilePrompt(options, 100_000)
+    const closingTag = result.text.lastIndexOf('</dsh_context_json>')
+    const terminalAnchor = result.text.indexOf('The complete authoritative DSH payload for this inference has already been supplied above.')
+    expect(closingTag).toBeGreaterThanOrEqual(0)
+    expect(terminalAnchor).toBeGreaterThan(closingTag)
+    expect(result.text).toContain('Do not ask the user to provide a payload, conversation state, messages, or tool history.')
+    expect(result.text).toContain('Return exactly one lexically valid raw JSON object as the entire answer')
+  })
+
+  it('anchors a realistic post-tool continuation after matching tool evidence', () => {
+    const humanText = 'Find the saved rule and answer me.'
+    const resultText = 'The saved rule says DSH owns the session.'
+    const options = {
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [
+        message('u1', 'user', humanText, 'user'),
+        {
+          id: MessageId('a-tool'),
+          role: 'assistant',
+          content: [{
+            type: 'tool-call',
+            id: ToolCallId('call-1'),
+            name: 'memory_search',
+            arguments: '{"query":"rule"}',
+          }],
+          source: { kind: 'model', provider: 'chatgpt-web', model: 'chatgpt-web/high' },
+        },
+        toolResultMessage('tr1', 'call-1', resultText),
+      ],
+      tools: [{
+        name: 'memory_search',
+        description: 'Search memory.',
+        parameters: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query'],
+          additionalProperties: false,
+        },
+      }],
+    } satisfies GenerateOptions
+
+    const result = compilePrompt(options, 100_000)
+    const closingTag = result.text.lastIndexOf('</dsh_context_json>')
+    const continuationAnchor = result.text.indexOf('A supplied tool_call with its matching tool_result is completed DSH evidence.')
+    expect(continuationAnchor).toBeGreaterThan(closingTag)
+    expect(result.text).toContain('"type":"tool_call"')
+    expect(result.text).toContain('"type":"tool_result"')
+    expect(result.text).toContain('"tool_call_id":"call-1"')
+    expect(result.text.split(humanText).length - 1).toBe(1)
+    expect(result.text.split(resultText).length - 1).toBe(1)
+    expect(result.text).toContain('do not request the payload again, claim the tool has not run, or repeat/re-execute the completed tool')
+    expect(result.text).toContain('The same lexical JSON rules above still apply to this post-tool continuation.')
+    expect(result.text).toContain('JSON.parse on the complete assistant reply must succeed directly.')
+    expect(result.text).toContain('never write \\_, \\*, or a backslash before backticks')
+  })
   it('keeps a tool result as evidence while retaining the human task target', () => {
     const options = {
       provider: 'chatgpt-web',
@@ -133,7 +228,7 @@ describe('compilePrompt', () => {
       purpose,
       messages: [
         message('u1', 'user', 'old human request', 'user'),
-        pluginMessage('compact', 'summarize the prior conversation'),
+        pluginMessage('compact', 'summarize the prior conversation', 'snapshot'),
       ],
       tools: [{
         name: 'memory_search',
@@ -152,7 +247,13 @@ describe('compilePrompt', () => {
     expect(result.text).toContain(`"purpose":"${purpose}"`)
     expect(result.text).toContain('"toolActionsAllowed":false')
     expect(result.text).toContain('Tool schemas may be present')
+    expect(result.text).toContain('OUTPUT PROTOCOL IS MACHINE-PARSED')
+    expect(result.text).toContain('Do not add acknowledgements, labels, explanations, preambles, postambles, Markdown fences, or commentary')
+    expect(result.text).toContain('Inside JSON string tokens, use standard JSON escaping only')
+    expect(result.text).toContain('write action_proposal, never action\\_proposal')
     expect(result.text).not.toContain('Decide only the next DSH assistant step.')
+    expect(result.text).toContain('{"type":"final","content":"answer for this request"}')
+    expect(result.text).not.toContain('A supplied tool_call with its matching tool_result is completed DSH evidence.')
     },
   )
 
@@ -163,7 +264,7 @@ describe('compilePrompt', () => {
       messages: [
         message('u1', 'user', 'earlier human request', 'user'),
         message('a1', 'assistant', 'earlier answer', 'model'),
-        pluginMessage('reflect', '[meow-memory-reflect] review this session', undefined),
+        noFormPluginMessage('reflect', '[meow-memory-reflect] review this session'),
       ],
       tools: [{
         name: 'memory_remember',
@@ -198,13 +299,41 @@ describe('compilePrompt', () => {
     expect(result.targetMessageIndex).toBe(0)
   })
 
+  it('keeps normal no-tools calls final-only with the terminal anchor', () => {
+    const options = {
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [message('u1', 'user', 'answer directly', 'user')],
+    } satisfies GenerateOptions
+
+    const result = compilePrompt(options, 100_000)
+    expect(result.text).toContain('This request exposes no callable DSH tools.')
+    expect(result.text).toContain('{"type":"final","content":"answer for this request"}')
+    expect(result.text).not.toContain('{"type":"action_proposal"')
+    expect(result.text.indexOf('The complete authoritative DSH payload for this inference has already been supplied above.'))
+      .toBeGreaterThan(result.text.lastIndexOf('</dsh_context_json>'))
+    expect(result.text).toContain('JSON.parse on the complete assistant reply must succeed directly.')
+    expect(result.text).toContain('never write \\_, \\*, or a backslash before backticks')
+  })
+  it('keeps the lexical contract generic for arbitrary identifiers', () => {
+    const result = compilePrompt({
+      provider: 'chatgpt-web',
+      model: 'chatgpt-web/high',
+      messages: [message('u1', 'user', 'store an identifier with underscores', 'user')],
+    } satisfies GenerateOptions, 100_000)
+
+    expect(result.text).toContain('Ordinary underscores and identifiers must remain unescaped.')
+    expect(result.text).toContain('Never apply Markdown escaping inside JSON strings')
+    expect(result.text).toContain('JSON.parse on the complete assistant reply must succeed directly.')
+  })
+
   it('keeps meow-memory plugin snapshots as context and still targets the real human message', () => {
     const options = {
       provider: 'chatgpt-web',
       model: 'chatgpt-web/high',
       messages: [
         message('u1', 'user', 'first human request', 'user'),
-        pluginMessage('m1', '===== 长期记忆 =====\nH=Host'),
+        pluginMessage('m1', '===== 长期记忆 =====\nH=Host', 'snapshot'),
         message('u2', 'user', 'actual current request', 'user'),
       ],
     } satisfies GenerateOptions

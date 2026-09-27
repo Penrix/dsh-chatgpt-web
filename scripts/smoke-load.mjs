@@ -44,7 +44,7 @@ try {
   const models = await ctx.llm.listModels('chatgpt-web')
   assert.ok(models.some(model => model.id === 'chatgpt-web/high'))
 } finally {
-  await ctx.dispose()
+  await ctx.fiber.dispose()
 }
 
 console.log('M1 load smoke: PASS (built entrypoint + bundle metadata + real DSH LlmRuntime registration; no browser launched)')

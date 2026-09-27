@@ -4,7 +4,7 @@ param(
   [string]$Action = 'Stage',
   [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
   [string]$StageRoot,
-  [string]$ExpectedBranch = 'web-m1-001-rev2',
+  [string]$ExpectedBranch = 'web-m1-live-008',
   [string]$ExpectedHead,
   [string]$DshHome,
   [string]$DesktopInstallRoot,
@@ -210,7 +210,7 @@ switch ($Action) {
     $desktopExe = if ($DesktopInstallRoot) { Join-Path $DesktopInstallRoot 'DSH Desktop.exe' } else { $null }
     $stage = [pscustomobject]@{
       schema = 1
-      packet = 'WEB-M1-LOCAL-002 rev 1'
+      packet = 'WEB-M1-LIVE-008 rev 1'
       packageName = $PackageName
       packageVersion = [string]$manifest.version
       branch = $git.branch
@@ -304,15 +304,15 @@ switch ($Action) {
       dshHome=$DshHome
       desktopProfile=$before.profile
       backup=$before
-      mutation='Use DSH Desktop Plugins > Add plugin with candidate absolute tarball path; do not edit profile files.'
-      rollback='Use DSH Desktop Plugins to remove/disable the bundle. If startup is fatal, use Desktop native recovery to disable third-party bundles.'
+      mutation='Use the DSH Desktop main application sidebar Plugins page (shared Web Plugin Manager) with the candidate absolute tarball path; Settings plugin inventory is read-only; do not edit profile files or use the public CLI against the reserved desktop profile.'
+      rollback='Use the DSH Desktop main application sidebar Plugins page to remove/disable the bundle. If startup is fatal, use Desktop native recovery to disable third-party bundles.'
       preparedAt=(Get-Date).ToUniversalTime().ToString('o')
     }
     $planPath = Join-Path $StageRoot 'desktop-install-plan.json'
     Write-Json $planPath $plan
     Write-Host "DESKTOP INSTALL PLAN: $planPath"
     Write-Host "PLUGIN SPEC: $($resolved.candidate)"
-    Write-Host 'Codex must use the DSH Desktop Plugins page for the actual install; this script does not mutate the reserved desktop profile.'
+    Write-Host 'Install through the DSH Desktop main application sidebar Plugins page / shared Web Plugin Manager. Settings inventory is read-only, and public dsh CLI must not mutate the reserved desktop profile.'
     if ($OpenDesktop) { Start-Process -FilePath $desktopExe | Out-Null }
   }
 
@@ -333,7 +333,7 @@ switch ($Action) {
       packageName=$PackageName
       candidateSha256=$resolved.stage.candidateSha256
       currentState=$state
-      normalRollback='DSH Desktop > Plugins: disable/remove @penrix/dsh-chatgpt-web, then restart if requested.'
+      normalRollback='DSH Desktop main app > sidebar Plugins: disable/remove @penrix/dsh-chatgpt-web, then restart if requested.'
       fatalRollback='Use DSH Desktop native fatal recovery: disable third-party bundles; do not restore backup files by hand.'
       forensicBackup=(Join-Path $StageRoot 'desktop-before-install')
       preparedAt=(Get-Date).ToUniversalTime().ToString('o')
@@ -341,6 +341,6 @@ switch ($Action) {
     $path = Join-Path $StageRoot 'desktop-rollback-plan.json'
     Write-Json $path $plan
     Write-Host "DESKTOP ROLLBACK PLAN: $path"
-    Write-Host 'This action is read-only. Codex must perform removal through the Desktop Plugins page or native recovery.'
+    Write-Host 'This action is read-only. Removal belongs to the Desktop main-app sidebar Plugins page/shared Web Plugin Manager or native recovery.'
   }
 }

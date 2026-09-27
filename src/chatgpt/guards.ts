@@ -7,22 +7,73 @@
 
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import type { Page } from 'playwright-core'
+import { noteHistoryRateLimitForPage } from './browser.ts'
 
-const rateLimitDialog = (page: Page) => page.locator('[role="dialog"]')
-  .filter({ hasText: /Too many requests/i })
-  .filter({ hasText: /making requests too quickly/i })
-  .last()
+const HISTORY_RATE_LIMIT_TESTID = 'modal-conversation-history-rate-limit'
+const HISTORY_RATE_LIMIT_PHRASES = [
+  '你的请求过于频繁',
+  '暂时限制你访问对话记录',
+  '请稍等几分钟后再重试',
+  'your requests are too frequent',
+  'temporarily restricted your access to conversation history',
+  'please wait a few minutes and try again',
+] as const
 
-/** Throw RATE_LIMIT when ChatGPT shows its too-many-requests dialog. */
-export async function throwIfRateLimitDialog(page: Page): Promise<void> {
-  const dialog = rateLimitDialog(page)
-  if (!await dialog.isVisible().catch(() => false)) return
-  const acknowledge = dialog.getByRole('button', { name: /^(Got it)$/ }).last()
-  if (await acknowledge.isVisible().catch(() => false)) {
-    await acknowledge.press('Enter').catch(() => {})
+const HISTORY_RATE_LIMIT_TEXT_SELECTOR = [
+  '[role="alert"]',
+  '[role="dialog"]',
+  '[data-sonner-toast]',
+  '[data-testid*="toast"]',
+  '[aria-live="assertive"]',
+  '[aria-live="polite"]',
+].join(', ')
+
+export function isHistoryRateLimitText(text: string): boolean {
+  const normalized = text.toLocaleLowerCase()
+  return HISTORY_RATE_LIMIT_PHRASES.some(phrase => normalized.includes(phrase))
+}
+
+export type ChatGptRateLimitClass = 'conversation-history' | 'generic-request'
+
+export async function detectChatGptRateLimitClass(page: Page): Promise<ChatGptRateLimitClass | undefined> {
+  const exactHistoryModal = page.locator(
+    `#${HISTORY_RATE_LIMIT_TESTID}[data-testid="${HISTORY_RATE_LIMIT_TESTID}"], [data-testid="${HISTORY_RATE_LIMIT_TESTID}"]`,
+  ).filter({ visible: true }).first()
+  if (await exactHistoryModal.isVisible().catch(() => false)) return 'conversation-history'
+
+  const semanticRegions = page.locator(HISTORY_RATE_LIMIT_TEXT_SELECTOR)
+  const count = await semanticRegions.count().catch(() => 0)
+  for (let index = 0; index < count; index += 1) {
+    const region = semanticRegions.nth(index)
+    if (!await region.isVisible().catch(() => false)) continue
+    const text = await region.innerText().catch(() => '')
+    if (isHistoryRateLimitText(text)) return 'conversation-history'
   }
+
+  const genericDialog = page.locator('[role="dialog"]')
+    .filter({ hasText: /Too many requests/i })
+    .filter({ hasText: /making requests too quickly/i })
+    .last()
+  if (await genericDialog.isVisible().catch(() => false)) return 'generic-request'
+  return undefined
+}
+
+/** Throw RATE_LIMIT for a known visible ChatGPT limiter without dismissing it. */
+export async function throwIfRateLimitDialog(page: Page): Promise<void> {
+  const rateLimitClass = await detectChatGptRateLimitClass(page)
+  if (!rateLimitClass) return
+
+  if (rateLimitClass === 'conversation-history') {
+    const state = noteHistoryRateLimitForPage(page)
+    const remainingSeconds = Math.ceil((state?.historyCooldownRemainingMs ?? 0) / 1_000)
+    throw new LlmError(
+      `ChatGPT rate limit: class=conversation-history; cooldown_remaining_seconds=${remainingSeconds}.`,
+      'RATE_LIMIT',
+    )
+  }
+
   throw new LlmError(
-    'ChatGPT rate limit: too many requests. Try again in a few minutes.',
+    'ChatGPT rate limit: class=generic-request; cooldown_remaining_seconds=0.',
     'RATE_LIMIT',
   )
 }
