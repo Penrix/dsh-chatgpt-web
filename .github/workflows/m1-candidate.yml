@@ -3,7 +3,7 @@ name: M1 candidate validation
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, web-win-live-001]
   workflow_dispatch:
 
 permissions:
