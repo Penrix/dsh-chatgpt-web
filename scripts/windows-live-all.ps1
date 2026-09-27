@@ -67,12 +67,8 @@ function Invoke-M3Live([string]$M3EvidencePath) {
   Write-Host '=== M3 prerequisite check ==='
   $null = Assert-Env 'WEBCODEX_BASE_URL'
   $null = Assert-Env 'WEBCODEX_PROJECT'
-  $inlineCredential = [Environment]::GetEnvironmentVariable('WEBCODEX_BEARER_TOKEN')
-  $fileCredential = [Environment]::GetEnvironmentVariable('WEBCODEX_BEARER_TOKEN_FILE')
-  if ([bool]$inlineCredential -eq [bool]$fileCredential) {
-    throw 'Configure exactly one M3 credential source. Prefer WEBCODEX_BEARER_TOKEN_FILE from scripts\m3-webcodex-windows-preflight.ps1; inline WEBCODEX_BEARER_TOKEN remains compatibility-only.'
-  }
-  if ($fileCredential -and -not (Test-Path -LiteralPath $fileCredential -PathType Leaf)) {
+  $fileCredential = Assert-Env 'WEBCODEX_BEARER_TOKEN_FILE'
+  if (-not (Test-Path -LiteralPath $fileCredential -PathType Leaf)) {
     throw "WEBCODEX_BEARER_TOKEN_FILE does not exist: $fileCredential"
   }
   if (-not $env:WEBCODEX_LOCAL_ROOT) { $env:WEBCODEX_LOCAL_ROOT = $RepoRoot }
