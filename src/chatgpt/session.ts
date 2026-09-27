@@ -74,6 +74,7 @@ export const CHATGPT_STOP_BUTTON_SELECTOR = [
   'button[aria-label="Stop generating"]',
 ].join(', ')
 export const CHATGPT_ASSISTANT_TURN_SELECTOR = [
+  '[data-message-author-role="assistant"]',
   '[data-testid^="conversation-turn-"][data-turn="assistant"]',
   '[data-testid^="conversation-turn-"][data-message-author-role="assistant"]',
   '[data-testid^="conversation-turn-"]:has([data-message-author-role="assistant"])',
