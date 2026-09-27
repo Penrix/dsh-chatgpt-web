@@ -1,4 +1,4 @@
-import { ChatGptWebAdapter, SendSafetyLease } from '../lib/index.js'
+import { ChatGptWebAdapter } from '../lib/index.js'
 
 const relayBaseUrl = process.env.CODEX_CHATGPT_WEB_BASE_URL?.trim() || 'http://127.0.0.1:17841/v1'
 const model = process.env.DSH_CHATGPT_WEB_MODEL?.trim() || 'chatgpt-web/high'
@@ -27,30 +27,20 @@ const adapter = new ChatGptWebAdapter({
 
 let text = ''
 let finishKind
-const safety = await SendSafetyLease.acquire()
 try {
-  try {
-    await safety.dispatch(async () => {
-      for await (const chunk of adapter.stream({
-        provider: 'chatgpt-web',
-        model,
-        messages: [{
-          role: 'user',
-          content: [{ type: 'text', text: 'Reply with exactly OK.' }],
-          source: { kind: 'user' },
-        }],
-      })) {
-        if (chunk.type === 'text-delta') text += chunk.text
-        if (chunk.type === 'finish') finishKind = chunk.reason.kind
-      }
-    })
-  } finally {
-    // This outer lease enforces test pacing only. codex-chatgpt-web owns
-    // submission acceptance/ambiguity and its own retry policy.
-    await safety.complete()
+  for await (const chunk of adapter.stream({
+    provider: 'chatgpt-web',
+    model,
+    messages: [{
+      role: 'user',
+      content: [{ type: 'text', text: 'Reply with exactly OK.' }],
+      source: { kind: 'user' },
+    }],
+  })) {
+    if (chunk.type === 'text-delta') text += chunk.text
+    if (chunk.type === 'finish') finishKind = chunk.reason.kind
   }
 } finally {
-  await safety.release()
   await adapter.dispose()
 }
 
