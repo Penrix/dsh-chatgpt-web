@@ -30,6 +30,9 @@ Send interval, and an in-memory gate resets across adapters/processes.
 - Hold the lock through response completion and page cleanup. Wait at least
   30 seconds when prior Send time is unknown. Persist the next allowed time,
   counting from click settlement; retain any longer persisted wait.
+- Use that same account-wide lock and durable state for ChatGPT page creation.
+  Reserve each page before opening it and wait at least 30 seconds when the
+  prior page-open time is unknown. The browser startup page counts too.
 - Keep the additional fresh-page 8-per-300-second gate and history cooldowns;
   raise its minimum interval to 30 seconds, not lower any existing cooldown.
 - Disable host automatic retries for this provider. Persist a stop for detected
@@ -40,8 +43,9 @@ Send interval, and an in-memory gate resets across adapters/processes.
 
 ## Consequences and recovery
 
-This protection covers updated plugin processes on this OS user, not manual
-browser use, old installed builds, other machines or other applications. It
+This protection covers updated plugin processes on this OS user, including
+their browser startup and inference pages. It does not cover manual browser
+use, old installed builds, other machines or other applications. It
 does not guarantee that ChatGPT will not impose restrictions.
 
 On a retained lock or stopped state, stop testing. An operator must inspect the

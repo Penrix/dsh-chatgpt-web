@@ -224,6 +224,8 @@ one inference = one fresh Temporary Chat page
 ```
 
 The browser context/login state persists, but the Web conversation does not.
+Every ChatGPT page creation, including the initial login/readiness page, uses
+the same persisted account-wide minimum interval as Send: at least 30 seconds.
 
 Reasons:
 

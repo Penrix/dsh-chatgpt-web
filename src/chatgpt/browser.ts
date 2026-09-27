@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path'
 import { chromium, type BrowserContext, type Page } from 'playwright-core'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import { CHATGPT_COMPOSER_SELECTOR, assertAuthenticatedChatGptPage } from './session.ts'
+import type { SendSafetyLease } from './send-safety.ts'
 import {
   FreshPageSafetyGate,
   createFreshPageAfterGate,
@@ -89,10 +90,12 @@ export class ChatGptBrowser {
     }
   }
 
-  async newTurnPage(signal?: AbortSignal): Promise<Page> {
+  async newTurnPage(safety: Pick<SendSafetyLease, 'reserveFreshPage'>, signal?: AbortSignal): Promise<Page> {
+    if (!this.context) await safety.reserveFreshPage(signal)
     await this.ensureReady(signal)
     if (!this.context) throw new LlmError('ChatGPT browser context is unavailable.', 'TRANSPORT')
     try {
+      await safety.reserveFreshPage(signal)
       const page = await createFreshPageAfterGate(
         this.freshPageSafety,
         () => this.context!.newPage(),

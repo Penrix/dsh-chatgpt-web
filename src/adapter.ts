@@ -95,7 +95,7 @@ export class ChatGptWebAdapter extends LlmAdapter {
       const compiled = compilePrompt(options, this.options.composerMaxChars)
       const safety = await SendSafetyLease.acquire()
       try {
-        const page = await this.browser.newTurnPage(options.signal)
+        const page = await this.browser.newTurnPage(safety, options.signal)
         try {
           const result = await runFreshTurn(page, compiled.text, {
             model: options.model,

@@ -53,6 +53,22 @@ describe('persisted send safety (no browser or real waits)', () => {
     await second.release()
   })
 
+  it('waits 30s for unknown page history and preserves page spacing across instances', async () => {
+    const h = await harness()
+    const opens: number[] = []
+    const first = await SendSafetyLease.acquire(h.options)
+    await first.reserveFreshPage()
+    opens.push(h.time())
+    expect(opens).toEqual([130_000])
+    await first.release()
+
+    const second = await SendSafetyLease.acquire(h.options)
+    await second.reserveFreshPage()
+    opens.push(h.time())
+    expect(opens[1]! - opens[0]!).toBe(30_000)
+    await second.release()
+  })
+
   it('counts a delayed click from settlement, not reservation time', async () => {
     const h = await harness()
     const first = await SendSafetyLease.acquire(h.options)

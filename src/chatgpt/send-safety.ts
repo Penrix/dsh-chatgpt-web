@@ -5,12 +5,14 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 
 export const MIN_SEND_INTERVAL_MS = 30_000
+export const MIN_FRESH_PAGE_INTERVAL_MS = 30_000
 // Deliberately shared across profiles and adapters for this Windows user.
 // Account identity is not reliably exposed by the page; sharing is conservative.
 const DEFAULT_ROOT = join(homedir(), '.dsh-chatgpt-web-penrix', 'send-safety')
 
 interface State {
   notBefore: number
+  pageNotBefore: number
   pending: boolean
   blocked: string | null
 }
@@ -56,9 +58,18 @@ export class SendSafetyLease {
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
         // Unknown previous Send time: wait a full interval on first use.
-        state = { notBefore: now() + MIN_SEND_INTERVAL_MS, pending: false, blocked: null }
+        state = {
+          notBefore: now() + MIN_SEND_INTERVAL_MS,
+          pageNotBefore: now() + MIN_FRESH_PAGE_INTERVAL_MS,
+          pending: false,
+          blocked: null,
+        }
       }
+      // Existing installations predate durable page pacing. Treat their last
+      // page-open time as unknown and wait a full interval before first use.
+      state.pageNotBefore ??= now() + MIN_FRESH_PAGE_INTERVAL_MS
       if (!state || !Number.isFinite(state.notBefore) || state.notBefore < 0
+        || !Number.isFinite(state.pageNotBefore) || state.pageNotBefore < 0
         || typeof state.pending !== 'boolean'
         || !(state.blocked === null || typeof state.blocked === 'string')) {
         throw new Error('Invalid persisted send-safety state')
@@ -76,6 +87,17 @@ export class SendSafetyLease {
   private async save(): Promise<void> {
     // A crash during this write leaves an unreadable state, which fails closed.
     await writeFile(join(this.root, 'state.json'), JSON.stringify(this.state), 'utf8')
+  }
+
+  async reserveFreshPage(signal?: AbortSignal): Promise<void> {
+    if (this.released || this.state.pending || this.state.blocked) throw stopped('新建 ChatGPT 页面许可不可用。')
+    while (this.now() < this.state.pageNotBefore) {
+      if (signal?.aborted) throw new LlmError('ChatGPT page wait aborted.', 'ABORTED')
+      await this.sleep(Math.min(1_000, this.state.pageNotBefore - this.now()), signal)
+    }
+    if (signal?.aborted) throw new LlmError('ChatGPT page wait aborted.', 'ABORTED')
+    this.state.pageNotBefore = this.now() + MIN_FRESH_PAGE_INTERVAL_MS
+    await this.save()
   }
 
   async dispatch(click: () => Promise<void>, signal?: AbortSignal): Promise<void> {
