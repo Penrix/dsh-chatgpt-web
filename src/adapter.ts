@@ -14,6 +14,12 @@ import { SendSafetyLease } from './chatgpt/send-safety.ts'
 import { ChatGptRelay, type RelayFetch } from './chatgpt/relay.ts'
 import { parseReasoningResult, reasoningResultChunks } from './reasoning-result.ts'
 
+export interface RelaySendSafety {
+  dispatch(action: () => Promise<void>, signal?: AbortSignal): Promise<void>
+  complete(): Promise<void>
+  release(): Promise<void>
+}
+
 export interface AdapterOptions extends BrowserOptions {
   composerMaxChars: number
   contextWindow: number
@@ -21,6 +27,8 @@ export interface AdapterOptions extends BrowserOptions {
   turnTimeoutMs: number
   relayBaseUrl?: string
   relayFetch?: RelayFetch
+  /** Offline-test seam only. Not exposed in plugin configuration. */
+  relaySafetyFactory?: () => Promise<RelaySendSafety>
   onReasoningEnvelopeError?: (diagnostic: { rawText: string; error: unknown }) => void
 }
 
@@ -107,13 +115,26 @@ export class ChatGptWebAdapter extends LlmAdapter {
       let resultText: string
 
       if (this.relay) {
-        const result = await this.relay.run({
-          model: options.model,
-          prompt: compiled.text,
-          maxOutputTokens: this.options.maxTokens,
-          ...(options.signal ? { signal: options.signal } : {}),
-        })
-        resultText = result.text
+        await this.relay.assertReachable(options.signal)
+        const safety = this.options.relaySafetyFactory
+          ? await this.options.relaySafetyFactory()
+          : await SendSafetyLease.acquire()
+        try {
+          let result: Awaited<ReturnType<ChatGptRelay['run']>> | undefined
+          await safety.dispatch(async () => {
+            result = await this.relay!.run({
+              model: options.model,
+              prompt: compiled.text,
+              maxOutputTokens: this.options.maxTokens,
+              ...(options.signal ? { signal: options.signal } : {}),
+            })
+          }, options.signal)
+          if (!result) throw new Error('codex-chatgpt-web relay returned no captured result.')
+          await safety.complete()
+          resultText = result.text
+        } finally {
+          await safety.release()
+        }
       } else {
         const browser = this.browser
         if (!browser) throw new Error('ChatGPT Web adapter has no configured transport.')
