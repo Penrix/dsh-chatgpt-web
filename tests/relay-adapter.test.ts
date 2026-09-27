@@ -195,7 +195,10 @@ describe('codex-chatgpt-web relay seam', () => {
       && chunk.block.arguments === '{"text":"ping"}',
     )).toBe(true)
     expect(requestBody?.tools).toBeUndefined()
-    expect(String(requestBody?.input)).toContain('"name":"echo"')
-    expect(String(requestBody?.input)).toContain('DSH alone validates, authorizes, and executes')
+    const relayInput = requestBody?.input as Array<Record<string, unknown>>
+    const relayContent = relayInput[0]?.content as Array<Record<string, unknown>>
+    const relayPrompt = String(relayContent[0]?.text ?? '')
+    expect(relayPrompt).toContain('"name":"echo"')
+    expect(relayPrompt).toContain('DSH alone validates, authorizes, and executes')
   })
 })
