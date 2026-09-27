@@ -24,6 +24,14 @@ afterEach(async () => {
   }
 })
 
+async function createTokenFile(secret = 'wc_pat_test_only') {
+  const directory = await mkdtemp(join(tmpdir(), 'webcodex-pat-'))
+  temporaryDirectories.push(directory)
+  const tokenFile = join(directory, 'webcodex-user-token')
+  await writeFile(tokenFile, secret + '\n', 'utf8')
+  return tokenFile
+}
+
 async function harness(fetchImpl: typeof fetch) {
   const ctx = new Context()
   contexts.push(ctx)
@@ -31,7 +39,7 @@ async function harness(fetchImpl: typeof fetch) {
   await ctx.plugin(ToolRuntime)
   registerWebCodexReadFilesTool(ctx, {
     baseUrl: 'http://127.0.0.1:8080',
-    bearerToken: 'wc_pat_test_only',
+    bearerTokenFile: await createTokenFile(),
     project: 'registered-project',
     fetch: fetchImpl,
   })
@@ -55,24 +63,11 @@ describe('WebCodex read-only durable-body seam', () => {
     const configured = PluginConfig({
       webcodexRead: {
         baseUrl: 'http://127.0.0.1:8080',
-        bearerToken: 'wc_pat_test_only',
-        project: 'registered-project',
-      },
-    })
-    expect(configured.webcodexRead).toEqual({
-      baseUrl: 'http://127.0.0.1:8080',
-      bearerToken: 'wc_pat_test_only',
-      project: 'registered-project',
-    })
-
-    const fileConfigured = PluginConfig({
-      webcodexRead: {
-        baseUrl: 'http://127.0.0.1:8080',
         bearerTokenFile: 'C:\\protected\\webcodex-user-token',
         project: 'agent:desktop-runner:repo',
       },
     })
-    expect(fileConfigured.webcodexRead).toEqual({
+    expect(configured.webcodexRead).toEqual({
       baseUrl: 'http://127.0.0.1:8080',
       bearerTokenFile: 'C:\\protected\\webcodex-user-token',
       project: 'agent:desktop-runner:repo',
@@ -89,7 +84,7 @@ describe('WebCodex read-only durable-body seam', () => {
     applyPlugin(ctx, {
       webcodexRead: {
         baseUrl: 'http://127.0.0.1:8080',
-        bearerToken: 'wc_pat_test_only',
+        bearerTokenFile: await createTokenFile(),
         project: 'registered-project',
       },
     })
@@ -154,10 +149,7 @@ describe('WebCodex read-only durable-body seam', () => {
   })
 
   it('loads the bearer from a protected file at call time without adding the path or secret to the tool result', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'webcodex-pat-'))
-    temporaryDirectories.push(directory)
-    const tokenFile = join(directory, 'webcodex-user-token')
-    await writeFile(tokenFile, 'wc_pat_file_secret\n', 'utf8')
+    const tokenFile = await createTokenFile('wc_pat_file_secret')
 
     let request: Request | undefined
     const authoritative = { success: true, output: { returned_count: 0, items: [] } }

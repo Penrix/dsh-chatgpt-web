@@ -1,27 +1,18 @@
-import { homedir } from 'node:os'
-import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { ChatGptWebAdapter } from './adapter.ts'
+import { defaultProfileDir } from './chatgpt/browser.ts'
 import { registerWebCodexReadFilesTool } from './webcodex/read-files.ts'
 
 export const name = 'penrix-llm-chatgpt-web'
 export const inject = ['llm']
 export const PROVIDER = 'chatgpt-web'
 
-export type WebCodexReadConfig =
-  | {
-      baseUrl: string
-      bearerToken: string
-      bearerTokenFile?: never
-      project: string
-    }
-  | {
-      baseUrl: string
-      bearerToken?: never
-      bearerTokenFile: string
-      project: string
-    }
+export interface WebCodexReadConfig {
+  baseUrl: string
+  bearerTokenFile: string
+  project: string
+}
 
 export interface Config {
   profileDir?: string
@@ -37,7 +28,7 @@ export interface Config {
 }
 
 export const Config: z<Config> = z.object({
-  profileDir: z.string().default(join(homedir(), '.dsh-chatgpt-web-penrix', 'chrome-profile')),
+  profileDir: z.string().default(defaultProfileDir()),
   chromeExecutablePath: z.string(),
   headed: z.boolean().default(true),
   loginTimeoutMs: z.number().min(1).default(600_000),
@@ -49,20 +40,15 @@ export const Config: z<Config> = z.object({
   webcodexRead: z.union([
     z.object({
       baseUrl: z.string().required(),
-      bearerToken: z.string().required(),
-      project: z.string().required(),
-    }),
-    z.object({
-      baseUrl: z.string().required(),
       bearerTokenFile: z.string().required(),
       project: z.string().required(),
     }),
-  ]),
+  ])
 })
 
 export function apply(ctx: Context, config: Config): void {
   const adapter = new ChatGptWebAdapter({
-    profileDir: config.profileDir ?? join(homedir(), '.dsh-chatgpt-web-penrix', 'chrome-profile'),
+    profileDir: config.profileDir ?? defaultProfileDir(),
     ...(config.chromeExecutablePath ? { chromeExecutablePath: config.chromeExecutablePath } : {}),
     headed: config.headed ?? true,
     loginTimeoutMs: config.loginTimeoutMs ?? 600_000,

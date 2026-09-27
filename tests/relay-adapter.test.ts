@@ -109,11 +109,27 @@ describe('codex-chatgpt-web relay seam', () => {
     }])
   })
 
-  it('fails closed on incomplete or missing assistant output', () => {
+  it('accepts only the completed Responses output shape produced by codex-chatgpt-web', () => {
+    expect(() => extractRelayAssistantText({ output: [{
+      type: 'message',
+      role: 'assistant',
+      status: 'completed',
+      content: [{ type: 'output_text', text: 'missing status' }],
+    }] })).toThrow(/not completed/)
+
     expect(() => extractRelayAssistantText({ status: 'in_progress', output: [] }))
       .toThrow(/not completed/)
     expect(() => extractRelayAssistantText({ status: 'completed', output: [] }))
       .toThrow(/without assistant output text/)
+    expect(() => extractRelayAssistantText({
+      status: 'completed',
+      output: [{
+        type: 'message',
+        role: 'assistant',
+        status: 'completed',
+        content: [{ type: 'text', text: 'speculative compatibility' }],
+      }],
+    })).toThrow(/without assistant output text/)
   })
 
   it('feeds relay final output through the existing DSH reasoning envelope parser', async () => {
