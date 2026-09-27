@@ -8,7 +8,8 @@ param(
   [string]$ExpectedHead,
   [string]$DshHome,
   [string]$DesktopInstallRoot,
-  [string]$ExpectedDesktopVersion = '2.0.13',
+  [string]$DesktopExecutableName = 'DeepSeek Harness.exe',
+  [string]$ExpectedDesktopVersion = '0.1.7-rc.2',
   [string]$IsolatedDshHome,
   [switch]$SkipRepositoryChecks,
   [switch]$OpenDesktop
@@ -37,7 +38,7 @@ function Get-DefaultDshHome {
 
 function Get-DefaultDesktopInstallRoot {
   if (-not $env:LOCALAPPDATA) { return $null }
-  return [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\DSH Desktop'))
+  return [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\DeepSeek Harness'))
 }
 
 function Get-DefaultStageRoot {
@@ -207,7 +208,7 @@ switch ($Action) {
     if ($packedManifest.name -ne $PackageName) { throw "Packed package name mismatch: $($packedManifest.name)" }
 
     $desktopBefore = Get-DesktopProfileSnapshot (Join-Path $StageRoot 'desktop-before')
-    $desktopExe = if ($DesktopInstallRoot) { Join-Path $DesktopInstallRoot 'DSH Desktop.exe' } else { $null }
+    $desktopExe = if ($DesktopInstallRoot) { Join-Path $DesktopInstallRoot $DesktopExecutableName } else { $null }
     $stage = [pscustomobject]@{
       schema = 1
       packet = 'WEB-M1-LIVE-008 rev 1'
@@ -284,14 +285,15 @@ switch ($Action) {
   'DesktopInstallPlan' {
     $resolved = Resolve-StageManifest
     if (-not $DesktopInstallRoot -or -not (Test-Path -LiteralPath $DesktopInstallRoot -PathType Container)) { throw "DSH Desktop install root not found: $DesktopInstallRoot" }
-    $desktopExe = Join-Path $DesktopInstallRoot 'DSH Desktop.exe'
-    if (-not (Test-Path -LiteralPath $desktopExe -PathType Leaf)) { throw "DSH Desktop executable not found: $desktopExe" }
+    $desktopExe = Join-Path $DesktopInstallRoot $DesktopExecutableName
+    if (-not (Test-Path -LiteralPath $desktopExe -PathType Leaf)) { throw "DeepSeek Harness executable not found: $desktopExe" }
     $desktopVersionInfo = (Get-Item -LiteralPath $desktopExe).VersionInfo
-    $observedDesktopVersion = @($desktopVersionInfo.ProductVersion,$desktopVersionInfo.FileVersion) |
-      Where-Object { $_ } |
+    $observedDesktopVersions = @($desktopVersionInfo.ProductVersion,$desktopVersionInfo.FileVersion) | Where-Object { $_ }
+    $observedDesktopVersion = $observedDesktopVersions |
+      Where-Object { $_.StartsWith($ExpectedDesktopVersion,[StringComparison]::OrdinalIgnoreCase) } |
       Select-Object -First 1
-    if (-not $observedDesktopVersion -or -not $observedDesktopVersion.StartsWith($ExpectedDesktopVersion,[StringComparison]::OrdinalIgnoreCase)) {
-      throw "Expected DSH Desktop $ExpectedDesktopVersion, observed '$observedDesktopVersion' at $desktopExe."
+    if (-not $observedDesktopVersion) {
+      throw "Expected official DeepSeek Harness $ExpectedDesktopVersion, observed '$($observedDesktopVersions -join ', ')' at $desktopExe."
     }
     $before = Get-DesktopProfileSnapshot (Join-Path $StageRoot 'desktop-before-install')
     $plan = [pscustomobject]@{
@@ -304,15 +306,15 @@ switch ($Action) {
       dshHome=$DshHome
       desktopProfile=$before.profile
       backup=$before
-      mutation='Use the DSH Desktop main application sidebar Plugins page (shared Web Plugin Manager) with the candidate absolute tarball path; Settings plugin inventory is read-only; do not edit profile files or use the public CLI against the reserved desktop profile.'
-      rollback='Use the DSH Desktop main application sidebar Plugins page to remove/disable the bundle. If startup is fatal, use Desktop native recovery to disable third-party bundles.'
+      mutation='Use the official DeepSeek Harness sidebar Plugins page with the candidate absolute tarball path; do not edit profile files or use the public CLI against the reserved desktop profile.'
+      rollback='Use the official DeepSeek Harness sidebar Plugins page to remove/disable the bundle. If startup is fatal, use the application recovery flow to disable third-party bundles.'
       preparedAt=(Get-Date).ToUniversalTime().ToString('o')
     }
     $planPath = Join-Path $StageRoot 'desktop-install-plan.json'
     Write-Json $planPath $plan
     Write-Host "DESKTOP INSTALL PLAN: $planPath"
     Write-Host "PLUGIN SPEC: $($resolved.candidate)"
-    Write-Host 'Install through the DSH Desktop main application sidebar Plugins page / shared Web Plugin Manager. Settings inventory is read-only, and public dsh CLI must not mutate the reserved desktop profile.'
+    Write-Host 'Install the printed local package path from the official DeepSeek Harness sidebar Plugins page. Do not edit profile files or mutate the reserved desktop profile with the CLI.'
     if ($OpenDesktop) { Start-Process -FilePath $desktopExe | Out-Null }
   }
 
@@ -333,14 +335,14 @@ switch ($Action) {
       packageName=$PackageName
       candidateSha256=$resolved.stage.candidateSha256
       currentState=$state
-      normalRollback='DSH Desktop main app > sidebar Plugins: disable/remove @penrix/dsh-chatgpt-web, then restart if requested.'
-      fatalRollback='Use DSH Desktop native fatal recovery: disable third-party bundles; do not restore backup files by hand.'
+      normalRollback='Official DeepSeek Harness > Plugins: disable/remove @penrix/dsh-chatgpt-web, then restart if requested.'
+      fatalRollback='Use official DeepSeek Harness recovery to disable third-party bundles; do not restore backup files by hand.'
       forensicBackup=(Join-Path $StageRoot 'desktop-before-install')
       preparedAt=(Get-Date).ToUniversalTime().ToString('o')
     }
     $path = Join-Path $StageRoot 'desktop-rollback-plan.json'
     Write-Json $path $plan
     Write-Host "DESKTOP ROLLBACK PLAN: $path"
-    Write-Host 'This action is read-only. Removal belongs to the Desktop main-app sidebar Plugins page/shared Web Plugin Manager or native recovery.'
+    Write-Host 'This action is read-only. Remove the package from the official DeepSeek Harness sidebar Plugins page or its recovery flow.'
   }
 }

@@ -1,6 +1,5 @@
 export interface CompletionSample {
   assistantCount: number
-  copyActionCount: number
   running: boolean
   text: string
 }
@@ -10,15 +9,12 @@ export class CompletionTracker {
 
   constructor(
     private readonly baselineAssistantCount: number,
-    private readonly baselineCopyActionCount: number,
     private readonly stableMs = 2_000,
   ) {}
 
   update(sample: CompletionSample, now = Date.now()): boolean {
     const hasNewAssistant = sample.assistantCount > this.baselineAssistantCount
-    const hasCompletionAction = sample.copyActionCount > this.baselineCopyActionCount
     const complete = hasNewAssistant
-      && hasCompletionAction
       && !sample.running
       && sample.text.trim().length > 0
 

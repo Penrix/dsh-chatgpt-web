@@ -59,6 +59,11 @@ function fakeRateLimitPage(options: FakeRateLimitPageOptions = {}): Page {
 }
 
 describe('conversation-history rate-limit guard', () => {
+  it('stops on account warnings instead of dismissing or retrying them', async () => {
+    await expect(detectChatGptRateLimitClass(fakeRateLimitPage({
+      semanticTexts: ['Unusual activity detected. Verify you are human.'],
+    }))).resolves.toBe('account-warning')
+  })
   it('detects the exact history-limit testid even when generic English copy changes', async () => {
     const page = fakeRateLimitPage({ exactHistoryVisible: true })
     await expect(detectChatGptRateLimitClass(page)).resolves.toBe('conversation-history')

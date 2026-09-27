@@ -84,7 +84,7 @@ afterEach(async () => {
   while (contexts.length > 0) await contexts.pop()?.fiber.dispose()
 })
 
-describe('DSH 0.1.5-rc.2 native tool-loop compatibility', () => {
+describe('DSH 0.1.7-rc.2 native tool-loop compatibility', () => {
   it('executes our native tool-call chunks and feeds the result into the second inference', async () => {
     const adapter = new CandidateAdapter()
     const ctx = await createHarness(adapter)
@@ -121,11 +121,11 @@ describe('DSH 0.1.5-rc.2 native tool-loop compatibility', () => {
     expect(adapter.requests[0]?.tools?.some(tool => tool.name === 'echo')).toBe(true)
 
     const second = adapter.requests[1]
-    expect(second?.messages.some(message => message.source.kind === 'tool')).toBe(true)
-    expect(second?.messages.some(message => message.content.some(block =>
-      block.type === 'tool-result'
-      && block.content.some(item => item.type === 'text' && item.text === 'echo:ping'),
-    ))).toBe(true)
+    expect(second?.messages.some(message => message.source?.kind === 'tool')).toBe(true)
+    expect(second?.messages.some(message =>
+      message.role === 'tool'
+      && message.content.some(block => block.type === 'text' && block.text === 'echo:ping'),
+    )).toBe(true)
 
     const events = agent.session.snapshotEvents()
     expect(events.filter(event => event.type === 'tool/call')).toHaveLength(1)

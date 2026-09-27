@@ -7,7 +7,7 @@
  */
 import { LlmError } from '@deepseek-ai/dsh-llm'
 
-export const FRESH_PAGE_MIN_INTERVAL_MS = 20_000
+export const FRESH_PAGE_MIN_INTERVAL_MS = 30_000
 export const FRESH_PAGE_WINDOW_MS = 300_000
 export const FRESH_PAGE_WINDOW_MAX = 8
 export const HISTORY_COOLDOWN_MS = [120_000, 240_000, 480_000, 600_000] as const

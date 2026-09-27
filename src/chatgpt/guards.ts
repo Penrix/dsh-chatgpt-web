@@ -33,7 +33,7 @@ export function isHistoryRateLimitText(text: string): boolean {
   return HISTORY_RATE_LIMIT_PHRASES.some(phrase => normalized.includes(phrase))
 }
 
-export type ChatGptRateLimitClass = 'conversation-history' | 'generic-request'
+export type ChatGptRateLimitClass = 'conversation-history' | 'generic-request' | 'account-warning'
 
 export async function detectChatGptRateLimitClass(page: Page): Promise<ChatGptRateLimitClass | undefined> {
   const exactHistoryModal = page.locator(
@@ -48,6 +48,7 @@ export async function detectChatGptRateLimitClass(page: Page): Promise<ChatGptRa
     if (!await region.isVisible().catch(() => false)) continue
     const text = await region.innerText().catch(() => '')
     if (isHistoryRateLimitText(text)) return 'conversation-history'
+    if (/unusual activity|verify (?:that )?you are human|异常活动|验证你是人类|人机验证/i.test(text)) return 'account-warning'
   }
 
   const genericDialog = page.locator('[role="dialog"]')
@@ -73,7 +74,7 @@ export async function throwIfRateLimitDialog(page: Page): Promise<void> {
   }
 
   throw new LlmError(
-    'ChatGPT rate limit: class=generic-request; cooldown_remaining_seconds=0.',
+    `ChatGPT safety stop: class=${rateLimitClass}; cooldown_remaining_seconds=0.`,
     'RATE_LIMIT',
   )
 }

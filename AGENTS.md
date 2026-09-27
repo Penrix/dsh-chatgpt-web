@@ -158,6 +158,14 @@ Prefer recording **why the old view became wrong**, not only the new conclusion.
 
 ## 11. Validation standard
 
+### User-required ChatGPT live-test pacing
+
+- Allow at most one test Send per 30 seconds across all windows using the same account. This is a minimum interval, never a target throughput; retain any longer cooldown.
+- Wait for the previous response to finish. Record and check the last Send time; when unknown, wait at least 30 seconds before sending.
+- Before starting automated live tests, verify the actual Send path enforces this floor. These instructions alone do not establish runtime enforcement; do not start an unverified runner.
+- Stop live testing immediately on rate limits, unusual-activity warnings, or CAPTCHA. Do not automatically retry or switch windows to bypass the stop.
+- Prefer offline checks. Do not send live prompts merely to verify this pacing rule.
+
 For implementation work, test the smallest real boundary that proves the intended behavior.
 
 For cognition/architecture work, validate by replaying the decision chain:
