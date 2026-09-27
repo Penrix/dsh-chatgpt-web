@@ -30,6 +30,19 @@ function fencedJson(json: string): string {
 }
 
 describe('codex-chatgpt-web relay seam', () => {
+  it('does not silently fall back to direct browser for an explicitly invalid relay URL', () => {
+    expect(() => new ChatGptWebAdapter({
+      profileDir: 'unused',
+      headed: false,
+      loginTimeoutMs: 1,
+      turnTimeoutMs: 1,
+      composerMaxChars: 180_000,
+      contextWindow: 90_000,
+      maxTokens: 16_384,
+      relayBaseUrl: '',
+    })).toThrow(/valid loopback HTTP URL/)
+  })
+
   it('keeps the Responses endpoint on loopback', () => {
     expect(resolveRelayResponsesEndpoint('http://127.0.0.1:17841'))
       .toBe('http://127.0.0.1:17841/v1/responses')
