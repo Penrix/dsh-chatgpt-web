@@ -24,6 +24,8 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm test
+      - name: Relay live harness syntax
+        run: node --check scripts/m1-relay-live.mjs
       - name: Build
         run: npm run build
       - name: Bundle/load smoke (no browser login)
