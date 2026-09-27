@@ -28,6 +28,24 @@ function fencedJson(json: string): string {
   return [fence + 'json', json, fence].join('\n')
 }
 
+function testRelaySafetyFactory(events: string[] = []) {
+  return async () => {
+    events.push('acquire')
+    return {
+      async dispatch(action: () => Promise<void>) {
+        events.push('dispatch')
+        await action()
+      },
+      async complete() {
+        events.push('complete')
+      },
+      async release() {
+        events.push('release')
+      },
+    }
+  }
+}
+
 describe('codex-chatgpt-web relay seam', () => {
   it('keeps the Responses endpoint on loopback', () => {
     expect(resolveRelayResponsesEndpoint('http://127.0.0.1:17841'))
@@ -84,9 +102,17 @@ describe('codex-chatgpt-web relay seam', () => {
   })
 
   it('feeds relay final output through the existing DSH reasoning envelope parser', async () => {
-    const fetchImpl = (async () => Response.json(responseBody(
-      fencedJson('{"type":"final","content":"OK"}'),
-    ))) as RelayFetch
+    const events: string[] = []
+    const fetchImpl = (async (_input: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'GET') {
+        events.push('preflight')
+        return new Response('', { status: 426 })
+      }
+      events.push('post')
+      return Response.json(responseBody(
+        fencedJson('{"type":"final","content":"OK"}'),
+      ))
+    }) as RelayFetch
     const adapter = new ChatGptWebAdapter({
       profileDir: 'unused',
       headed: false,
@@ -97,6 +123,7 @@ describe('codex-chatgpt-web relay seam', () => {
       maxTokens: 16_384,
       relayBaseUrl: 'http://127.0.0.1:17841/v1',
       relayFetch: fetchImpl,
+      relaySafetyFactory: testRelaySafetyFactory(events),
     })
 
     const options = {
@@ -112,11 +139,13 @@ describe('codex-chatgpt-web relay seam', () => {
     for await (const chunk of adapter.stream(options)) chunks.push(chunk)
     expect(chunks.some(chunk => chunk.type === 'text-delta' && chunk.text === 'OK')).toBe(true)
     expect(chunks.at(-1)).toMatchObject({ type: 'finish', reason: { kind: 'stop' } })
+    expect(events).toEqual(['preflight', 'acquire', 'dispatch', 'post', 'complete', 'release'])
   })
 
   it('keeps DSH as tool authority when the relay proposes an action', async () => {
     let requestBody: Record<string, unknown> | undefined
     const fetchImpl = (async (_input: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'GET') return new Response('', { status: 426 })
       requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>
       return Response.json(responseBody(
         fencedJson('{"type":"action_proposal","action":"echo","arguments":{"text":"ping"}}'),
@@ -132,6 +161,7 @@ describe('codex-chatgpt-web relay seam', () => {
       maxTokens: 16_384,
       relayBaseUrl: 'http://127.0.0.1:17841/v1',
       relayFetch: fetchImpl,
+      relaySafetyFactory: testRelaySafetyFactory(),
     })
 
     const options = {
