@@ -219,6 +219,8 @@ DSH
 
 This is an architecture direction, not a claim that the integration is already live-qualified.
 
+For the first M1 proof, use the **browser-only** transport capability. Do not require `codex-chatgpt-web` Full Harness or its official Tunnel/ChatGPT-connector path just to execute local tools. DSH already owns the tool loop; the relay only needs to carry the inference.
+
 The existing direct-browser path in this repository remains useful as fallback/control material and as a source of safety lessons. It is not the default place to continue selector-by-selector investment while the relay seam remains untested.
 
 ### 4.3 Authority must not leak across the transport
@@ -229,7 +231,7 @@ The relay may carry:
 
 - model input;
 - model output;
-- tool descriptions/proposals;
+- tool descriptions/proposals or the existing data-only action catalog;
 - provider correlation.
 
 It must not become authoritative for:

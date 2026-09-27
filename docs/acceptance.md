@@ -14,6 +14,7 @@ These are product invariants, not aspirational prose.
 - Final output must have positive completion evidence before being committed.
 - On the preferred primary path, ChatGPT-specific Send/response/completion semantics are delegated to `codex-chatgpt-web`; `dsh-chatgpt-web` must not maintain a competing primary DOM-completion loop.
 - Reusing `codex-chatgpt-web` transport must not transfer canonical Session/history or DSH tool-loop authority to Codex.
+- M1 transport acceptance must not require Full Harness / official Tunnel / ChatGPT connector unless later evidence proves browser-only transport insufficient.
 - Before M1 is accepted, one real Windows `DSH → /v1/responses → ChatGPT Web → DSH` text turn must be observed end to end.
 
 ## B. Tool-loop invariants

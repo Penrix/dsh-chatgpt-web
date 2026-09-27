@@ -660,3 +660,91 @@ The durable conclusions are now:
 8. The shortest Reality test is no longer another selector patch. It is a thin DSH → Responses relay → Web → DSH spike.
 9. A successful text relay would prove only model transport. It would not yet prove DSH tool-loop correctness, WebCodex integration, memory continuity or high-semantic cognition stability.
 10. Future task contracts must re-check component boundaries against current code before extending a debugging path merely because earlier packets assumed it.
+
+
+---
+
+## Stage 20 — another simplification: we need the Web transport, not Codex Full Harness
+
+The comparison with `codex-chatgpt-web` exposed one more important distinction.
+
+That project has two very different capability levels:
+
+```text
+browser-only
+= use ChatGPT Web as a model transport
+
+Full Harness
+= connect ChatGPT back to Codex-local tools through the official tunnel/connector path
+```
+
+Our DSH architecture does not need the second capability for M1.
+
+DSH already owns:
+
+- the canonical Session;
+- the exposed tool schemas;
+- tool validation;
+- tool execution;
+- tool-result reintegration.
+
+Therefore the first integration should deliberately avoid turning this into:
+
+```text
+DSH
+→ codex-chatgpt-web
+→ ChatGPT-native MCP
+→ Codex tools
+```
+
+That would reintroduce the wrong authority.
+
+The desired path is thinner:
+
+```text
+DSH prompt + data-only tool/action contract
+→ codex-chatgpt-web browser transport
+→ ChatGPT Web
+→ model text/action proposal
+→ DSH ToolRuntime
+```
+
+This also means the user's lack of interest in depending on the official Codex MCP/tunnel path is not a blocker for the transport experiment. The transport and the local-tool harness are separable concerns.
+
+---
+
+## Stage 21 — WebCodex is still later in the loop, not missing from the design
+
+The sequencing question also risked creating another false binary:
+
+```text
+either solve DSH → Web first
+or solve Web → WebCodex first
+```
+
+But WebCodex already has a defined role and active-branch integration work has produced a thin DSH/WebCodex seam such as project/file read.
+
+So the architecture does not need WebCodex to mediate the model call.
+
+The correct dependency shape remains:
+
+```text
+first:
+DSH ↔ ChatGPT Web transport
+
+then:
+DSH tool loop
+
+then:
+DSH tools backed by WebCodex
+```
+
+This keeps the two hard boundaries independent:
+
+```text
+brain transport
+≠
+body/effect transport
+```
+
+A failure in one should not force the other component to absorb the wrong responsibility.

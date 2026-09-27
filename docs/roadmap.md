@@ -52,7 +52,8 @@ Required:
 - return positive completion evidence;
 - keep post-Send ambiguity fail-closed inside the specialized transport;
 - do not make DSH reconstruct reply completion from a competing primary DOM loop;
-- do not give canonical Session authority to Codex merely because its transport is reused.
+- do not give canonical Session authority to Codex merely because its transport is reused;
+- prove the browser-only relay first; Full Harness / official Tunnel / ChatGPT connector is not an M1 prerequisite.
 
 The existing direct-browser implementation is retained as fallback/control and safety evidence, but is frozen as the default investment path until this relay experiment is resolved.
 
@@ -76,6 +77,7 @@ Required:
 - reject malformed or unknown tool proposals;
 - emit normal DSH tool-call chunks;
 - DSH executes tools; the transport never fabricates local effects;
+- preserve the existing DSH action-proposal/tool-call contract instead of depending on ChatGPT-native MCP for M1;
 - tool results return to the same canonical DSH Session before the next inference.
 
 Exit condition: a real DSH session can call a harmless test tool through the relay-backed ChatGPT Web provider and continue after the result.

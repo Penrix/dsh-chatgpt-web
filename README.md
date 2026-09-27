@@ -290,6 +290,8 @@ final
 
 这里借的是 `codex-chatgpt-web` 的 transport，不是把 DSH 的 Session/Agent authority 交给 Codex。
 
+第一轮应优先用它的 **browser-only** 路径。Full Harness 的官方 Tunnel / ChatGPT connector 是为了把 ChatGPT 接回 Codex 本地工具；我们的本地工具循环已经由 DSH 持有，所以不应把那个额外依赖误当成 M1 前置。
+
 现有 direct-browser M1 暂时保留为 fallback/control 和安全经验来源，但在 relay 路线被真实证据否掉以前，不再把逐个修 ChatGPT selector 当主线。
 
 ## 2. 再接 WebCodex 作为身体

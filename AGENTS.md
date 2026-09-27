@@ -122,6 +122,8 @@ Also preserve this distinction:
 
 Per ADR-0003, prefer the specialized `codex-chatgpt-web` transport boundary for ChatGPT-specific browser mechanics while keeping DSH authoritative for Session/context/tool semantics.
 
+For the first proof, prefer browser-only transport. Do not introduce Full Harness / official Tunnel / ChatGPT connector as an M1 dependency merely to obtain local tools; DSH already owns local tool execution.
+
 ## 8. Keep repository boundaries clean
 
 Current intended ownership:

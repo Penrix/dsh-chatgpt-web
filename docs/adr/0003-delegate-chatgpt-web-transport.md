@@ -102,7 +102,9 @@ Therefore:
    - statically map DSH `GenerateOptions` to the relay's Responses contract;
    - run one real Windows inference such as “reply exactly OK”;
    - then prove one harmless DSH tool call, durable tool result and second inference.
-8. This ADR is an architecture decision, **not a LIVE VERIFIED claim**. The relay integration is still unverified until the above proof succeeds.
+8. The first relay experiment should use the **browser-only transport path**, not `codex-chatgpt-web` Full Harness. DSH already owns the tool loop, so the first proof does not need the official Tunnel/ChatGPT connector path that Full Harness uses for Codex-local tools.
+9. Preserve the existing DSH action-proposal/tool-result semantics across the relay. We are borrowing the Web transport, not asking ChatGPT-native MCP or Codex to execute DSH tools.
+10. This ADR is an architecture decision, **not a LIVE VERIFIED claim**. The relay integration is still unverified until the above proof succeeds.
 
 The phrase “DSH directly calls ChatGPT Web” should henceforth mean **DSH is the caller and authority at the provider boundary**, not “DSH must personally drive the ChatGPT DOM.”
 
@@ -122,6 +124,7 @@ Costs and risks:
 - the final product now depends on a local transport process/component boundary;
 - request/response compatibility between DSH and the relay must be made explicit and tested;
 - the relay must not accidentally transfer canonical Session or tool-loop authority to Codex;
+- the browser-only transport must be verified independently of Full Harness so an unnecessary official Tunnel/MCP dependency is not introduced;
 - lifecycle, packaging and update coordination between the two repositories become real integration concerns;
 - a successful `/v1/responses` text turn still does not prove high-semantic cognition continuity.
 

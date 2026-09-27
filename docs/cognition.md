@@ -551,6 +551,26 @@ Do not copy the browser worker into this repository unless a concrete incompatib
 
 This hypothesis is **not yet live-verified**. It should be tested with the smallest real Windows turn before more direct-browser selector work is accepted as the main path.
 
+### Browser-only transport is enough for the first proof
+
+`codex-chatgpt-web` also supports a Full Harness mode that connects ChatGPT back to Codex-local tools. That is not the capability we need to borrow for M1.
+
+The intended separation is:
+
+```text
+borrow:
+codex-chatgpt-web browser transport
+
+do not borrow:
+Codex ownership of the tool loop
+```
+
+DSH should keep its existing data-only action contract / native DSH tool-call semantics. That avoids making the first transport proof depend on the official Tunnel/connector path merely to reach local tools.
+
+This is another example of the general rule:
+
+> Reuse the component at the boundary where it is strongest; do not inherit adjacent authority just because the component also offers it.
+
 ## 13. Current one-line model
 
 > **DSH owns the long-lived session/context; DVR keeps the original cognitive performance; ChatGPT Web remains the high-quality reasoning brain; WebCodex is the durable local body. The hard problem is no longer “how to keep a window alive”, but “how to project enough of the right original and active cognition into each model inference without trusting the Web conversation to remember it for us.”**
