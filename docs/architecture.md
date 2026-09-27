@@ -2,7 +2,7 @@
 
 > Status: working architecture
 >
-> This document describes ownership and seams. As of ADR-0003, the preferred ChatGPT-specific browser transport owner is `Penrix/codex-chatgpt-web`; retrieval strategy and managed-conversation lifetime remain experimental.
+> This document describes ownership and seams. As of ADR-0004, the preferred ChatGPT-specific browser transport owner is `Penrix/codex-chatgpt-web`; retrieval strategy and managed-conversation lifetime remain experimental.
 
 ---
 
@@ -192,7 +192,7 @@ It should **not** need to own the ChatGPT DOM on the primary path.
 
 ### 4.2 Specialized Web transport
 
-Per ADR-0003, the preferred primary transport is `Penrix/codex-chatgpt-web` through its local Responses seam.
+Per ADR-0004, the preferred primary transport is `Penrix/codex-chatgpt-web` through its local Responses seam.
 
 That component owns the ChatGPT-specific mechanics:
 
@@ -405,7 +405,7 @@ The following projects are relevant references:
 - `WLV-ZEDD/dsh-chatgpt-web`
   - another direct DSH ↔ ChatGPT Web implementation path to compare.
 - `Penrix/codex-chatgpt-web`
-  - preferred specialized ChatGPT Web transport/Responses relay per ADR-0003; hard-won browser submission, response identity, completion and recovery behavior should be reused at this boundary rather than copied piecemeal.
+  - preferred specialized ChatGPT Web transport/Responses relay per ADR-0004; hard-won browser submission, response identity, completion and recovery behavior should be reused at this boundary rather than copied piecemeal.
 - `Penrix/webcodex`
   - local body / durable execution substrate.
 - `Phant0Meow/dsh-meow-memory`
