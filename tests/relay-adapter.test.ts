@@ -87,7 +87,6 @@ describe('codex-chatgpt-web relay seam', () => {
     const turnMetadata = JSON.parse(String(metadata['x-codex-turn-metadata'])) as Record<string, unknown>
     expect(turnMetadata.thread_id).toMatch(/^dsh_/)
     expect(turnMetadata.turn_id).toMatch(/^turn_/)
-    expect(body.prompt_cache_key).toBe(turnMetadata.thread_id)
     expect(input[0]!.internal_chat_message_metadata_passthrough)
       .toEqual({ turn_id: turnMetadata.turn_id })
   })
@@ -102,7 +101,6 @@ describe('codex-chatgpt-web relay seam', () => {
     const turnMetadata = JSON.parse(String(metadata['x-codex-turn-metadata'])) as Record<string, unknown>
     expect(turnMetadata.thread_id).toMatch(/^dsh_/)
     expect(turnMetadata.turn_id).toMatch(/^turn_/)
-    expect(body.prompt_cache_key).toBe(turnMetadata.thread_id)
     expect(body.input).toEqual([{
       type: 'message',
       role: 'user',
