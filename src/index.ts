@@ -105,3 +105,5 @@ export type {
   WebCodexReadFilesSeamOptions,
   WebCodexToolResult,
 } from './webcodex/index.ts'
+
+export { SendSafetyLease } from './chatgpt/send-safety.ts'
