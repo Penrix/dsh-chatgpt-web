@@ -46,7 +46,7 @@ describe('codex-chatgpt-web relay seam', () => {
       calls.push({
         url: String(input),
         body: JSON.parse(String(init?.body)) as Record<string, unknown>,
-        signal: init?.signal,
+        ...(init?.signal !== undefined ? { signal: init.signal } : {}),
       })
       return Response.json(responseBody('reply text'))
     }) as RelayFetch
@@ -105,7 +105,6 @@ describe('codex-chatgpt-web relay seam', () => {
       messages: [{
         role: 'user',
         content: [{ type: 'text', text: 'Reply exactly OK.' }],
-        source: { kind: 'user' },
       }],
     } satisfies GenerateOptions
 
@@ -141,7 +140,6 @@ describe('codex-chatgpt-web relay seam', () => {
       messages: [{
         role: 'user',
         content: [{ type: 'text', text: 'Use echo.' }],
-        source: { kind: 'user' },
       }],
       tools: [{
         name: 'echo',
