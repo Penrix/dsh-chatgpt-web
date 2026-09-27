@@ -108,6 +108,25 @@ export class ChatGptRelay {
     this.fetchImpl = options.fetchImpl ?? fetch
   }
 
+  async assertReachable(signal?: AbortSignal): Promise<void> {
+    let response: Response
+    try {
+      response = await this.fetchImpl(this.endpoint, {
+        method: 'GET',
+        ...(signal ? { signal } : {}),
+      })
+    } catch (error) {
+      throw new Error('codex-chatgpt-web relay is unreachable before Send.', { cause: error })
+    }
+    await response.body?.cancel().catch(() => {})
+    if (response.status !== 426) {
+      throw new Error(
+        'codex-chatgpt-web relay preflight expected HTTP 426 from GET /v1/responses, got '
+        + response.status + '.',
+      )
+    }
+  }
+
   async run(turn: ChatGptRelayTurn): Promise<ChatGptRelayResult> {
     const response = await this.fetchImpl(this.endpoint, {
       method: 'POST',
