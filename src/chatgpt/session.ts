@@ -54,7 +54,6 @@ export const CHATGPT_CONNECTOR_MENU_ITEM_SELECTOR = '.__menu-item[tabindex="0"]'
 /** Connector pills are verified by exact keyword after mention selection. */
 export const CHATGPT_CONNECTOR_PILL_SELECTOR = '[data-id^="plugin:"][data-keyword]'
 export const CHATGPT_EFFORT_CONTROL_SELECTOR = [
-  'button[aria-haspopup="menu"][data-tone="neutral"]',
   'button[data-testid="model-switcher-dropdown-button"][aria-haspopup="menu"]',
   'button[aria-haspopup="menu"][aria-label="选择 ChatGPT 模型"]',
   'button[aria-haspopup="menu"][aria-label="Choose ChatGPT model"]',
@@ -73,14 +72,6 @@ export const CHATGPT_STOP_BUTTON_SELECTOR = [
   'form[data-chatgpt-composer] button[type="button"][aria-label="Stop"]',
   'button[aria-label="停止生成"]',
   'button[aria-label="Stop generating"]',
-].join(', ')
-export const CHATGPT_COMPLETION_ACTION_SELECTOR = [
-  'button[data-testid="copy-turn-action-button"]',
-  'button[aria-label="复制回复"]',
-  'button[aria-label="Copy response"]',
-  '[role="group"][aria-label="回复操作"] button[aria-label="复制"]',
-  '[role="group"][aria-label="Message actions"] button[aria-label="Copy"]',
-  '[data-turn-key] .turn-action-controls button',
 ].join(', ')
 export const CHATGPT_ASSISTANT_TURN_SELECTOR = [
   '[data-testid^="conversation-turn-"][data-turn="assistant"]',
@@ -350,15 +341,11 @@ export async function probeChatGptEffortCapabilities(
   options: { timeoutMs?: number; activationSettleMs?: number } = {},
 ): Promise<ChatGptWebAccountCapabilities> {
   const timeout = options.timeoutMs ?? 70_000
-  try {
-    await activateChatGptEffortMenu(page, effortButton, {
-      settleMs: options.activationSettleMs ?? Math.min(3_000, Math.max(1, timeout)),
-    })
-    const { state } = await waitForChatGptEffortSliderState(page, effortButton, timeout)
-    return { solAvailable: true, proAvailable: state.max - state.min + 1 >= 5 }
-  } finally {
-    await page.keyboard.press('Escape').catch(() => {})
-  }
+  await activateChatGptEffortMenu(page, effortButton, {
+    settleMs: options.activationSettleMs ?? Math.min(3_000, Math.max(1, timeout)),
+  })
+  const { state } = await waitForChatGptEffortSliderState(page, effortButton, timeout)
+  return { solAvailable: true, proAvailable: state.max - state.min + 1 >= 5 }
 }
 
 export async function detectChatGptAccountCapabilities(

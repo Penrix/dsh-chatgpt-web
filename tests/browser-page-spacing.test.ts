@@ -41,12 +41,13 @@ function page(name: string, login = false): Page {
     goto: async () => { fakes.events.push(`goto-${name}`); return null },
     locator: () => visibleLocator(),
     close: async () => {},
+    isClosed: () => false,
     ...(login ? { waitForTimeout: async () => {} } : {}),
   } as unknown as Page
 }
 
 describe('ChatGptBrowser durable page spacing', () => {
-  it('reserves every ChatGPT page, including browser startup, before opening it', async () => {
+  it('reuses the authenticated startup page for the first turn', async () => {
     fakes.events.length = 0
     fakes.loginPage = page('login', true)
     const firstTurn = page('turn-1')
@@ -61,9 +62,9 @@ describe('ChatGptBrowser durable page spacing', () => {
       loginTimeoutMs: 1,
     })
 
-    await expect(browser.newTurnPage(safety)).resolves.toBe(firstTurn)
+    await expect(browser.newTurnPage(safety)).resolves.toBe(fakes.loginPage)
     expect(fakes.events).toEqual([
-      'reserve', 'launch', 'goto-login', 'reserve', 'new-page',
+      'reserve', 'launch', 'goto-login',
     ])
     await browser.close()
   })

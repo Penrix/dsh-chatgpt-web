@@ -32,9 +32,11 @@ Send interval, and an in-memory gate resets across adapters/processes.
   counting from click settlement; retain any longer persisted wait.
 - Use that same account-wide lock and durable state for ChatGPT page creation.
   Reserve each page before opening it and wait at least 30 seconds when the
-  prior page-open time is unknown. The browser startup page counts too.
+  prior page-open time is unknown. Reuse the authenticated startup page for the
+  first turn instead of immediately opening a second page.
 - Keep the additional fresh-page 8-per-300-second gate and history cooldowns;
-  raise its minimum interval to 30 seconds, not lower any existing cooldown.
+  these limit sustained page creation and react to observed history limits,
+  while the durable 30-second interval coordinates profiles and processes.
 - Disable host automatic retries for this provider. Persist a stop for detected
   limit/account warnings; an unresolved dispatched turn also prevents another
   Send. A crash does not automatically expire or steal the lock.
@@ -59,3 +61,12 @@ Local source/build checks are not Desktop installation or live acceptance.
 Old M1 evidence remains historical evidence, not proof for changed provider
 bytes. Full M2 checkpoint/resume, real same-session model-to-WebCodex acceptance
 and cognitive-quality experiments remain separate unfinished work.
+
+## 2026-09-27 simplification
+
+The first live CLI reply exposed two UI assumptions that added failure modes
+without protecting an effect boundary. Completion now depends on a new,
+non-empty assistant reply whose generation has stopped and whose text is stable;
+it no longer depends on reply-toolbar controls. The model control selector also
+uses only model-specific test IDs or accessible names, so another neutral
+composer menu such as plugin insertion cannot be clicked by position.

@@ -5,7 +5,6 @@ import { selectModelEffort } from './effort.ts'
 import type { SendSafetyLease } from './send-safety.ts'
 import {
   CHATGPT_ASSISTANT_TURN_SELECTOR,
-  CHATGPT_COMPLETION_ACTION_SELECTOR,
   CHATGPT_COMPOSER_SELECTOR,
   CHATGPT_STOP_BUTTON_SELECTOR,
   CHATGPT_TEMPORARY_CHAT_URL,
@@ -132,7 +131,6 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
     const capabilities = await detectChatGptAccountCapabilities(page)
     await selectModelEffort(page, options.model, capabilities)
     const baselineAssistantCount = await page.locator(CHATGPT_ASSISTANT_TURN_SELECTOR).count()
-    const baselineCopyActionCount = await page.locator(CHATGPT_COMPLETION_ACTION_SELECTOR).count()
 
     if (options.signal?.aborted) throw new LlmError('ChatGPT turn aborted before Send.', 'ABORTED')
 
@@ -148,8 +146,10 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
       )
     }, options.signal)
 
-    const tracker = new CompletionTracker(baselineAssistantCount, baselineCopyActionCount)
+    console.error('[chatgpt-web] 已发送，等待网页回复。')
+    const tracker = new CompletionTracker(baselineAssistantCount)
     const deadline = Date.now() + options.timeoutMs
+    let reportedReply = false
 
     for (;;) {
       if (options.signal?.aborted) {
@@ -162,13 +162,18 @@ export async function runFreshTurn(page: Page, prompt: string, options: TurnOpti
       }
 
       const assistantCount = await page.locator(CHATGPT_ASSISTANT_TURN_SELECTOR).count()
-      const copyActionCount = await page.locator(CHATGPT_COMPLETION_ACTION_SELECTOR).count()
       const running = await page.locator(CHATGPT_STOP_BUTTON_SELECTOR).filter({ visible: true }).count().then(count => count > 0).catch(() => false)
       const text = assistantCount > baselineAssistantCount
         ? await page.locator(CHATGPT_ASSISTANT_TURN_SELECTOR).last().innerText().catch(() => '')
         : ''
 
-      if (tracker.update({ assistantCount, copyActionCount, running, text })) {
+      if (!reportedReply && assistantCount > baselineAssistantCount && text.trim()) {
+        reportedReply = true
+        console.error(`[chatgpt-web] 已看到网页回复；${running ? '仍在生成' : '等待文本稳定'}。`)
+      }
+
+      if (tracker.update({ assistantCount, running, text })) {
+        console.error('[chatgpt-web] 网页回复已稳定，正在读取结果。')
         const final = await extractReasoningText(page)
         if (!final) throw new PostSendFailure('ChatGPT completed without an extractable final answer.')
         await options.sendSafety.complete()

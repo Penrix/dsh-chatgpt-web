@@ -91,10 +91,21 @@ export class ChatGptBrowser {
   }
 
   async newTurnPage(safety: Pick<SendSafetyLease, 'reserveFreshPage'>, signal?: AbortSignal): Promise<Page> {
-    if (!this.context) await safety.reserveFreshPage(signal)
+    const startingBrowser = !this.context
+    if (startingBrowser) {
+      await safety.reserveFreshPage(signal)
+      await this.freshPageSafety.waitForSlot(signal)
+    }
     await this.ensureReady(signal)
     if (!this.context) throw new LlmError('ChatGPT browser context is unavailable.', 'TRANSPORT')
     try {
+      if (startingBrowser) {
+        const startupPage = this.context.pages().find(page => !page.isClosed())
+        if (startupPage) {
+          bindPageFreshSafetyGate(startupPage, this.freshPageSafety)
+          return startupPage
+        }
+      }
       await safety.reserveFreshPage(signal)
       const page = await createFreshPageAfterGate(
         this.freshPageSafety,

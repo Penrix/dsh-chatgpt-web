@@ -184,6 +184,7 @@ describe('ChatGPT model/effort mapping', () => {
   it('recognizes the current localized ChatGPT model button', () => {
     expect(CHATGPT_EFFORT_CONTROL_SELECTOR).toContain('aria-label="选择 ChatGPT 模型"')
     expect(CHATGPT_EFFORT_CONTROL_SELECTOR).toContain('aria-label="Choose ChatGPT model"')
+    expect(CHATGPT_EFFORT_CONTROL_SELECTOR).not.toContain('button[aria-haspopup="menu"][data-tone="neutral"]')
   })
 
   const sol = { localToolsEnabled: false, solAvailable: true, proAvailable: false }
@@ -232,6 +233,19 @@ describe('ChatGPT model/effort mapping', () => {
     expect(probe.state.clicks).toBe(1)
     expect(probe.state.pointers).toBe(0)
     expect(probe.state.enterPresses).toBe(0)
+  })
+
+  it('keeps the verified effort menu open for the following selection step', async () => {
+    const probe = fakeEffortProbe()
+    await probeChatGptEffortCapabilities(probe.page, probe.control, {
+      timeoutMs: 100,
+      activationSettleMs: 5,
+    })
+    await probeChatGptEffortCapabilities(probe.page, probe.control, {
+      timeoutMs: 100,
+      activationSettleMs: 5,
+    })
+    expect(probe.state.clicks).toBe(1)
   })
 
   it('falls back to pointerdown when click does not expose the effort surface', async () => {

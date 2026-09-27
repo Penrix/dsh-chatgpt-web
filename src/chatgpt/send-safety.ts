@@ -6,8 +6,7 @@ import { LlmError } from '@deepseek-ai/dsh-llm'
 
 export const MIN_SEND_INTERVAL_MS = 30_000
 export const MIN_FRESH_PAGE_INTERVAL_MS = 30_000
-// Deliberately shared across profiles and adapters for this Windows user.
-// Account identity is not reliably exposed by the page; sharing is conservative.
+// Shared across profiles and adapters because the user requires account-wide spacing.
 const DEFAULT_ROOT = join(homedir(), '.dsh-chatgpt-web-penrix', 'send-safety')
 
 interface State {
