@@ -11,6 +11,7 @@ import type { BrowserOptions } from './chatgpt/browser.ts'
 import { compilePrompt } from './chatgpt/prompt.ts'
 import { runFreshTurn } from './chatgpt/turn.ts'
 import { SendSafetyLease } from './chatgpt/send-safety.ts'
+import { ChatGptRelay, type RelayFetch } from './chatgpt/relay.ts'
 import { parseReasoningResult, reasoningResultChunks } from './reasoning-result.ts'
 
 export interface AdapterOptions extends BrowserOptions {
@@ -18,6 +19,8 @@ export interface AdapterOptions extends BrowserOptions {
   contextWindow: number
   maxTokens: number
   turnTimeoutMs: number
+  relayBaseUrl?: string
+  relayFetch?: RelayFetch
   onReasoningEnvelopeError?: (diagnostic: { rawText: string; error: unknown }) => void
 }
 
@@ -32,12 +35,20 @@ const MODELS = [
 ] as const
 
 export class ChatGptWebAdapter extends LlmAdapter {
-  private readonly browser: ChatGptBrowser
+  private readonly browser?: ChatGptBrowser
+  private readonly relay?: ChatGptRelay
   private queue: Promise<void> = Promise.resolve()
 
   constructor(private readonly options: AdapterOptions) {
     super()
-    this.browser = new ChatGptBrowser(options)
+    if (options.relayBaseUrl) {
+      this.relay = new ChatGptRelay({
+        baseUrl: options.relayBaseUrl,
+        ...(options.relayFetch ? { fetchImpl: options.relayFetch } : {}),
+      })
+    } else {
+      this.browser = new ChatGptBrowser(options)
+    }
   }
 
   override providerInfo(provider: string): LlmProviderInfo {
@@ -81,7 +92,7 @@ export class ChatGptWebAdapter extends LlmAdapter {
   }
 
   async dispose(): Promise<void> {
-    await this.browser.close()
+    await this.browser?.close().catch(() => {})
   }
 
   private async *serializedTurn(options: GenerateOptions): AsyncGenerator<StreamChunk> {
@@ -93,46 +104,62 @@ export class ChatGptWebAdapter extends LlmAdapter {
 
     try {
       const compiled = compilePrompt(options, this.options.composerMaxChars)
-      const safety = await SendSafetyLease.acquire()
-      try {
-        const page = await this.browser.newTurnPage(safety, options.signal)
+      let resultText: string
+
+      if (this.relay) {
+        const result = await this.relay.run({
+          model: options.model,
+          prompt: compiled.text,
+          maxOutputTokens: this.options.maxTokens,
+          ...(options.signal ? { signal: options.signal } : {}),
+        })
+        resultText = result.text
+      } else {
+        const browser = this.browser
+        if (!browser) throw new Error('ChatGPT Web adapter has no configured transport.')
+        const safety = await SendSafetyLease.acquire()
         try {
-          const result = await runFreshTurn(page, compiled.text, {
-            model: options.model,
-            timeoutMs: this.options.turnTimeoutMs,
-            sendSafety: safety,
-            ...(options.signal ? { signal: options.signal } : {}),
-          })
-          let reasoning: ReturnType<typeof parseReasoningResult>
+          const page = await browser.newTurnPage(safety, options.signal)
           try {
-            reasoning = parseReasoningResult(result.text)
-          } catch (error) {
-            try {
-              this.options.onReasoningEnvelopeError?.({ rawText: result.text, error })
-            } catch {
-              // Diagnostics must never replace the parser failure.
-            }
-            throw error
-          }
-          const callableTools = options.purpose === undefined ? options.tools : undefined
-          const chunks = reasoningResultChunks(reasoning, callableTools)
-          // Estimates, not provider-reported token counts. The independent
-          // composer character limit remains enforced by compilePrompt.
-          const usage = {
-            inputTokens: Math.max(1, Math.ceil(compiled.text.length / 4)),
-            outputTokens: Math.max(1, Math.ceil(result.text.length / 4)),
-          }
-          for (const chunk of chunks) {
-            if (chunk.type === 'finish') {
-              yield { type: 'usage', usage }
-            }
-            yield chunk
+            const result = await runFreshTurn(page, compiled.text, {
+              model: options.model,
+              timeoutMs: this.options.turnTimeoutMs,
+              sendSafety: safety,
+              ...(options.signal ? { signal: options.signal } : {}),
+            })
+            resultText = result.text
+          } finally {
+            await page.close().catch(() => {})
           }
         } finally {
-          await page.close().catch(() => {})
+          await safety.release()
         }
-      } finally {
-        await safety.release()
+      }
+
+      let reasoning: ReturnType<typeof parseReasoningResult>
+      try {
+        reasoning = parseReasoningResult(resultText)
+      } catch (error) {
+        try {
+          this.options.onReasoningEnvelopeError?.({ rawText: resultText, error })
+        } catch {
+          // Diagnostics must never replace the parser failure.
+        }
+        throw error
+      }
+      const callableTools = options.purpose === undefined ? options.tools : undefined
+      const chunks = reasoningResultChunks(reasoning, callableTools)
+      // Estimates, not provider-reported token counts. The independent
+      // composer character limit remains enforced by compilePrompt.
+      const usage = {
+        inputTokens: Math.max(1, Math.ceil(compiled.text.length / 4)),
+        outputTokens: Math.max(1, Math.ceil(resultText.length / 4)),
+      }
+      for (const chunk of chunks) {
+        if (chunk.type === 'finish') {
+          yield { type: 'usage', usage }
+        }
+        yield chunk
       }
     } finally {
       release()
