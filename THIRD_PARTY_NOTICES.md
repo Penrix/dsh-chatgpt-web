@@ -12,6 +12,7 @@ Important references:
 - miuuyy/codex-chatgpt-web — MIT — ChatGPT Web browser transport and diagnostics.
 - xicv/ego-chat — MIT — durable browser transaction / no blind resend after confirmed Send.
 - jackwener/opencli — Apache-2.0 — logged-in browser automation and ChatGPT UI compatibility patterns.
+- MoonTzai/folderbridge-mcp — Apache-2.0 — fresh-page pacing/history-limit architecture and constants studied for the independent TypeScript `FreshPageSafetyGate` implementation; no source code copied.
 
 If implementation code is copied or substantially derived later, add the
 specific file-level copyright/license notice here and preserve the source
