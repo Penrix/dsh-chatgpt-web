@@ -13,7 +13,6 @@ import {
 } from '../lib/index.js'
 
 const baseUrl = process.env.WEBCODEX_BASE_URL
-const bearerToken = process.env.WEBCODEX_BEARER_TOKEN
 const bearerTokenFile = process.env.WEBCODEX_BEARER_TOKEN_FILE
 const project = process.env.WEBCODEX_PROJECT
 const file = process.env.WEBCODEX_FILE || 'README.md'
@@ -32,9 +31,8 @@ for (const [name, value] of [
 ]) {
   if (!value?.trim()) throw new Error(`${name} is required for M3 Windows live acceptance.`)
 }
-const credentialSources = [bearerToken?.trim(), bearerTokenFile?.trim()].filter(Boolean)
-if (credentialSources.length !== 1) {
-  throw new Error('Configure exactly one M3 credential source: WEBCODEX_BEARER_TOKEN_FILE (preferred) or WEBCODEX_BEARER_TOKEN.')
+if (!bearerTokenFile?.trim()) {
+  throw new Error('WEBCODEX_BEARER_TOKEN_FILE is required for M3 Windows live acceptance.')
 }
 if (!Number.isInteger(startLine) || startLine < 1) throw new Error('WEBCODEX_START_LINE must be a positive integer.')
 if (!Number.isInteger(limit) || limit < 1) throw new Error('WEBCODEX_LIMIT must be a positive integer.')
@@ -47,9 +45,8 @@ const evidence = {
     file,
     startLine,
     limit,
-    credentialSource: bearerTokenFile?.trim() ? 'file' : 'inline',
-    bearerTokenFile: bearerTokenFile?.trim() || undefined,
-    bearerToken: bearerToken?.trim() ? '<redacted>' : undefined,
+    credentialSource: 'file',
+    bearerTokenFile: bearerTokenFile.trim(),
   },
   success: null,
   failureProbe: null,
@@ -85,7 +82,7 @@ try {
 
   disposeTool = registerWebCodexReadFilesTool(ctx, {
     baseUrl,
-    ...(bearerTokenFile?.trim() ? { bearerTokenFile } : { bearerToken }),
+    bearerTokenFile,
     project,
   })
 
@@ -128,7 +125,7 @@ try {
     disposeTool()
     disposeTool = registerWebCodexReadFilesTool(ctx, {
       baseUrl,
-      bearerToken,
+      bearerTokenFile,
       project: failureProject,
     })
 

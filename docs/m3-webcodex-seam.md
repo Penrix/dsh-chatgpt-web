@@ -21,7 +21,7 @@ Chosen transport: direct REST `POST /api/actions/read_files`.
 
 Why REST rather than MCP for the first seam: WebCodex source proves the direct Action is an existing stable projection of the same ToolRuntime authority. It preserves Project authorization, Runner routing, path policy and ToolRuntime semantics while avoiding a new MCP client/protocol stack inside this repository. MCP remains the primary ChatGPT integration, but it is not required to prove this minimal DSH-to-runtime seam.
 
-Authentication: HTTP Bearer using an operator-supplied WebCodex credential. At the pinned WebCodex commit, `read_files` requires `project:read` authority; a bearer lacking that scope is rejected before tool execution with HTTP 403. Windows Desktop Local Full Runtime should use its protected managed-user PAT file through `bearerTokenFile`; the credential value is loaded only at request time and is never model-visible. The older inline `bearerToken` form remains supported for compatibility/testing.
+Authentication: HTTP Bearer using the protected managed-user PAT file produced by WebCodex Desktop Local Full Runtime. At the pinned WebCodex commit, `read_files` requires `project:read` authority; a bearer lacking that scope is rejected before tool execution with HTTP 403. The credential value is loaded only at request time and is never model-visible.
 
 The installed root plugin exposes the seam only when `webcodexRead` is configured:
 
