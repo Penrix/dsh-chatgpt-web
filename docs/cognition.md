@@ -464,6 +464,93 @@ The experiment is successful only if output quality remains more stable on the a
 
 ---
 
-## 12. Current one-line model
+## 12. Third major correction: provider authority is not browser-transport ownership
+
+The 2026-09-27 transport reassessment corrected an implementation assumption that had grown underneath the otherwise-correct authority model.
+
+The earlier statement:
+
+> DSH should directly call ChatGPT Web.
+
+is still correct at the **logical provider boundary**.
+
+It was too easy to read it as:
+
+> DSH should personally own Playwright, ChatGPT selectors, Send detection, assistant-turn identity and completion detection.
+
+Those are different claims.
+
+### What triggered the correction
+
+Repeated Windows tests produced a characteristic mismatch:
+
+```text
+human sees ChatGPT reply quickly
+but the DSH provider keeps waiting
+```
+
+Inspection of the direct-browser candidate showed a comparatively simple completion loop built around assistant count, Stop-button state, last-turn text and stability timing.
+
+Inspection of `Penrix/codex-chatgpt-web` showed a much richer specialized transport with semantic submission evidence, response-turn identity, rebinding/recovery, MutationObserver-backed response snapshots and a local Responses bridge.
+
+The current repository had already vendored some `codex-chatgpt-web` surface/session code. The missing lesson was that **partial code reuse is not architectural reuse**.
+
+We had borrowed some selectors while still rebuilding the difficult transport problem.
+
+### Current boundary
+
+The preferred model is now:
+
+```text
+DSH
+= canonical session + context + agent/tool loop
+
+dsh-chatgpt-web
+= DSH-facing semantic adapter
+
+codex-chatgpt-web
+= specialized ChatGPT Web transport
+
+ChatGPT Web
+= reasoning brain
+
+WebCodex
+= durable local body/effect truth
+```
+
+This preserves the earlier architecture while removing an unnecessary duplication.
+
+### Important negative conclusions
+
+#### “DSH owns the provider, therefore DSH must own ChatGPT DOM automation” — rejected
+
+Provider authority means DSH decides what inference is requested and how results enter the canonical Session. It does not require DSH to implement the browser protocol itself.
+
+#### “WebCodex already has browser/computer tools, so use it as the ChatGPT bridge” — not preferred
+
+WebCodex remains valuable precisely because it owns local execution reality. Making it reimplement ChatGPT-specific submission/reply semantics would mix body and brain-transport responsibilities.
+
+#### “We already reused codex-chatgpt-web, so the duplication problem was solved” — rejected
+
+Vendoring selectors/session helpers did not reuse the mature transport state machine. Reuse must occur at the boundary that actually contains the hard-won behavior.
+
+### Current engineering hypothesis
+
+Prefer an API/process seam first:
+
+```text
+DSH GenerateOptions
+→ thin Responses mapping
+→ codex-chatgpt-web local /v1/responses
+→ ChatGPT Web
+→ Responses result
+→ DSH
+```
+
+Do not copy the browser worker into this repository unless a concrete incompatibility proves the relay seam insufficient.
+
+This hypothesis is **not yet live-verified**. It should be tested with the smallest real Windows turn before more direct-browser selector work is accepted as the main path.
+
+## 13. Current one-line model
 
 > **DSH owns the long-lived session/context; DVR keeps the original cognitive performance; ChatGPT Web remains the high-quality reasoning brain; WebCodex is the durable local body. The hard problem is no longer “how to keep a window alive”, but “how to project enough of the right original and active cognition into each model inference without trusting the Web conversation to remember it for us.”**

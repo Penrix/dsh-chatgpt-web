@@ -19,12 +19,12 @@
 
 - 建立：2026-09-22
 - 阶段：正式实现
-- 当前第一目标：完成 **ChatGPT Web ↔ DSH reasoning/tool bridge**，让 ChatGPT Web 作为 DSH 的推理大脑；长期记忆直接采用 `Phant0Meow/dsh-meow-memory`，本地身体采用 WebCodex
+- 当前第一目标：完成 **ChatGPT Web ↔ DSH reasoning/tool bridge**；根据 ADR-0003，先验证 `dsh-chatgpt-web → codex-chatgpt-web /v1/responses → ChatGPT Web` 的薄 transport seam，再在其上证明 DSH tool loop。长期记忆采用 `Phant0Meow/dsh-meow-memory`，本地身体采用 WebCodex
 - 相关项目：
   - `Phant0Meow/dsh-meow-memory`：DSH 跨会话长期记忆层
   - `Penrix/webcodex`：本地身体 / durable execution runtime
   - `Penrix/chatgpt-continuity`：原始对话 DVR / evidence
-  - `Penrix/codex-chatgpt-web`：ChatGPT Web provider 与浏览器自动化经验
+  - `Penrix/codex-chatgpt-web`：首选的 ChatGPT Web 专用 transport / Responses relay；负责浏览器收发、turn identity、completion/recovery 等 Web 细节
 
 ---
 
@@ -230,25 +230,67 @@ D. 每次 inference 都用 fresh conversation
 
 ## 1. 完成 DSH → ChatGPT Web reasoning/tool bridge
 
-最小纯文本 provider 骨架已经进入开发分支。现在不再把“长期记忆是否可行”作为研究门槛；该方向已有 DSH 实践，且长期记忆直接采用 meow-memory。
-
-当前闭环目标：
+2026-09-27 的 Reality check 修正了一个重要实现假设：
 
 ```text
-DSH Session + meow-memory 注入 + DSH tool schemas
+DSH 直接调用 ChatGPT Web
+≠
+DSH 必须自己实现 ChatGPT DOM transport
+```
+
+当前首选路径是：
+
+```text
+DSH Session
+↓
+dsh-chatgpt-web
+  负责 DSH provenance / context / tool semantics
+↓
+codex-chatgpt-web /v1/responses
+  负责 ChatGPT Web 浏览器 transport
 ↓
 ChatGPT Web
 ↓
-final 或 structured action proposal
+Responses result
 ↓
-DSH 校验并执行 tool
-↓
-tool result 回到 Session
-↓
-下一次 ChatGPT Web inference
+DSH
 ```
 
-普通 DSH tools（尤其 memory_*）不依赖 ChatGPT-native MCP。
+原因不是抽象“解耦”，而是已经观察到现实差异：
+
+- 当前 direct-browser M1 在真实 Windows 上出现过“网页已回复、provider 仍长时间等待”的症状；
+- direct-browser completion 主要依赖 assistant DOM 数量、Stop 状态、last-turn text 与稳定窗口；
+- `codex-chatgpt-web` 已经有更完整的 submission evidence、turn identity、DOM rebind/recovery、MutationObserver、completion evidence 与 Responses bridge；
+- 本仓库过去只 vendored 了其中部分 surface/session 代码，没有真正复用最困难的 transport state machine。
+
+因此先做最小验证，而不是继续补 selector：
+
+```text
+A. DSH 发一个最简单 inference
+B. relay 到 codex-chatgpt-web
+C. ChatGPT Web 回复
+D. DSH 真正收到回复
+```
+
+通过后再验证：
+
+```text
+DSH tool schema
+↓
+ChatGPT Web action proposal
+↓
+DSH ToolRuntime 执行
+↓
+tool result 写回 canonical Session
+↓
+第二次 inference
+↓
+final
+```
+
+这里借的是 `codex-chatgpt-web` 的 transport，不是把 DSH 的 Session/Agent authority 交给 Codex。
+
+现有 direct-browser M1 暂时保留为 fallback/control 和安全经验来源，但在 relay 路线被真实证据否掉以前，不再把逐个修 ChatGPT selector 当主线。
 
 ## 2. 再接 WebCodex 作为身体
 
@@ -414,7 +456,7 @@ C. negative history
 - [docs/formation-history.md](docs/formation-history.md) — 这几轮讨论里哪些判断被推翻、为什么被推翻；后续不要只读最终结论。
 - [docs/architecture.md](docs/architecture.md) — DSH、meow-memory、DVR、ChatGPT Web、WebCodex、Codex/ACP 的 authority 与接口边界。
 - [docs/meow-memory-integration.md](docs/meow-memory-integration.md) — 为什么直接采用 meow-memory、它负责什么、与 DVR/DSH/provider/WebCodex 的边界。
-- [docs/adr/](docs/adr/) — Architecture Decision Records；关键决定的“为什么”。
+- [docs/adr/](docs/adr/) — Architecture Decision Records；关键决定的“为什么”。ADR-0003 记录了为什么把 ChatGPT Web 专用 transport 从 DSH direct-browser 主路径移交给 `codex-chatgpt-web`。
 - [docs/roadmap.md](docs/roadmap.md) — 当前开发顺序。
 - [docs/acceptance.md](docs/acceptance.md) — 可执行验收合同。
 

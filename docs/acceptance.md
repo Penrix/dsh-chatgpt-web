@@ -12,6 +12,9 @@ These are product invariants, not aspirational prose.
 - `source.kind=user` and `source.kind=plugin` are never conflated.
 - After Send may have occurred, the provider does not blindly resubmit.
 - Final output must have positive completion evidence before being committed.
+- On the preferred primary path, ChatGPT-specific Send/response/completion semantics are delegated to `codex-chatgpt-web`; `dsh-chatgpt-web` must not maintain a competing primary DOM-completion loop.
+- Reusing `codex-chatgpt-web` transport must not transfer canonical Session/history or DSH tool-loop authority to Codex.
+- Before M1 is accepted, one real Windows `DSH → /v1/responses → ChatGPT Web → DSH` text turn must be observed end to end.
 
 ## B. Tool-loop invariants
 
@@ -56,7 +59,7 @@ A test that keeps every component alive does not prove durable continuity.
 
 ## F. First end-to-end acceptance scenario
 
-1. Start one DSH Session using the ChatGPT Web provider.
+1. Start one DSH Session using the DSH-facing ChatGPT Web provider routed through the accepted transport boundary.
 2. meow-memory injects long-term context.
 3. User asks for a small fact/project-memory operation.
 4. ChatGPT proposes `memory_search`.

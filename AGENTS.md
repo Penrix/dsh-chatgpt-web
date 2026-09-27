@@ -116,14 +116,20 @@ Preserve explicit states such as:
 
 The ChatGPT Web conversation is disposable; duplicate side effects are not.
 
+Also preserve this distinction:
+
+> “DSH directly calls ChatGPT Web” describes logical provider authority, not a requirement that DSH itself own Playwright/DOM automation.
+
+Per ADR-0003, prefer the specialized `codex-chatgpt-web` transport boundary for ChatGPT-specific browser mechanics while keeping DSH authoritative for Session/context/tool semantics.
+
 ## 8. Keep repository boundaries clean
 
 Current intended ownership:
 
-- `Penrix/dsh-chatgpt-web`: DSH ↔ ChatGPT Web provider, context/session experiments, context projection.
+- `Penrix/dsh-chatgpt-web`: DSH-facing provider semantics, provenance/tool-loop integration, context/session experiments and context projection. It should not be the primary owner of ChatGPT-specific DOM transport after ADR-0003.
+- `Penrix/codex-chatgpt-web`: preferred specialized ChatGPT Web transport / Responses relay. Reuse its browser submission, turn identity, completion and recovery machinery through a seam before copying it.
 - `Penrix/webcodex`: durable local body/execution substrate.
 - `Penrix/chatgpt-continuity`: raw conversation DVR/evidence.
-- `Penrix/codex-chatgpt-web`: provider/browser-automation experience and Codex-specific model bridge.
 
 Do not merge repositories merely to reduce conceptual count. Extract interfaces first.
 
@@ -131,12 +137,14 @@ Do not merge repositories merely to reduce conceptual count. Extract interfaces 
 
 Prefer this order unless new evidence changes it:
 
-1. prove a minimal DSH → ChatGPT Web → DSH turn;
-2. implement DSH-Brain-Bridge-style final/action-proposal tool-loop semantics;
+1. prove a minimal DSH → `codex-chatgpt-web /v1/responses` → ChatGPT Web → DSH turn;
+2. prove DSH-Brain-Bridge-style final/action-proposal tool-loop semantics over that transport;
 3. verify meow-memory snapshots and memory_* tools survive the provider bridge;
 4. integrate WebCodex as the durable effect/body layer;
 5. integrate DVR/raw-log replay for original evidence where structured memory is insufficient;
 6. only then optimize retrieval/indexing, Web-conversation lifetime policy and UX.
+
+The existing direct-browser M1 remains fallback/control material. Do not continue selector-by-selector work on it as the default route unless the relay experiment produces concrete evidence that the specialized transport cannot satisfy a required invariant.
 
 Do not begin by rebuilding WebCodex or inventing a universal memory system.
 

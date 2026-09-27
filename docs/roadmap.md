@@ -16,11 +16,47 @@ Established:
 - provider retries fail closed after an ambiguous Send.
 - no vector/semantic memory layer is added without a demonstrated retrieval gap.
 
-Relevant ADRs: ADR-0001, ADR-0002.
+Relevant ADRs: ADR-0001, ADR-0002, ADR-0003.
 
-## Milestone 1 — DSH ↔ ChatGPT Web tool loop
+## Milestone 1 — DSH ↔ ChatGPT Web provider + tool loop
 
 Execution issue: [#1](../../issues/1)
+
+ADR-0003 corrects the implementation route without changing the product goal.
+
+### M1A — prove the transport seam
+
+Preferred primary path:
+
+```text
+DSH messages
+→ dsh-chatgpt-web semantic/Responses mapping
+→ codex-chatgpt-web local /v1/responses
+→ ChatGPT Web
+→ Responses result
+→ DSH
+```
+
+First acceptance is deliberately small:
+
+```text
+DSH sends a trivial request such as "reply exactly OK"
+→ ChatGPT Web visibly answers
+→ DSH receives the answer as the same inference result
+```
+
+Required:
+
+- preserve message provenance;
+- preserve model/effort intent needed by the chosen Web route;
+- return positive completion evidence;
+- keep post-Send ambiguity fail-closed inside the specialized transport;
+- do not make DSH reconstruct reply completion from a competing primary DOM loop;
+- do not give canonical Session authority to Codex merely because its transport is reused.
+
+The existing direct-browser implementation is retained as fallback/control and safety evidence, but is frozen as the default investment path until this relay experiment is resolved.
+
+### M1B — prove the DSH tool loop over that transport
 
 Goal:
 
@@ -35,15 +71,16 @@ DSH messages + exact tool schemas
 
 Required:
 
-- preserve message provenance;
 - transport exact tool names/descriptions/schemas;
-- parse one unambiguous final/action envelope;
+- parse one unambiguous final/action result;
 - reject malformed or unknown tool proposals;
 - emit normal DSH tool-call chunks;
-- never make ChatGPT Web execute local effects directly;
-- keep post-Send ambiguity fail-closed.
+- DSH executes tools; the transport never fabricates local effects;
+- tool results return to the same canonical DSH Session before the next inference.
 
-Exit condition: a real DSH session can call a harmless test tool through ChatGPT Web and continue after the result.
+Exit condition: a real DSH session can call a harmless test tool through the relay-backed ChatGPT Web provider and continue after the result.
+
+This milestone does **not** require WebCodex yet. WebCodex remains Milestone 3.
 
 ## Milestone 2 — meow-memory end-to-end
 

@@ -2,7 +2,7 @@
 
 > Status: working architecture
 >
-> This document describes ownership and seams. It intentionally does not choose a final browser automation stack, retrieval database, or managed-conversation lifetime before experiments.
+> This document describes ownership and seams. As of ADR-0003, the preferred ChatGPT-specific browser transport owner is `Penrix/codex-chatgpt-web`; retrieval strategy and managed-conversation lifetime remain experimental.
 
 ---
 
@@ -36,7 +36,21 @@ For this project, long-lived truth is split by domain instead of being forced in
 +----------------+      | agent loop / tool truth |
                         +------------+------------+
                                      |
-                                  LLM call
+                              provider semantics
+                                     |
+                                     v
+                        +-------------------------+
+                        |   dsh-chatgpt-web       |
+                        | DSH-facing adapter      |
+                        +------------+------------+
+                                     |
+                              Responses transport
+                                     |
+                                     v
+                        +-------------------------+
+                        | codex-chatgpt-web       |
+                        | ChatGPT Web transport   |
+                        +------------+------------+
                                      |
                                      v
                         +-------------------------+
@@ -45,7 +59,7 @@ For this project, long-lived truth is split by domain instead of being forced in
                         | disposable inference    |
                         +------------+------------+
                                      |
-                           final / action proposal
+                         response / action intent
                                      |
                                      v
                         +-------------------------+
@@ -70,6 +84,8 @@ Codex/ACP may appear inside or beside WebCodex as a coding worker.
 | Long-lived reasoning session | DSH | local filesystem effect truth; original pre-DSH Web DVR |
 | Structured cross-session memory | dsh-meow-memory | raw historical truth; local effect truth |
 | Raw conversation evidence | Conversation DVR / DSH raw session log | current task progress; filesystem state |
+| DSH-facing model semantics | `dsh-chatgpt-web` + DSH | ChatGPT DOM details; canonical local effects |
+| ChatGPT Web transport | `codex-chatgpt-web` | canonical Session/history; local effect truth |
 | Web-model inference | ChatGPT Web | canonical history; durable task identity |
 | Local effects | WebCodex / Runner / underlying OS reality | artistic cognition |
 | Coding implementation context | Codex / ACP when delegated | full high-semantic artistic state |
@@ -145,25 +161,83 @@ If in the future one physical store implements both, the provenance/authority di
 
 ## 4. ChatGPT Web provider boundary
 
-A provider should conceptually implement:
+The provider boundary is now split into two responsibilities.
+
+### 4.1 DSH-facing semantic adapter
+
+`dsh-chatgpt-web` should conceptually implement:
 
 ```text
 Input:
   canonical DSH inference request
   + explicit projected context
+  + exact exposed DSH tool schemas
   + provider policy
 
 Output:
-  assistant/model result
-  + provider delivery evidence
-  + optional browser/conversation correlation
+  DSH-consumable model result
+  + delivery/completion evidence
+  + optional provider correlation
 ```
 
-It should not define:
+It owns:
 
-- what the task ultimately is;
+- DSH message/provenance mapping;
+- context projection transport;
+- tool-schema exposure;
+- result/action translation back into normal DSH chunks;
+- preserving DSH as the canonical Session and tool-loop authority.
+
+It should **not** need to own the ChatGPT DOM on the primary path.
+
+### 4.2 Specialized Web transport
+
+Per ADR-0003, the preferred primary transport is `Penrix/codex-chatgpt-web` through its local Responses seam.
+
+That component owns the ChatGPT-specific mechanics:
+
+- browser/session hosting;
+- prompt attachment;
+- Send/submission evidence;
+- assistant-turn identity;
+- streaming/DOM observation;
+- completion detection;
+- transport-level recovery;
+- conversion to Responses results.
+
+The intended seam is:
+
+```text
+DSH
+→ dsh-chatgpt-web semantic mapping
+→ codex-chatgpt-web /v1/responses
+→ ChatGPT Web
+→ Responses result
+→ dsh-chatgpt-web
+→ DSH
+```
+
+This is an architecture direction, not a claim that the integration is already live-qualified.
+
+The existing direct-browser path in this repository remains useful as fallback/control material and as a source of safety lessons. It is not the default place to continue selector-by-selector investment while the relay seam remains untested.
+
+### 4.3 Authority must not leak across the transport
+
+Using a Codex-oriented transport must not turn Codex into the canonical agent.
+
+The relay may carry:
+
+- model input;
+- model output;
+- tool descriptions/proposals;
+- provider correlation.
+
+It must not become authoritative for:
+
+- DSH task identity;
+- canonical DSH history;
 - which old evidence is authoritative;
-- whether a local effect actually occurred;
+- whether a DSH/WebCodex local effect actually occurred;
 - long-lived memory policy.
 
 ### Provider-side conversation mapping
@@ -181,8 +255,6 @@ last confirmed send/result markers
 If the mapping is stale, missing or inconsistent with DSH canonical state, discard/rebuild it.
 
 Do not infer canonical DSH state from “the latest ChatGPT conversation”.
-
----
 
 ## 5. Conversation lifetime must stay configurable
 
@@ -331,7 +403,7 @@ The following projects are relevant references:
 - `WLV-ZEDD/dsh-chatgpt-web`
   - another direct DSH ↔ ChatGPT Web implementation path to compare.
 - `Penrix/codex-chatgpt-web`
-  - hard-won browser automation, compaction and Web-provider experience.
+  - preferred specialized ChatGPT Web transport/Responses relay per ADR-0003; hard-won browser submission, response identity, completion and recovery behavior should be reused at this boundary rather than copied piecemeal.
 - `Penrix/webcodex`
   - local body / durable execution substrate.
 - `Phant0Meow/dsh-meow-memory`
@@ -347,13 +419,26 @@ Do not merge source trees until ownership and interface boundaries are proven.
 
 ## 10. First implementation slices
 
-### Slice 1 — provider skeleton
+### Slice 1 — transport relay spike
 
-A minimal DSH → fresh ChatGPT Web → DSH text provider already exists on the development branch.
+The existing direct-browser provider proves useful pieces but is no longer the preferred primary transport.
+
+First prove the thinner seam:
+
+```text
+DSH GenerateOptions
+→ dsh-chatgpt-web Responses mapping
+→ codex-chatgpt-web local /v1/responses
+→ ChatGPT Web
+→ Responses result
+→ DSH
+```
+
+Start with one real Windows text inference. Do not add WebCodex or memory complexity until this seam is proven.
 
 ### Slice 2 — DSH tool loop
 
-Add DSH-Brain-Bridge style semantics:
+Once text transport works, preserve DSH-Brain-Bridge style semantics:
 
 ```text
 GenerateOptions + exact DSH tool schemas

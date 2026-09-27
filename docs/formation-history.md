@@ -393,3 +393,270 @@ The most important sentence is:
 8. WebCodex remains the desired durable body/effect layer.
 9. Codex remains useful as a coding worker, not assumed artistic cognition host.
 10. Context projection, Web-conversation lifetime policy and DVR replay strategy are the next real research problems.
+
+
+---
+
+## Stage 13 — a sequencing question reopened the transport assumption
+
+After several days of Windows M1 work, the immediate question was whether the project should first finish:
+
+```text
+Web → WebCodex
+```
+
+or:
+
+```text
+DSH → Web
+```
+
+before attempting the full chain.
+
+Re-reading the original roadmap showed that the intended milestone order had been:
+
+```text
+M1  DSH ↔ ChatGPT Web
+M2  meow-memory
+M3  WebCodex body
+```
+
+That part was not itself wrong.
+
+The hidden assumption inside M1 was the problem.
+
+“DSH ↔ ChatGPT Web” had quietly become equivalent to:
+
+```text
+DSH itself owns the browser
+and directly implements ChatGPT DOM send/reply semantics
+```
+
+The roadmap had specified the **logical seam**, but later implementation treated one particular transport mechanism as if it were part of the product requirement.
+
+This distinction had not been made explicit enough.
+
+---
+
+## Stage 14 — the live symptom made the assumption suspicious
+
+The user challenged the current direction using concrete behavior from repeated Windows tests:
+
+> ChatGPT Web visibly replies almost immediately, yet the program can keep waiting for a long time and report that it cannot see the reply.
+
+This mattered because the problem was no longer “some obscure edge case”.
+
+It suggested that the project might be spending most of its effort debugging a fragile observation layer rather than proving the DSH architecture.
+
+The correct next move was not another selector guess.
+
+It was to inspect what the current transport actually does and compare it with already-working code we own.
+
+---
+
+## Stage 15 — Reality check of the direct-browser M1
+
+The current M1 candidate was inspected rather than trusting the accumulated task contracts.
+
+Its primary path is:
+
+```text
+DSH
+→ ChatGptWebAdapter
+→ ChatGptBrowser
+→ runFreshTurn()
+→ Playwright
+→ chatgpt.com
+```
+
+After Send, the simplified completion logic mainly relies on:
+
+```text
+assistant DOM count increased
++ Stop button no longer visible
++ last assistant text is non-empty
++ text remains stable for a short period
+```
+
+The configured turn timeout can be much longer than the visible reply latency.
+
+This gives a concrete failure mechanism for the observed symptom:
+
+```text
+ChatGPT has visibly answered
+but the assumed assistant identity/selector does not match the live DOM
+→ provider never sees assistantCount advance
+→ provider keeps waiting
+```
+
+Recent work such as reply-detection selector changes was therefore treating the symptom locally.
+
+Those patches may be valid within the direct-browser implementation, but they do not answer the larger question:
+
+> Why are we maintaining a second ChatGPT Web transport at all?
+
+---
+
+## Stage 16 — comparison with codex-chatgpt-web exposed shallow reuse
+
+The next comparison was against `Penrix/codex-chatgpt-web`, which had already been run successfully in the user's environment.
+
+The surprising result was not that the repositories were unrelated.
+
+`dsh-chatgpt-web/src/chatgpt/session.ts` explicitly says that it was vendored from `codex-chatgpt-web`.
+
+So the earlier work **did** know about the project.
+
+But it reused mostly surface/session pieces such as selectors and effort controls, while leaving behind much of the transport machinery that makes the working bridge robust.
+
+The specialized implementation contains concepts such as:
+
+- prompt attachment integrity;
+- semantic submission acceptance;
+- baseline turn identities;
+- assistant-turn binding/rebinding;
+- MutationObserver-based response snapshots;
+- DOM recovery;
+- explicit completion actions;
+- richer response streaming/translation;
+- a local Responses bridge.
+
+This produced a new diagnosis:
+
+> The mistake was not “we forgot codex-chatgpt-web exists”. The mistake was **reusing the easy layer while independently rebuilding the hard layer**.
+
+That is a more useful lesson than blaming any one broken selector.
+
+---
+
+## Stage 17 — fourth major correction: provider authority is not transport ownership
+
+A key conceptual distinction was then made.
+
+We still want:
+
+```text
+DSH
+= canonical session / context / tool-loop authority
+
+ChatGPT Web
+= reasoning brain
+```
+
+But that does **not** require:
+
+```text
+DSH code
+= owner of ChatGPT-specific DOM automation
+```
+
+The cleaner separation is:
+
+```text
+DSH
+   │
+   │ provider semantics / Responses request
+   ▼
+dsh-chatgpt-web
+   │
+   │ transport seam
+   ▼
+codex-chatgpt-web
+   │
+   │ specialized browser transport
+   ▼
+ChatGPT Web
+```
+
+and independently:
+
+```text
+DSH tool loop
+   ↓
+WebCodex
+   ↓
+Windows / files / Git / shell / jobs
+```
+
+This also corrected a tempting alternative: WebCodex should not be used merely as a generic bridge from DSH to ChatGPT Web. Its browser/computer abilities do not make it the natural owner of ChatGPT-specific turn semantics.
+
+The components now have cleaner jobs:
+
+```text
+DSH
+= who the long-lived agent/session is
+
+codex-chatgpt-web
+= how we reliably talk to the Web brain
+
+ChatGPT Web
+= the brain
+
+WebCodex
+= how the agent affects local reality
+
+DVR / meow-memory
+= original evidence and structured durable memory
+```
+
+---
+
+## Stage 18 — new engineering hypothesis, not yet a live result
+
+Static inspection showed that `codex-chatgpt-web` already exposes a local `POST /v1/responses` path and parses ordinary Responses-style fields including model, instructions, input and tools.
+
+That makes the smallest next experiment:
+
+```text
+DSH
+→ dsh-chatgpt-web semantic adapter
+→ codex-chatgpt-web /v1/responses
+→ ChatGPT Web
+→ Responses result
+→ DSH
+```
+
+First proof:
+
+```text
+DSH asks: reply exactly OK
+→ ChatGPT Web answers
+→ DSH receives OK
+```
+
+Second proof:
+
+```text
+DSH exposes harmless tool
+→ ChatGPT Web proposes/calls it
+→ DSH executes it
+→ tool result enters the same canonical Session
+→ second inference reaches final
+```
+
+Only after those should WebCodex be added to the same tool universe.
+
+Important evidence discipline:
+
+> This is the current preferred engineering direction, not a claim that the relay path is already LIVE VERIFIED.
+
+The direct-browser implementation should therefore be frozen as the default investment path while this experiment is performed. If the relay fails for a concrete reason, that evidence can reopen the decision.
+
+---
+
+## Stage 19 — what this discussion added to the durable model
+
+The discussion did not replace the existing authority architecture. It sharpened it.
+
+The durable conclusions are now:
+
+1. The original M1 milestone — prove DSH ↔ ChatGPT Web before WebCodex — was conceptually sound.
+2. The phrase “DSH directly calls ChatGPT Web” was underspecified and was incorrectly allowed to harden into “DSH must own browser automation”.
+3. Logical provider authority and physical transport ownership are different concerns.
+4. `codex-chatgpt-web` is not merely reference code; it is now the preferred specialized transport component to integrate first.
+5. Reusing a few selectors from a mature transport is not meaningful reuse if the difficult send/identity/completion machinery is rebuilt independently.
+6. WebCodex is still required, but as the body/effect authority behind DSH tools, not as a substitute Web transport.
+7. DSH must still own the tool loop even when `codex-chatgpt-web` is used for transport; we are borrowing the wire, not Codex's agent authority.
+8. The shortest Reality test is no longer another selector patch. It is a thin DSH → Responses relay → Web → DSH spike.
+9. A successful text relay would prove only model transport. It would not yet prove DSH tool-loop correctness, WebCodex integration, memory continuity or high-semantic cognition stability.
+10. Future task contracts must re-check component boundaries against current code before extending a debugging path merely because earlier packets assumed it.
