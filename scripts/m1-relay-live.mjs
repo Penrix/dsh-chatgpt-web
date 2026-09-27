@@ -1,4 +1,4 @@
-import { ChatGptWebAdapter } from '../lib/index.js'
+import { ChatGptWebAdapter, SendSafetyLease } from '../lib/index.js'
 
 const relayBaseUrl = process.env.CODEX_CHATGPT_WEB_BASE_URL?.trim() || 'http://127.0.0.1:17841/v1'
 const model = process.env.DSH_CHATGPT_WEB_MODEL?.trim() || 'chatgpt-web/high'
@@ -18,10 +18,19 @@ const adapter = new ChatGptWebAdapter({
   relayBaseUrl,
 })
 
+const endpoint = new URL('/v1/responses', relayBaseUrl)
+const preflight = await fetch(endpoint, { method: 'GET' })
+if (preflight.status !== 426) {
+  throw new Error('M1A relay preflight expected HTTP 426, got ' + preflight.status)
+}
+await preflight.body?.cancel().catch(() => {})
+
+const safety = await SendSafetyLease.acquire()
 try {
   let text = ''
   let finishKind
-  for await (const chunk of adapter.stream({
+  await safety.dispatch(async () => {
+    for await (const chunk of adapter.stream({
     provider: 'chatgpt-web',
     model,
     messages: [{
@@ -29,10 +38,11 @@ try {
       content: [{ type: 'text', text: 'Reply with exactly OK.' }],
       source: { kind: 'user' },
     }],
-  })) {
-    if (chunk.type === 'text-delta') text += chunk.text
-    if (chunk.type === 'finish') finishKind = chunk.reason.kind
-  }
+    })) {
+      if (chunk.type === 'text-delta') text += chunk.text
+      if (chunk.type === 'finish') finishKind = chunk.reason.kind
+    }
+  })
 
   if (text !== 'OK') {
     throw new Error('M1A relay live acceptance expected exact OK, got ' + JSON.stringify(text))
@@ -41,6 +51,7 @@ try {
     throw new Error('M1A relay live acceptance expected stop finish, got ' + String(finishKind))
   }
 
+  await safety.complete()
   process.stdout.write(JSON.stringify({
     status: 'PASS',
     evidence: 'DSH adapter -> codex-chatgpt-web Responses relay -> ChatGPT Web -> DSH adapter',
@@ -49,5 +60,6 @@ try {
     answer: text,
   }, null, 2) + '\n')
 } finally {
+  await safety.release()
   await adapter.dispose()
 }
