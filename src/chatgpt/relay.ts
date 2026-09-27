@@ -57,10 +57,7 @@ export function extractRelayAssistantText(body: unknown): string {
   const root = record(body)
   if (!root) throw new Error('codex-chatgpt-web relay returned a non-object response.')
 
-  if (root.error !== undefined && root.error !== null) {
-    throw new Error('codex-chatgpt-web relay returned an error response.')
-  }
-  if (root.status !== undefined && root.status !== 'completed') {
+  if (root.status !== 'completed') {
     throw new Error('codex-chatgpt-web relay response status is ' + String(root.status) + ', not completed.')
   }
   if (!Array.isArray(root.output)) {
@@ -70,12 +67,12 @@ export function extractRelayAssistantText(body: unknown): string {
   const parts: string[] = []
   for (const itemValue of root.output) {
     const item = record(itemValue)
-    if (!item || item.type !== 'message' || item.role !== 'assistant' || item.phase === 'commentary') continue
+    if (!item || item.type !== 'message' || item.role !== 'assistant' || item.status !== 'completed' || item.phase === 'commentary') continue
     if (!Array.isArray(item.content)) continue
     for (const contentValue of item.content) {
       const part = record(contentValue)
       if (!part) continue
-      if ((part.type === 'output_text' || part.type === 'text') && typeof part.text === 'string') {
+      if (part.type === 'output_text' && typeof part.text === 'string') {
         parts.push(part.text)
       }
     }
