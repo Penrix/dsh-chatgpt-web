@@ -41,7 +41,7 @@ export class ChatGptWebAdapter extends LlmAdapter {
 
   constructor(private readonly options: AdapterOptions) {
     super()
-    if (options.relayBaseUrl) {
+    if (options.relayBaseUrl !== undefined) {
       this.relay = new ChatGptRelay({
         baseUrl: options.relayBaseUrl,
         ...(options.relayFetch ? { fetchImpl: options.relayFetch } : {}),
@@ -92,7 +92,7 @@ export class ChatGptWebAdapter extends LlmAdapter {
   }
 
   async dispose(): Promise<void> {
-    await this.browser?.close().catch(() => {})
+    await this.browser?.close()
   }
 
   private async *serializedTurn(options: GenerateOptions): AsyncGenerator<StreamChunk> {
