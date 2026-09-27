@@ -19,7 +19,7 @@
 
 - 建立：2026-09-22
 - 阶段：正式实现
-- 当前第一目标：完成 **ChatGPT Web ↔ DSH reasoning/tool bridge**；根据 ADR-0003，先验证 `dsh-chatgpt-web → codex-chatgpt-web /v1/responses → ChatGPT Web` 的薄 transport seam，再在其上证明 DSH tool loop。长期记忆采用 `Phant0Meow/dsh-meow-memory`，本地身体采用 WebCodex
+- 当前第一目标：完成 **ChatGPT Web ↔ DSH reasoning/tool bridge**；根据 ADR-0004，先验证 `dsh-chatgpt-web → codex-chatgpt-web /v1/responses → ChatGPT Web` 的薄 transport seam，再在其上证明 DSH tool loop。长期记忆采用 `Phant0Meow/dsh-meow-memory`，本地身体采用 WebCodex
 - 相关项目：
   - `Phant0Meow/dsh-meow-memory`：DSH 跨会话长期记忆层
   - `Penrix/webcodex`：本地身体 / durable execution runtime
@@ -458,7 +458,7 @@ C. negative history
 - [docs/formation-history.md](docs/formation-history.md) — 这几轮讨论里哪些判断被推翻、为什么被推翻；后续不要只读最终结论。
 - [docs/architecture.md](docs/architecture.md) — DSH、meow-memory、DVR、ChatGPT Web、WebCodex、Codex/ACP 的 authority 与接口边界。
 - [docs/meow-memory-integration.md](docs/meow-memory-integration.md) — 为什么直接采用 meow-memory、它负责什么、与 DVR/DSH/provider/WebCodex 的边界。
-- [docs/adr/](docs/adr/) — Architecture Decision Records；关键决定的“为什么”。ADR-0003 记录了为什么把 ChatGPT Web 专用 transport 从 DSH direct-browser 主路径移交给 `codex-chatgpt-web`。
+- [docs/adr/](docs/adr/) — Architecture Decision Records；关键决定的“为什么”。ADR-0004 记录了为什么把 ChatGPT Web 专用 transport 从 DSH direct-browser 主路径移交给 `codex-chatgpt-web`。
 - [docs/roadmap.md](docs/roadmap.md) — 当前开发顺序。
 - [docs/acceptance.md](docs/acceptance.md) — 可执行验收合同。
 
