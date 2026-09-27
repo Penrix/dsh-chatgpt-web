@@ -39,11 +39,19 @@ function Invoke-Captured {
     [switch]$AllowFailure
   )
 
+  $previousErrorActionPreference = $ErrorActionPreference
   Push-Location $RepoRoot
   try {
+    # Windows PowerShell 5.1 turns native stderr into non-terminating
+    # NativeCommandError records. With the script-wide preference set to Stop,
+    # those expected records would terminate before LASTEXITCODE can be read.
+    # Capture them under Continue, then restore the caller preference and
+    # enforce failure semantics ourselves below.
+    $ErrorActionPreference = 'Continue'
     $output = @(& $FilePath @Arguments 2>&1)
     $code = $LASTEXITCODE
   } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
     Pop-Location
   }
 
