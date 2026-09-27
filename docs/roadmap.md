@@ -16,13 +16,13 @@ Established:
 - provider retries fail closed after an ambiguous Send.
 - no vector/semantic memory layer is added without a demonstrated retrieval gap.
 
-Relevant ADRs: ADR-0001, ADR-0002, ADR-0003.
+Relevant ADRs: ADR-0001, ADR-0002, ADR-0004.
 
 ## Milestone 1 — DSH ↔ ChatGPT Web provider + tool loop
 
 Execution issue: [#1](../../issues/1)
 
-ADR-0003 corrects the implementation route without changing the product goal.
+ADR-0004 corrects the implementation route without changing the product goal.
 
 ### M1A — prove the transport seam
 
