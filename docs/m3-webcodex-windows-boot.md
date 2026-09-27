@@ -129,7 +129,7 @@ webcodexRead:
   project: agent:<runner-client-id>:<project-id>
 ```
 
-The older inline `bearerToken` form remains supported for compatibility/testing, but Windows Desktop acceptance should use `bearerTokenFile`.
+`bearerTokenFile` is the only supported M3 credential handoff. The token value itself is not accepted as plugin configuration.
 
 The seam reads the protected token file only at request time, in-process, and sends the value only as the HTTP Authorization header to the configured WebCodex Server. The token value is never added to the DSH model-facing tool schema or canonical result.
 

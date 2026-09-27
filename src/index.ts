@@ -9,19 +9,11 @@ export const name = 'penrix-llm-chatgpt-web'
 export const inject = ['llm']
 export const PROVIDER = 'chatgpt-web'
 
-export type WebCodexReadConfig =
-  | {
-      baseUrl: string
-      bearerToken: string
-      bearerTokenFile?: never
-      project: string
-    }
-  | {
-      baseUrl: string
-      bearerToken?: never
-      bearerTokenFile: string
-      project: string
-    }
+export interface WebCodexReadConfig {
+  baseUrl: string
+  bearerTokenFile: string
+  project: string
+}
 
 export interface Config {
   profileDir?: string
@@ -45,11 +37,6 @@ export const Config: z<Config> = z.object({
   contextWindow: z.number().step(1).min(1).default(90_000),
   maxTokens: z.number().step(1).min(1).default(16_384),
   webcodexRead: z.union([
-    z.object({
-      baseUrl: z.string().required(),
-      bearerToken: z.string().required(),
-      project: z.string().required(),
-    }),
     z.object({
       baseUrl: z.string().required(),
       bearerTokenFile: z.string().required(),
