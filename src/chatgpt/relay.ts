@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 export type RelayFetch = typeof fetch
 
 export interface ChatGptRelayOptions {
@@ -99,6 +101,29 @@ function errorSummary(raw: string): string | undefined {
   }
 }
 
+export function buildRelayRequest(turn: ChatGptRelayTurn): Record<string, unknown> {
+  const threadId = `dsh_${randomUUID()}`
+  const turnId = `turn_${randomUUID()}`
+  return {
+    model: turn.model,
+    input: [{
+      type: 'message',
+      role: 'user',
+      content: [{ type: 'input_text', text: turn.prompt }],
+      internal_chat_message_metadata_passthrough: { turn_id: turnId },
+    }],
+    stream: false,
+    max_output_tokens: turn.maxOutputTokens,
+    prompt_cache_key: threadId,
+    client_metadata: {
+      'x-codex-turn-metadata': JSON.stringify({
+        thread_id: threadId,
+        turn_id: turnId,
+      }),
+    },
+  }
+}
+
 export class ChatGptRelay {
   private readonly endpoint: string
   private readonly fetchImpl: RelayFetch
@@ -108,35 +133,11 @@ export class ChatGptRelay {
     this.fetchImpl = options.fetchImpl ?? fetch
   }
 
-  async assertReachable(signal?: AbortSignal): Promise<void> {
-    let response: Response
-    try {
-      response = await this.fetchImpl(this.endpoint, {
-        method: 'GET',
-        ...(signal ? { signal } : {}),
-      })
-    } catch (error) {
-      throw new Error('codex-chatgpt-web relay is unreachable before Send.', { cause: error })
-    }
-    await response.body?.cancel().catch(() => {})
-    if (response.status !== 426) {
-      throw new Error(
-        'codex-chatgpt-web relay preflight expected HTTP 426 from GET /v1/responses, got '
-        + response.status + '.',
-      )
-    }
-  }
-
   async run(turn: ChatGptRelayTurn): Promise<ChatGptRelayResult> {
     const response = await this.fetchImpl(this.endpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: turn.model,
-        input: turn.prompt,
-        stream: false,
-        max_output_tokens: turn.maxOutputTokens,
-      }),
+      body: JSON.stringify(buildRelayRequest(turn)),
       ...(turn.signal ? { signal: turn.signal } : {}),
     })
     const raw = await response.text()
