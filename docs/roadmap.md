@@ -91,7 +91,7 @@ Exit condition: when structured memory is insufficient, the model can retrieve a
 
 Only after the spine works:
 
-- browser daemon hardening;
+- embedded browser transport hardening;
 - conversation reuse/rotation policy;
 - richer observability;
 - Windows install/update flow;
