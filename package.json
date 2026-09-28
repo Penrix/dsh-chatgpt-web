@@ -32,7 +32,7 @@
     "smoke:load": "node scripts/smoke-load.mjs",
     "smoke:pack": "node scripts/smoke-pack.mjs",
     "m2:live": "npm run build && node scripts/m2-live.mjs",
-    "m1:e2e-live": "npm run build && node scripts/m1-embedded-e2e-live.mjs"
+    "m1:e2e-live": "npm run build && node --experimental-transform-types scripts/m1-embedded-e2e-live.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.2 <5.0.0",
@@ -66,7 +66,7 @@
     "@deepseek-ai/dsh-token-meter": "0.1.7-rc.2",
     "@deepseek-ai/dsh-commands": "0.1.7-rc.2",
     "@deepseek-ai/dsh-llm-retry": "0.1.7-rc.2",
-    "codex-chatgpt-web": "git+https://github.com/Penrix/codex-chatgpt-web.git#14ab9a22f3af615cba0be2b7b82fb71162b08290"
+    "codex-chatgpt-web": "git+https://github.com/Penrix/codex-chatgpt-web.git#d4dad912caf90e5a462e6185a92ef2bf694a515a"
   },
   "engines": {
     "node": ">=22"
