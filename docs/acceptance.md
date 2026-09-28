@@ -10,9 +10,16 @@ These are product invariants, not aspirational prose.
   Unicode and escapes) through parsing and native tool-call emission. Offline
   DOM coverage is opt-in with `RUN_OFFLINE_DOM_TESTS=1 npm test`; it uses an empty
   nonpersistent local browser with all page network requests blocked.
-- Updated adapters share persisted Send spacing and ChatGPT page-open spacing
-  of at least 30 seconds under one exclusive account-wide turn lock. Browser
-  startup pages count. Rate limits stop the run; automatic retries are disabled.
+- The primary embedded provider delegates ChatGPT browser submission,
+  completion binding and post-Send ambiguity to the reused
+  `codex-chatgpt-web` transport. DSH must not add a second production Send
+  state machine around it.
+- Real-machine acceptance may impose account-wide 30-second Send pacing as a
+  **verification-only** guard. That cadence does not become ordinary provider
+  behavior.
+- The old localhost relay remains an explicit diagnostic/control route only.
+  It is never an automatic fallback from the embedded path.
+- Rate limits stop the run; automatic DSH host retries are disabled.
 - Repository live-test entrypoints reject any ChatGPT route below High.
 - `contextWindow` is an operator budget cap bounded by the route catalog value,
   not a claim of verified Web capacity. The composer character cap is separate;
