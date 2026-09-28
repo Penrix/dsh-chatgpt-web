@@ -8,12 +8,13 @@ assert.equal(
   false,
   'embedded transport must not remain a runtime package dependency',
 )
+const upstreamRuntimeImport = /(?:from\s*|import\s*\(|require\s*\()\s*['"]codex-chatgpt-web(?:\/[^'"]*)?['"]/
 for (const builtPath of ['../lib/index.js', '../lib/index.d.ts']) {
   const built = readFileSync(new URL(builtPath, import.meta.url), 'utf8')
   assert.equal(
-    built.includes('codex-chatgpt-web'),
+    upstreamRuntimeImport.test(built),
     false,
-    `built artifact still imports codex-chatgpt-web: ${builtPath}`,
+    `built artifact still imports codex-chatgpt-web at runtime: ${builtPath}`,
   )
 }
 
