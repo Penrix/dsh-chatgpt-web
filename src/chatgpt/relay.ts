@@ -130,12 +130,23 @@ export class ChatGptRelay {
   }
 
   async run(turn: ChatGptRelayTurn): Promise<ChatGptRelayResult> {
-    const response = await this.fetchImpl(this.endpoint, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(buildRelayRequest(turn)),
-      ...(turn.signal ? { signal: turn.signal } : {}),
-    })
+    let response: Response
+    try {
+      response = await this.fetchImpl(this.endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(buildRelayRequest(turn)),
+        ...(turn.signal ? { signal: turn.signal } : {}),
+      })
+    } catch (error) {
+      if (turn.signal?.aborted) throw error
+      throw new Error(
+        'codex-chatgpt-web relay is unavailable at ' + this.endpoint
+        + '. Ensure its runtime owner is running. On Windows launcher-owned installs require'
+        + ' Codex Web GPT to remain running (the tray is sufficient).',
+        { cause: error },
+      )
+    }
     const raw = await response.text()
 
     if (!response.ok) {
