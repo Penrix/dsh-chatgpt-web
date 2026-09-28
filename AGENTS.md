@@ -123,7 +123,7 @@ Current intended ownership:
 - `Penrix/dsh-chatgpt-web`: DSH ↔ ChatGPT Web provider, context/session experiments, context projection.
 - `Penrix/webcodex`: durable local body/execution substrate.
 - `Penrix/chatgpt-continuity`: raw conversation DVR/evidence.
-- `Penrix/codex-chatgpt-web`: provider/browser-automation experience and Codex-specific model bridge.
+- `Penrix/codex-chatgpt-web`: authoritative ChatGPT-specific browser transport owner; `dsh-chatgpt-web` may reuse its narrow transport library boundary but must not fork a second DOM/send/reply implementation.
 
 Do not merge repositories merely to reduce conceptual count. Extract interfaces first.
 
