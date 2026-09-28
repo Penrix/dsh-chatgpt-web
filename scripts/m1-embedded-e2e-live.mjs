@@ -52,9 +52,17 @@ class AcceptancePacedAdapter extends LlmAdapter {
 
     requests.push(options)
     const chunks = []
-    await safety.paceAcceptanceTurn(async () => {
-      for await (const chunk of inner.stream(options)) chunks.push(chunk)
-    }, options.signal)
+    try {
+      await safety.paceAcceptanceTurn(async () => {
+        for await (const chunk of inner.stream(options)) chunks.push(chunk)
+      }, options.signal)
+    } catch (error) {
+      if (error?.code === 'chatgpt_submission_ambiguous'
+        || error?.code === 'chatgpt_submitted_turn_failed') {
+        await safety.markOutcomeUnknown()
+      }
+      throw error
+    }
 
     turnTexts.push(chunks
       .filter(chunk => chunk.type === 'text-delta')
