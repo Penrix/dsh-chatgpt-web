@@ -140,6 +140,12 @@ export class SendSafetyLease {
     }
   }
 
+  async markOutcomeUnknown(): Promise<void> {
+    if (this.released || this.state.blocked) throw stopped('无法记录发送结果未知状态。')
+    this.state.pending = true
+    await this.save()
+  }
+
   async complete(): Promise<void> {
     this.state.pending = false
     await this.save()
