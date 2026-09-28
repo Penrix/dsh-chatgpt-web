@@ -41,7 +41,7 @@ evidence remain separate.
   - `Phant0Meow/dsh-meow-memory`：DSH 跨会话长期记忆层
   - `Penrix/webcodex`：本地身体 / durable execution runtime
   - `Penrix/chatgpt-continuity`：原始对话 DVR / evidence
-  - `Penrix/codex-chatgpt-web`：ChatGPT Web provider 与浏览器自动化经验
+  - `Penrix/codex-chatgpt-web`：ChatGPT Web 专用浏览器 transport 的权威实现；本仓库只复用其明确 library 边界
 
 ---
 
@@ -339,7 +339,7 @@ C. negative history
 - 不让旧窗口最后一次 summary 取代完整 DVR。
 - 不把 WebCodex Project Memory / Goal / Session 当成艺术认知的完整替代物。
 - 不先上向量数据库再寻找问题。
-- 不粗暴合并 `webcodex`、`chatgpt-continuity`、`codex-chatgpt-web`。
+- 不粗暴合并 `webcodex`、`chatgpt-continuity`、`codex-chatgpt-web` 的源码树；需要复用时先建立明确、单一 owner 的接口边界。
 - 不把 ChatGPT Web DOM/browser transport 的临时 conversation identity 当成长期 task identity。
 
 ## 必须保留
