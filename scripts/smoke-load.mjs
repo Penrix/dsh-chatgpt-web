@@ -31,6 +31,7 @@ assert.equal(entry.PROVIDER, 'chatgpt-web')
 assert.equal(typeof entry.apply, 'function')
 assert.equal(typeof entry.Config, 'function')
 assert.equal(typeof entry.ChatGptWebAdapter, 'function')
+assert.equal('SendSafetyLease' in entry, false, 'acceptance-only SendSafetyLease leaked into plugin API')
 
 const patch = await readFile(resolve(root, manifest.dsh.bundle.patch), 'utf8')
 assert.match(patch, /id:\s*penrix-llm-chatgpt-web/)
