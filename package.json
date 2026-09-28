@@ -41,7 +41,8 @@
     "@deepseek-ai/schemastery": ">=3.18.4 <4.0.0"
   },
   "dependencies": {
-    "playwright-core": "^1.62.0"
+    "playwright-core": "^1.62.0",
+    "codex-chatgpt-web": "github:Penrix/codex-chatgpt-web#39b1ad6362c7427a28c21e6cd029fc3d2b562303"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
