@@ -73,6 +73,17 @@ describe('persisted send safety (no browser or real waits)', () => {
     await second.release()
   })
 
+  it('fails closed across runs when acceptance records a real unknown submission outcome', async () => {
+    const h = await harness()
+    const first = await SendSafetyLease.acquire(h.options)
+    await first.paceAcceptanceTurn(async () => {})
+    await first.markOutcomeUnknown()
+    await first.release()
+
+    h.advance(600_000)
+    await expect(SendSafetyLease.acquire(h.options)).rejects.toMatchObject({ code: 'PROVIDER_ERROR' })
+  })
+
   it('waits 30s for unknown page history and preserves page spacing across instances', async () => {
     const h = await harness()
     const opens: number[] = []
