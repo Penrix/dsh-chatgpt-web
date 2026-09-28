@@ -99,6 +99,27 @@ export class SendSafetyLease {
     await this.save()
   }
 
+  /**
+   * Acceptance-only pacing. It serializes live-test inferences and counts the
+   * next slot from settlement, but deliberately does not claim that a Web Send
+   * occurred. The embedded transport owns the real prepared/send-activated/
+   * submitted ambiguity boundary.
+   */
+  async paceAcceptanceTurn(action: () => Promise<void>, signal?: AbortSignal): Promise<void> {
+    if (this.released || this.state.pending || this.state.blocked) throw stopped('验收发送节奏许可不可用。')
+    while (this.now() < this.state.notBefore) {
+      if (signal?.aborted) throw new LlmError('ChatGPT acceptance pacing wait aborted.', 'ABORTED')
+      await this.sleep(Math.min(1_000, this.state.notBefore - this.now()), signal)
+    }
+    if (signal?.aborted) throw new LlmError('ChatGPT acceptance pacing wait aborted.', 'ABORTED')
+    try {
+      await action()
+    } finally {
+      this.state.notBefore = Math.max(this.state.notBefore, this.now() + MIN_SEND_INTERVAL_MS)
+      await this.save()
+    }
+  }
+
   async dispatch(click: () => Promise<void>, signal?: AbortSignal): Promise<void> {
     if (this.released || this.state.pending || this.state.blocked) throw stopped('发送许可不可用。')
     while (this.now() < this.state.notBefore) {
