@@ -1,6 +1,3 @@
-import { existsSync } from 'node:fs'
-import { homedir, platform } from 'node:os'
-import { join, resolve } from 'node:path'
 import { chromium, type BrowserContext, type Page } from 'playwright-core'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import { CHATGPT_COMPOSER_SELECTOR, assertAuthenticatedChatGptPage } from './session.ts'
@@ -11,50 +8,8 @@ import {
   type FreshPageSafetyState,
 } from './fresh-page-safety.ts'
 
-function expandHome(path: string): string {
-  if (path === '~') return homedir()
-  if (path.startsWith('~/') || path.startsWith('~\\')) return join(homedir(), path.slice(2))
-  return resolve(path)
-}
-
-export function defaultProfileDir(): string {
-  return join(homedir(), '.dsh-chatgpt-web-penrix', 'chrome-profile')
-}
-
-export function resolveChromeExecutable(explicit?: string): string {
-  if (explicit) {
-    const resolved = expandHome(explicit)
-    if (!existsSync(resolved)) throw new Error(`Configured Chrome executable does not exist: ${resolved}`)
-    return resolved
-  }
-
-  const candidates = platform() === 'win32'
-    ? [
-        join(process.env.LOCALAPPDATA ?? '', 'Google', 'Chrome', 'Application', 'chrome.exe'),
-        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-        'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-        'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-      ]
-    : platform() === 'darwin'
-      ? [
-          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-          '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-        ]
-      : [
-          '/usr/bin/google-chrome',
-          '/usr/bin/google-chrome-stable',
-          '/usr/bin/chromium',
-          '/usr/bin/chromium-browser',
-          '/usr/bin/microsoft-edge',
-        ]
-
-  const found = candidates.find(candidate => candidate.length > 0 && existsSync(candidate))
-  if (!found) {
-    throw new Error('Chrome/Edge executable not found. Set chromeExecutablePath explicitly.')
-  }
-  return found
-}
+import { expandHomePath, resolveChromeExecutable } from './chrome.ts'
+export { defaultProfileDir, resolveChromeExecutable } from './chrome.ts'
 
 export interface BrowserOptions {
   profileDir: string
@@ -128,7 +83,7 @@ export class ChatGptBrowser {
 
   private async open(signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) throw new LlmError('ChatGPT browser startup aborted.', 'ABORTED')
-    const profileDir = expandHome(this.options.profileDir)
+    const profileDir = expandHomePath(this.options.profileDir)
     const executablePath = resolveChromeExecutable(this.options.chromeExecutablePath)
 
     const context = await chromium.launchPersistentContext(profileDir, {

@@ -1,3 +1,11 @@
+import { join } from 'node:path'
+import {
+  CHATGPT_WEB_BACKEND_MODEL,
+  CHATGPT_WEB_LUNA_BACKEND_MODEL,
+  ManagedChatGptWebTransport,
+  type ManagedChatGptWebEffort,
+  type ManagedChatGptWebModel,
+} from 'codex-chatgpt-web/transport'
 import { LlmAdapter, LlmError, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
 import type {
   GenerateOptions,
@@ -6,18 +14,22 @@ import type {
   LlmResolvedModelInfo,
   StreamChunk,
 } from '@deepseek-ai/dsh-llm'
-import { ChatGptBrowser } from './chatgpt/browser.ts'
-import type { BrowserOptions } from './chatgpt/browser.ts'
+import { resolveChromeExecutable } from './chatgpt/chrome.ts'
 import { compilePrompt } from './chatgpt/prompt.ts'
-import { runFreshTurn } from './chatgpt/turn.ts'
-import { SendSafetyLease } from './chatgpt/send-safety.ts'
+import { ChatGptRelay, type RelayFetch } from './chatgpt/relay.ts'
 import { parseReasoningResult, reasoningResultChunks } from './reasoning-result.ts'
 
-export interface AdapterOptions extends BrowserOptions {
+export interface AdapterOptions {
+  profileDir: string
+  chromeExecutablePath?: string
+  headed: boolean
+  loginTimeoutMs: number
   composerMaxChars: number
   contextWindow: number
   maxTokens: number
   turnTimeoutMs: number
+  relayBaseUrl?: string
+  relayFetch?: RelayFetch
   onReasoningEnvelopeError?: (diagnostic: { rawText: string; error: unknown }) => void
 }
 
@@ -31,13 +43,45 @@ const MODELS = [
   { id: 'chatgpt-web/pro', name: 'ChatGPT Web Pro', contextWindow: 112_001 },
 ] as const
 
+export interface EmbeddedChatGptRoute {
+  model: ManagedChatGptWebModel
+  effort: ManagedChatGptWebEffort
+}
+
+export function resolveEmbeddedChatGptRoute(model: string): EmbeddedChatGptRoute {
+  switch (model) {
+    case 'chatgpt-web/luna':
+      return { model: CHATGPT_WEB_LUNA_BACKEND_MODEL, effort: 'low' }
+    case 'chatgpt-web/think':
+      return { model: CHATGPT_WEB_LUNA_BACKEND_MODEL, effort: 'medium' }
+    case 'chatgpt-web/light':
+      return { model: CHATGPT_WEB_BACKEND_MODEL, effort: 'low' }
+    case 'chatgpt-web/medium':
+      return { model: CHATGPT_WEB_BACKEND_MODEL, effort: 'medium' }
+    case 'chatgpt-web/high':
+      return { model: CHATGPT_WEB_BACKEND_MODEL, effort: 'high' }
+    case 'chatgpt-web/extra-high':
+      return { model: CHATGPT_WEB_BACKEND_MODEL, effort: 'xhigh' }
+    case 'chatgpt-web/pro':
+      return { model: CHATGPT_WEB_BACKEND_MODEL, effort: 'max' }
+    default:
+      throw new LlmError(`Unsupported ChatGPT Web route ${model}.`, 'INVALID_REQUEST')
+  }
+}
+
 export class ChatGptWebAdapter extends LlmAdapter {
-  private readonly browser: ChatGptBrowser
+  private readonly relay?: ChatGptRelay
+  private transport?: ManagedChatGptWebTransport
   private queue: Promise<void> = Promise.resolve()
 
   constructor(private readonly options: AdapterOptions) {
     super()
-    this.browser = new ChatGptBrowser(options)
+    if (options.relayBaseUrl !== undefined) {
+      this.relay = new ChatGptRelay({
+        baseUrl: options.relayBaseUrl,
+        ...(options.relayFetch ? { fetchImpl: options.relayFetch } : {}),
+      })
+    }
   }
 
   override providerInfo(provider: string): LlmProviderInfo {
@@ -53,7 +97,7 @@ export class ChatGptWebAdapter extends LlmAdapter {
       provider,
       id: model.id,
       name: model.name,
-      description: 'Phase 1: fresh Temporary Chat on every DSH inference.',
+      description: 'DSH-owned inference through ChatGPT Web.',
       inputModalities: ['text' as const],
     })))
   }
@@ -81,7 +125,36 @@ export class ChatGptWebAdapter extends LlmAdapter {
   }
 
   async dispose(): Promise<void> {
-    await this.browser.close()
+    await this.transport?.close()
+  }
+
+  private embeddedTransport(): ManagedChatGptWebTransport {
+    if (this.transport) return this.transport
+    this.transport = new ManagedChatGptWebTransport({
+      storageStatePath: join(this.options.profileDir, 'storage-state.json'),
+      chromeExecutablePath: resolveChromeExecutable(this.options.chromeExecutablePath),
+      headed: this.options.headed,
+      turnTimeoutMs: this.options.turnTimeoutMs,
+      browserDiagnosticsPath: join(this.options.profileDir, 'diagnostics', 'browser-turns'),
+    })
+    return this.transport
+  }
+
+  private async runEmbedded(
+    options: GenerateOptions,
+    prompt: string,
+  ): Promise<string> {
+    const transport = this.embeddedTransport()
+    if (!transport.hasLogin()) {
+      await transport.login(this.options.loginTimeoutMs)
+    }
+    const route = resolveEmbeddedChatGptRoute(options.model)
+    return await transport.run({
+      model: route.model,
+      effort: route.effort,
+      prompt,
+      ...(options.signal ? { signal: options.signal } : {}),
+    })
   }
 
   private async *serializedTurn(options: GenerateOptions): AsyncGenerator<StreamChunk> {
@@ -93,46 +166,44 @@ export class ChatGptWebAdapter extends LlmAdapter {
 
     try {
       const compiled = compilePrompt(options, this.options.composerMaxChars)
-      const safety = await SendSafetyLease.acquire()
+      let resultText: string
+
+      if (this.relay) {
+        const result = await this.relay.run({
+          model: options.model,
+          prompt: compiled.text,
+          maxOutputTokens: this.options.maxTokens,
+          ...(options.signal ? { signal: options.signal } : {}),
+        })
+        resultText = result.text
+      } else {
+        resultText = await this.runEmbedded(options, compiled.text)
+      }
+
+      let reasoning: ReturnType<typeof parseReasoningResult>
       try {
-        const page = await this.browser.newTurnPage(safety, options.signal)
+        reasoning = parseReasoningResult(resultText)
+      } catch (error) {
         try {
-          const result = await runFreshTurn(page, compiled.text, {
-            model: options.model,
-            timeoutMs: this.options.turnTimeoutMs,
-            sendSafety: safety,
-            ...(options.signal ? { signal: options.signal } : {}),
-          })
-          let reasoning: ReturnType<typeof parseReasoningResult>
-          try {
-            reasoning = parseReasoningResult(result.text)
-          } catch (error) {
-            try {
-              this.options.onReasoningEnvelopeError?.({ rawText: result.text, error })
-            } catch {
-              // Diagnostics must never replace the parser failure.
-            }
-            throw error
-          }
-          const callableTools = options.purpose === undefined ? options.tools : undefined
-          const chunks = reasoningResultChunks(reasoning, callableTools)
-          // Estimates, not provider-reported token counts. The independent
-          // composer character limit remains enforced by compilePrompt.
-          const usage = {
-            inputTokens: Math.max(1, Math.ceil(compiled.text.length / 4)),
-            outputTokens: Math.max(1, Math.ceil(result.text.length / 4)),
-          }
-          for (const chunk of chunks) {
-            if (chunk.type === 'finish') {
-              yield { type: 'usage', usage }
-            }
-            yield chunk
-          }
-        } finally {
-          await page.close().catch(() => {})
+          this.options.onReasoningEnvelopeError?.({ rawText: resultText, error })
+        } catch {
+          // Diagnostics must never replace the parser failure.
         }
-      } finally {
-        await safety.release()
+        throw error
+      }
+      const callableTools = options.purpose === undefined ? options.tools : undefined
+      const chunks = reasoningResultChunks(reasoning, callableTools)
+      // Estimates, not provider-reported token counts. The independent
+      // composer character limit remains enforced by compilePrompt.
+      const usage = {
+        inputTokens: Math.max(1, Math.ceil(compiled.text.length / 4)),
+        outputTokens: Math.max(1, Math.ceil(resultText.length / 4)),
+      }
+      for (const chunk of chunks) {
+        if (chunk.type === 'finish') {
+          yield { type: 'usage', usage }
+        }
+        yield chunk
       }
     } finally {
       release()

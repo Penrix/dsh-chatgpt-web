@@ -14,6 +14,18 @@ for (const relative of [manifest.main, manifest.types, manifest.dsh?.bundle?.pat
   assert.ok(existsSync(resolve(root, relative)), `missing built/package path: ${relative}`)
 }
 
+const builtSource = await readFile(resolve(root, manifest.main), 'utf8')
+assert.doesNotMatch(
+  builtSource,
+  /(?:from|import\()\s*['"]codex-chatgpt-web(?:\/transport)?['"]/,
+  'built plugin must not require the source transport package at runtime',
+)
+assert.doesNotMatch(
+  builtSource,
+  /(?:from|import\()\s*['"]electron['"]/,
+  'embedded transport must not pull the Codex Web GPT Electron desktop runtime',
+)
+
 const entry = await import(pathToFileURL(resolve(root, manifest.main)).href)
 assert.equal(entry.PROVIDER, 'chatgpt-web')
 assert.equal(typeof entry.apply, 'function')

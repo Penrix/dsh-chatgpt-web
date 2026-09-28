@@ -24,6 +24,7 @@ export interface Config {
   composerMaxChars?: number
   contextWindow?: number
   maxTokens?: number
+  relayBaseUrl?: string
   webcodexRead?: WebCodexReadConfig
 }
 
@@ -36,6 +37,7 @@ export const Config: z<Config> = z.object({
   composerMaxChars: z.number().step(1).min(1).default(180_000),
   contextWindow: z.number().step(1).min(1).default(90_000),
   maxTokens: z.number().step(1).min(1).default(16_384),
+  relayBaseUrl: z.string(),
   webcodexRead: z.union([
     z.object({
       baseUrl: z.string().required(),
@@ -55,6 +57,7 @@ export function apply(ctx: Context, config: Config): void {
     composerMaxChars: config.composerMaxChars ?? 180_000,
     contextWindow: config.contextWindow ?? 90_000,
     maxTokens: config.maxTokens ?? 16_384,
+    ...(config.relayBaseUrl !== undefined ? { relayBaseUrl: config.relayBaseUrl } : {}),
   })
 
   ctx.llm.registerAdapter([PROVIDER], adapter)
@@ -89,3 +92,6 @@ export type {
   WebCodexReadFilesSeamOptions,
   WebCodexToolResult,
 } from './webcodex/index.ts'
+
+// Exported for the repository's live acceptance harness; production relay code does not use it.
+export { SendSafetyLease } from './chatgpt/send-safety.ts'

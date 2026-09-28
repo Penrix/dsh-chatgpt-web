@@ -48,3 +48,6 @@ What did we explicitly choose not to do, and why?
 - [ADR-0001 — Authority split and system spine](0001-authority-split-and-system-spine.md)
 - [ADR-0002 — Adopt dsh-meow-memory](0002-adopt-dsh-meow-memory.md)
 - [ADR-0003 — Lossless replies and send safety](0003-lossless-replies-and-send-safety.md)
+- [ADR-0004 — Delegate ChatGPT Web transport to codex-chatgpt-web](0004-delegate-chatgpt-web-transport.md)
+- [ADR-0005 — Windows relay lifecycle belongs to Codex Web GPT Launcher (superseded)](0005-windows-relay-lifecycle.md)
+- [ADR-0006 — Embed the mature ChatGPT Web transport in the DSH provider](0006-embed-chatgpt-web-transport.md)
