@@ -1,4 +1,4 @@
-import { ChatGptWebAdapter } from '../lib/index.js'
+import { ChatGptWebAdapter, SendSafetyLease } from '../lib/index.js'
 
 const relayBaseUrl = process.env.CODEX_CHATGPT_WEB_BASE_URL?.trim() || 'http://127.0.0.1:17841/v1'
 const model = process.env.DSH_CHATGPT_WEB_MODEL?.trim() || 'chatgpt-web/high'
@@ -27,20 +27,30 @@ const adapter = new ChatGptWebAdapter({
 
 let text = ''
 let finishKind
+const safety = await SendSafetyLease.acquire()
 try {
-  for await (const chunk of adapter.stream({
-    provider: 'chatgpt-web',
-    model,
-    messages: [{
-      role: 'user',
-      content: [{ type: 'text', text: 'Reply with exactly OK.' }],
-      source: { kind: 'user' },
-    }],
-  })) {
-    if (chunk.type === 'text-delta') text += chunk.text
-    if (chunk.type === 'finish') finishKind = chunk.reason.kind
+  try {
+    await safety.dispatch(async () => {
+      for await (const chunk of adapter.stream({
+        provider: 'chatgpt-web',
+        model,
+        messages: [{
+          role: 'user',
+          content: [{ type: 'text', text: 'Reply with exactly OK.' }],
+          source: { kind: 'user' },
+        }],
+      })) {
+        if (chunk.type === 'text-delta') text += chunk.text
+        if (chunk.type === 'finish') finishKind = chunk.reason.kind
+      }
+    })
+  } finally {
+    // The lease is only the account-wide 30s acceptance-test pacing gate.
+    // codex-chatgpt-web still owns browser submission, retry and ambiguity.
+    await safety.complete()
   }
 } finally {
+  await safety.release()
   await adapter.dispose()
 }
 
