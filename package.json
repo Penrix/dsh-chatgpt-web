@@ -32,7 +32,7 @@
     "smoke:load": "node scripts/smoke-load.mjs",
     "smoke:pack": "node scripts/smoke-pack.mjs",
     "m2:live": "npm run build && node scripts/m2-live.mjs",
-    "m1:relay-live": "npm run build && node scripts/m1-relay-live.mjs"
+    "m1:e2e-live": "npm run build && node scripts/m1-relay-e2e-live.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.2 <5.0.0",
