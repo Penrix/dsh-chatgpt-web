@@ -1,6 +1,6 @@
 # ADR-0005 — Windows relay lifecycle belongs to Codex Web GPT Launcher
 
-Status: Accepted
+Status: Superseded by ADR-0006
 Date: 2026-09-28
 
 ## Context
