@@ -1,5 +1,21 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+
+const packedPackage = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+assert.equal(
+  Object.prototype.hasOwnProperty.call(packedPackage.dependencies ?? {}, 'codex-chatgpt-web'),
+  false,
+  'embedded transport must not remain a runtime package dependency',
+)
+for (const builtPath of ['../lib/index.js', '../lib/index.d.ts']) {
+  const built = readFileSync(new URL(builtPath, import.meta.url), 'utf8')
+  assert.equal(
+    built.includes('codex-chatgpt-web'),
+    false,
+    `built artifact still imports codex-chatgpt-web: ${builtPath}`,
+  )
+}
 
 const npmArgs = ['pack', '--dry-run', '--json']
 const npmExecPath = process.env.npm_execpath
