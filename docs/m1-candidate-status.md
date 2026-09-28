@@ -1,4 +1,46 @@
-# M1 candidate status — WEB-M1-001 rev 2
+# M1 candidate status — embedded transport
+
+Current owning Draft PR: #18  
+Primary architecture: ADR-0006  
+Upstream reusable transport Draft PR: `Penrix/codex-chatgpt-web#10`
+
+## Current M1 shape — 2026-09-28
+
+The primary provider path no longer requires the Codex Web GPT desktop
+Launcher or localhost Responses relay:
+
+```text
+DSH Session / AgentLoop
+→ @penrix/dsh-chatgpt-web
+→ embedded codex-chatgpt-web managed-Chrome transport
+→ ChatGPT Web
+```
+
+Current code facts:
+
+- DSH owns canonical Session/history and tool execution.
+- `dsh-chatgpt-web` owns prompt compilation and final/action parsing.
+- the embedded upstream transport owns ChatGPT-specific browser behavior,
+  model/effort selection, submission evidence, reply binding and completion.
+- first-use login is captured through ordinary Chrome into provider-owned
+  persisted storage state.
+- the browser transport is lazy; no Codex Web GPT desktop process needs to
+  remain resident for the primary path.
+- `relayBaseUrl` remains explicit-only for comparison/diagnostics and is not
+  an automatic fallback.
+- the upstream transport source is pinned at an exact Git revision for builds
+  and bundled into `lib`; the final plugin must not require that Git package
+  at runtime.
+- real ChatGPT Web acceptance is still LIVE UNVERIFIED and must not be run as a
+  low-information probe.
+
+The historical candidate record below is intentionally retained because it
+documents how the earlier direct-browser/relay path formed and which evidence
+was available at each stage.
+
+---
+
+## Historical candidate record
 
 Packet: `WEB-M1-001 rev 2`  
 Base: `main` at `149c9424b278c58e0109f033074eb5d285131b05`  
