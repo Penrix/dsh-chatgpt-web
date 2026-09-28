@@ -14,9 +14,7 @@ import type {
   LlmResolvedModelInfo,
   StreamChunk,
 } from '@deepseek-ai/dsh-llm'
-import { resolveChromeExecutable } from './chatgpt/chrome.ts'
 import { compilePrompt } from './chatgpt/prompt.ts'
-import { ChatGptRelay, type RelayFetch } from './chatgpt/relay.ts'
 import { parseReasoningResult, reasoningResultChunks } from './reasoning-result.ts'
 
 export interface AdapterOptions {
@@ -28,8 +26,6 @@ export interface AdapterOptions {
   contextWindow: number
   maxTokens: number
   turnTimeoutMs: number
-  relayBaseUrl?: string
-  relayFetch?: RelayFetch
   onReasoningEnvelopeError?: (diagnostic: { rawText: string; error: unknown }) => void
 }
 
@@ -70,18 +66,11 @@ export function resolveEmbeddedChatGptRoute(model: string): EmbeddedChatGptRoute
 }
 
 export class ChatGptWebAdapter extends LlmAdapter {
-  private readonly relay?: ChatGptRelay
   private transport?: ManagedChatGptWebTransport
   private queue: Promise<void> = Promise.resolve()
 
   constructor(private readonly options: AdapterOptions) {
     super()
-    if (options.relayBaseUrl !== undefined) {
-      this.relay = new ChatGptRelay({
-        baseUrl: options.relayBaseUrl,
-        ...(options.relayFetch ? { fetchImpl: options.relayFetch } : {}),
-      })
-    }
   }
 
   override providerInfo(provider: string): LlmProviderInfo {
@@ -132,7 +121,9 @@ export class ChatGptWebAdapter extends LlmAdapter {
     if (this.transport) return this.transport
     this.transport = new ManagedChatGptWebTransport({
       storageStatePath: join(this.options.profileDir, 'storage-state.json'),
-      chromeExecutablePath: resolveChromeExecutable(this.options.chromeExecutablePath),
+      ...(this.options.chromeExecutablePath
+        ? { chromeExecutablePath: this.options.chromeExecutablePath }
+        : {}),
       headed: this.options.headed,
       turnTimeoutMs: this.options.turnTimeoutMs,
       browserDiagnosticsPath: join(this.options.profileDir, 'diagnostics', 'browser-turns'),
@@ -166,19 +157,7 @@ export class ChatGptWebAdapter extends LlmAdapter {
 
     try {
       const compiled = compilePrompt(options, this.options.composerMaxChars)
-      let resultText: string
-
-      if (this.relay) {
-        const result = await this.relay.run({
-          model: options.model,
-          prompt: compiled.text,
-          maxOutputTokens: this.options.maxTokens,
-          ...(options.signal ? { signal: options.signal } : {}),
-        })
-        resultText = result.text
-      } else {
-        resultText = await this.runEmbedded(options, compiled.text)
-      }
+      const resultText = await this.runEmbedded(options, compiled.text)
 
       let reasoning: ReturnType<typeof parseReasoningResult>
       try {
