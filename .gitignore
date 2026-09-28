@@ -1,0 +1,4 @@
+node_modules/
+lib/
+*.tgz
+.m1-smoke-profile/

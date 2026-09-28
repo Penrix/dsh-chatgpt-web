@@ -1,0 +1,6 @@
+# Phase 1: DSH owns the conversation; ChatGPT Web is a fresh inference surface.
+- insert:
+    - id: penrix-llm-chatgpt-web
+      name: '@penrix/dsh-chatgpt-web'
+      config:
+        headed: true
