@@ -18,6 +18,36 @@ for (const builtPath of ['../lib/index.js', '../lib/index.d.ts']) {
   )
 }
 
+const runtimeSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+const importSpecifiers = new Set()
+for (const pattern of [
+  /\bfrom\s+['"]([^'"]+)['"]/g,
+  /\bimport\s+['"]([^'"]+)['"]/g,
+  /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+]) {
+  for (const match of runtimeSource.matchAll(pattern)) importSpecifiers.add(match[1])
+}
+const packageRoot = (specifier) => specifier.startsWith('@')
+  ? specifier.split('/').slice(0, 2).join('/')
+  : specifier.split('/')[0]
+const declaredRuntimePackages = new Set([
+  ...Object.keys(packedPackage.dependencies ?? {}),
+  ...Object.keys(packedPackage.peerDependencies ?? {}),
+  ...Object.keys(packedPackage.optionalDependencies ?? {}),
+])
+const undeclaredRuntimePackages = [...importSpecifiers]
+  .filter(specifier => !specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('node:'))
+  .map(packageRoot)
+  .filter(packageName => !declaredRuntimePackages.has(packageName))
+  .filter((packageName, index, all) => all.indexOf(packageName) === index)
+  .sort()
+assert.deepEqual(
+  undeclaredRuntimePackages,
+  [],
+  'built plugin has undeclared runtime package imports',
+)
+
 const npmArgs = ['pack', '--dry-run', '--json']
 const npmExecPath = process.env.npm_execpath
 const command = npmExecPath
