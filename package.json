@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "playwright-core": "^1.62.0",
-    "codex-chatgpt-web": "git+https://github.com/Penrix/codex-chatgpt-web.git#83821e273ce002765e63eef64b40c7e182ecbbc0"
+    "codex-chatgpt-web": "git+https://github.com/Penrix/codex-chatgpt-web.git#14ab9a22f3af615cba0be2b7b82fb71162b08290"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
