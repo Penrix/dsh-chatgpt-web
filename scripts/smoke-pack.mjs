@@ -21,8 +21,8 @@ for (const builtPath of ['../lib/index.js', '../lib/index.d.ts']) {
 const runtimeSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
 const importSpecifiers = new Set()
 for (const pattern of [
-  /\bfrom\s+['"]([^'"]+)['"]/g,
-  /\bimport\s+['"]([^'"]+)['"]/g,
+  /^\s*import\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/gm,
+  /^\s*export\s+[^'"]*?\s+from\s+['"]([^'"]+)['"]/gm,
   /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
   /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
 ]) {
