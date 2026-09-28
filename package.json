@@ -41,8 +41,7 @@
     "@deepseek-ai/schemastery": ">=3.18.4 <4.0.0"
   },
   "dependencies": {
-    "playwright-core": "^1.62.0",
-    "codex-chatgpt-web": "git+https://github.com/Penrix/codex-chatgpt-web.git#14ab9a22f3af615cba0be2b7b82fb71162b08290"
+    "playwright-core": "^1.62.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
@@ -66,7 +65,8 @@
     "@deepseek-ai/dsh-compaction-basic": "0.1.7-rc.2",
     "@deepseek-ai/dsh-token-meter": "0.1.7-rc.2",
     "@deepseek-ai/dsh-commands": "0.1.7-rc.2",
-    "@deepseek-ai/dsh-llm-retry": "0.1.7-rc.2"
+    "@deepseek-ai/dsh-llm-retry": "0.1.7-rc.2",
+    "codex-chatgpt-web": "git+https://github.com/Penrix/codex-chatgpt-web.git#14ab9a22f3af615cba0be2b7b82fb71162b08290"
   },
   "engines": {
     "node": ">=22"
