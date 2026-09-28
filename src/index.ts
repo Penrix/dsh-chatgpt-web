@@ -92,3 +92,6 @@ export type {
   WebCodexReadFilesSeamOptions,
   WebCodexToolResult,
 } from './webcodex/index.ts'
+
+// Exported for the repository's live acceptance harness; production relay code does not use it.
+export { SendSafetyLease } from './chatgpt/send-safety.ts'
