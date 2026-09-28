@@ -393,3 +393,135 @@ The most important sentence is:
 8. WebCodex remains the desired durable body/effect layer.
 9. Codex remains useful as a coding worker, not assumed artistic cognition host.
 10. Context projection, Web-conversation lifetime policy and DVR replay strategy are the next real research problems.
+
+
+---
+
+## Stage 13 — relay delegation exposed a lifecycle cost
+
+The first transport-delegation move was still correct in one important sense:
+
+> ChatGPT-specific DOM/send/reply behavior should not be reimplemented inside DSH.
+
+The first implementation therefore used `Penrix/codex-chatgpt-web` through its
+local Responses relay:
+
+```text
+DSH
+→ dsh-chatgpt-web
+→ 127.0.0.1:17841
+→ Codex Web GPT Launcher
+→ ChatGPT Web
+```
+
+A real Windows acceptance attempt then stopped before any model Send because
+nothing was listening on 17841. Source inspection established that this was not
+a relay-protocol failure: on Windows, the production Responses runtime was owned
+by the Codex Web GPT Launcher and was intentionally shut down when the Launcher
+quit.
+
+That corrected an earlier hidden assumption:
+
+```text
+installed codex-chatgpt-web
+≠
+Responses daemon is always alive
+```
+
+The immediate architectural answer was ADR-0005: if DSH consumes that relay,
+the Launcher owns its lifecycle.
+
+Then a new product fact changed the route: keeping the full Codex Web GPT
+desktop application resident materially slowed the owner's machine.
+
+So the relay boundary stopped being a neutral implementation detail. It had a
+real product cost.
+
+## Stage 14 — separate transport ownership from desktop ownership
+
+The next question was not “how do we make the Launcher lighter?” but:
+
+> Can DSH use ChatGPT Web without requiring the Codex Web GPT desktop product at all?
+
+External projects confirmed that “agent/runtime owns canonical state while a
+dedicated browser transport treats ChatGPT Web as the reasoning surface” is a
+real architecture shape.
+
+More importantly, source inspection found that our own
+`Penrix/codex-chatgpt-web` already contained the needed mechanism:
+`ChatGptBrowserWorker` had a mature `managed-chrome` path that could launch
+ordinary Chrome directly from persisted ChatGPT login state.
+
+That changed the problem.
+
+The correct move was **not**:
+
+```text
+copy the browser automation into DSH
+→ create a second ChatGPT DOM implementation
+```
+
+It was:
+
+```text
+DSH owns Session / AgentLoop / provider lifecycle
+→ dsh-chatgpt-web owns DSH prompt/result semantics
+→ codex-chatgpt-web library owns ChatGPT browser protocol
+→ ordinary managed Chrome
+→ ChatGPT Web
+```
+
+This became ADR-0006.
+
+The localhost relay and full desktop Launcher are therefore no longer part of
+the primary product path. ADR-0005 remains historically correct for the old
+relay shape, but it no longer defines the main runtime.
+
+## Stage 15 — front-door self-audit removed migration residue
+
+After the embedded path first compiled and passed ordinary CI, the
+`ai-coding-cognition` front-door rules were replayed against the diff instead
+of treating “green” as completion.
+
+That audit found several residues which looked defensive but had no remaining
+product owner:
+
+- the old relay was still selectable from the production adapter/config even
+  though no current product caller required it;
+- live-test `SendSafetyLease` was exported from the production plugin only so
+  the acceptance script could reach it;
+- DSH duplicated Chrome executable discovery already owned by the embedded
+  transport;
+- an earlier direct-browser helper split (`chrome.ts`) remained in the diff
+  even though the new path did not use it;
+- M2 evidence text still named the retired `ChatGptBrowser.newTurnPage()`;
+- the first reusable transport wrapper accidentally reused the upstream global
+  worker cache, so two library owners could share lifecycle state;
+- the wrapper constructed a full Codex runtime `AppConfig` merely to call
+  browser-login helpers which only needed Chrome and storage-state paths;
+- the first pack smoke ran inside a development install, so undeclared
+  transitive runtime dependencies could be hidden by devDependencies.
+
+The removal/reality pass therefore changed the implementation again:
+
+- production relay/config branch removed; history stays in ADR/Git;
+- acceptance-only pacing removed from the production plugin API;
+- browser path discovery delegated to the transport unless the owner explicitly
+  configures a path;
+- unrelated direct-browser refactor restored to the pre-change baseline;
+- the transport library now creates an independently owned worker instead of
+  borrowing the server's global cache;
+- browser-login contracts were narrowed to the fields they actually consume;
+- final-package smoke now checks the emitted runtime dependency closure rather
+  than only loading the build inside the development tree.
+
+This stage matters because it records a recurring failure mode:
+
+> **A technically working bridge can still violate the architecture if
+> migration scaffolding quietly becomes permanent product structure.**
+
+The current rule is therefore stronger than “reuse codex-chatgpt-web”:
+
+> **Reuse the one authoritative ChatGPT browser transport through the smallest
+> boundary that preserves its ownership, and delete every relay, wrapper,
+> fallback or test-only state that no longer protects an observed requirement.**
