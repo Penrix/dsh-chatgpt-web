@@ -54,6 +54,22 @@ describe('codex-chatgpt-web relay seam', () => {
     expect(() => resolveRelayResponsesEndpoint('http://example.com:17841/v1')).toThrow(/stay on loopback/)
   })
 
+  it('explains the Windows launcher lifecycle when the local relay is absent', async () => {
+    const fetchImpl = (async () => {
+      throw new TypeError('fetch failed')
+    }) as RelayFetch
+    const relay = new ChatGptRelay({
+      baseUrl: 'http://127.0.0.1:17841/v1',
+      fetchImpl,
+    })
+
+    await expect(relay.run({
+      model: 'chatgpt-web/high',
+      prompt: 'compiled DSH prompt',
+      maxOutputTokens: 1234,
+    })).rejects.toThrow(/Codex Web GPT to remain running \(the tray is sufficient\)/)
+  })
+
   it('sends one non-streaming Responses request and returns assistant text', async () => {
     const calls: Array<{ url: string; body: Record<string, unknown>; signal?: AbortSignal | null }> = []
     const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
