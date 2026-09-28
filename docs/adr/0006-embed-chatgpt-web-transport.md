@@ -70,8 +70,10 @@ Rules:
 6. Keep browser submission/retry/ambiguity authority in the reused transport;
    DSH must not add a second production Send state machine around it.
 7. DSH host retries remain disabled for this provider.
-8. The old relay path may remain as an explicit control/diagnostic route during
-   migration, but it must never be an automatic fallback.
+8. The old relay remains historical evidence in ADR-0004/ADR-0005 and Git
+   history; after the embedded path became the primary candidate, the
+   complexity-gate removal pass removed it from the production adapter/config
+   instead of keeping a legacy diagnostic branch.
 9. Real ChatGPT quota is reserved for a later end-to-end acceptance after code
    and packaging evidence are green.
 
