@@ -12,7 +12,8 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
-import { ChatGptWebAdapter, SendSafetyLease } from '../lib/index.js'
+import { ChatGptWebAdapter } from '../lib/index.js'
+import { SendSafetyLease } from '../src/chatgpt/send-safety.ts'
 
 const model = process.env.DSH_CHATGPT_WEB_MODEL?.trim() || 'chatgpt-web/high'
 const profileDir = process.env.DSH_CHATGPT_WEB_PROFILE_DIR?.trim()
