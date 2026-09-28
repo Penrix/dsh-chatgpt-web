@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CHATGPT_WEB_BACKEND_MODEL,
   CHATGPT_WEB_LUNA_BACKEND_MODEL,
+  ManagedChatGptWebTransport,
 } from 'codex-chatgpt-web/transport'
 import { ChatGptWebAdapter, resolveEmbeddedChatGptRoute } from '../src/adapter.ts'
 
@@ -21,6 +22,19 @@ describe('embedded mature ChatGPT Web transport', () => {
       .toEqual({ model: CHATGPT_WEB_BACKEND_MODEL, effort: 'xhigh' })
     expect(resolveEmbeddedChatGptRoute('chatgpt-web/pro'))
       .toEqual({ model: CHATGPT_WEB_BACKEND_MODEL, effort: 'max' })
+  })
+
+  it('constructs the upstream managed transport without Launcher, relay, or browser startup', async () => {
+    const transport = new ManagedChatGptWebTransport({
+      storageStatePath: '/path/that/does/not/exist/storage-state.json',
+      chromeExecutablePath: process.execPath,
+      headed: true,
+    })
+    try {
+      expect(transport.hasLogin()).toBe(false)
+    } finally {
+      await transport.close()
+    }
   })
 
   it('does not require Chrome or a login merely to construct and inspect provider metadata', async () => {
