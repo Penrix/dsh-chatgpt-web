@@ -17,12 +17,20 @@
 
 ## M1 candidate
 
-`WEB-M1-001 rev 2` is staged on `web-m1-001-rev2`. See:
+Current owning Draft PR: **#18**.
 
-- [`docs/m1-candidate-status.md`](docs/m1-candidate-status.md) — what is in the candidate and what is still unverified.
-- [`docs/windows-m1-acceptance.md`](docs/windows-m1-acceptance.md) — isolated Windows smoke, normal Desktop installation, and recovery.
+The primary M1 path now embeds the mature managed-Chrome transport from
+`Penrix/codex-chatgpt-web`; it does **not** require the Codex Web GPT desktop
+Launcher or localhost relay to remain alive.
 
-The candidate is not M1 completion; real Desktop + ChatGPT Web tool-loop acceptance remains local-only.
+See:
+
+- [`docs/m1-candidate-status.md`](docs/m1-candidate-status.md) — current code/evidence state plus preserved historical candidate record.
+- [`docs/adr/0006-embed-chatgpt-web-transport.md`](docs/adr/0006-embed-chatgpt-web-transport.md) — why the embedded transport supersedes the Launcher-owned relay as the primary path.
+- [`docs/windows-m1-acceptance.md`](docs/windows-m1-acceptance.md) — Windows acceptance material; live execution remains explicitly gated.
+
+The candidate is not M1 completion. Code/package evidence and real ChatGPT Web
+evidence remain separate.
 
 ## Status
 
