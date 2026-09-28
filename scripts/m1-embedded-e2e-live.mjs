@@ -51,17 +51,9 @@ class AcceptancePacedAdapter extends LlmAdapter {
 
     requests.push(options)
     const chunks = []
-    let completed = false
-    try {
-      await safety.dispatch(async () => {
-        for await (const chunk of inner.stream(options)) chunks.push(chunk)
-      }, options.signal)
-      completed = true
-    } finally {
-      // Clear acceptance pending state only after the complete DSH inference succeeded.
-      // Any failure remains fail-closed for operator inspection before another live attempt.
-      if (completed) await safety.complete()
-    }
+    await safety.paceAcceptanceTurn(async () => {
+      for await (const chunk of inner.stream(options)) chunks.push(chunk)
+    }, options.signal)
 
     turnTexts.push(chunks
       .filter(chunk => chunk.type === 'text-delta')
