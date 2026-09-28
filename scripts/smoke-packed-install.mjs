@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
-const root = resolve(new URL('..', import.meta.url).pathname)
+const root = fileURLToPath(new URL('..', import.meta.url))
 const temp = mkdtempSync(join(tmpdir(), 'dsh-chatgpt-web-packed-install-'))
 const installRoot = join(temp, 'consumer')
 const packRoot = join(temp, 'pack')
