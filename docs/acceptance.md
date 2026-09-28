@@ -17,8 +17,6 @@ These are product invariants, not aspirational prose.
 - Real-machine acceptance may impose account-wide 30-second Send pacing as a
   **verification-only** guard. That cadence does not become ordinary provider
   behavior.
-- The old localhost relay remains an explicit diagnostic/control route only.
-  It is never an automatic fallback from the embedded path.
 - Rate limits stop the run; automatic DSH host retries are disabled.
 - Repository live-test entrypoints reject any ChatGPT route below High.
 - `contextWindow` is an operator budget cap bounded by the route catalog value,
@@ -69,7 +67,7 @@ Examples:
 
 ```text
 kill Web page → continue same DSH session
-restart browser daemon → continue same DSH session
+restart embedded browser transport → continue same DSH session
 compact DSH context → memory reinjects
 replace ChatGPT inference page → same task identity
 lose provider response after possible Send → no blind duplicate
