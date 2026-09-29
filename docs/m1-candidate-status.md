@@ -27,7 +27,7 @@ Current code facts:
 - the browser transport is lazy; no Codex Web GPT desktop process needs to
   remain resident for the primary path.
 - the upstream transport source is pinned at exact Git revision
-  `b6c43eb9d452245ff3e4bd7e1347016c1bd3f8ef` for builds and bundled into
+  `71d0450a98fed8d038c106b6bf20166eadf6dec1` for builds and bundled into
   `lib`; the final plugin does not require that Git package at runtime.
 - real ChatGPT Web acceptance is still LIVE UNVERIFIED and must not be run as a
   low-information probe.
@@ -196,7 +196,7 @@ The fail-closed contract is unchanged:
 - no model Send occurs if reuse cannot be proven;
 - derived storage state remains sanitized to ChatGPT/OpenAI scope.
 
-Current pinned upstream repair: `b6c43eb9d452245ff3e4bd7e1347016c1bd3f8ef`.
+Current pinned upstream repair: `71d0450a98fed8d038c106b6bf20166eadf6dec1`.
 
 Evidence remains **CODE VERIFIED, LIVE UNVERIFIED** until fresh downstream CI passes and a later exact Windows acceptance succeeds.
 
@@ -205,7 +205,7 @@ Evidence remains **CODE VERIFIED, LIVE UNVERIFIED** until fresh downstream CI pa
 
 The first rev-4 packet was retired before owner-machine execution because the new legacy-profile CDP behavior had not actually run in a relevant regression test.
 
-Upstream head `b6c43eb9d452245ff3e4bd7e1347016c1bd3f8ef` now includes a Windows CI regression smoke that uses real Google Chrome with a temporary custom user-data-dir and proves:
+Upstream head `71d0450a98fed8d038c106b6bf20166eadf6dec1` now includes a Windows CI regression smoke that uses real Google Chrome with a temporary custom user-data-dir and proves:
 
 ```text
 normal Chrome
@@ -221,3 +221,33 @@ No ChatGPT credentials, login, or model Send are used by that CI smoke.
 The production adoption path also now refuses to mark a migrated profile verified when sanitized state contains zero reusable ChatGPT/OpenAI cookies.
 
 A fresh downstream exact-head validation is required after this pin before another owner-machine live packet.
+
+
+## Second self-audit: first-party partitioned-cookie blocker
+
+Rev 5 was retired before owner-machine execution.
+
+A stronger Windows regression reproduced a materially closer form of the rev-3 blocker:
+
+```text
+persistent Chrome profile already contains a ChatGPT-domain cookie
+→ normal Chrome + loopback CDP reopens the same profile
+→ context.cookies() sees the cookie
+→ storageState() exports it
+→ previous sanitizer removes it
+```
+
+Chrome 152 / current Playwright can represent a first-party ChatGPT cookie with a `partitionKey`. The previous sanitizer rejected every cookie carrying any partition key, including a key whose top-level site is itself within the approved ChatGPT/OpenAI boundary.
+
+Pinned upstream `71d0450a98fed8d038c106b6bf20166eadf6dec1` now preserves:
+
+- unpartitioned cookies on approved ChatGPT/OpenAI hosts;
+- partitioned cookies only when the partition key is also an HTTPS ChatGPT/OpenAI host.
+
+It still rejects identity-provider / third-party partition keys such as `https://accounts.google.com`.
+
+Fresh upstream Windows pre-audit regression run `36534320958` passed all six `browser-login.test.ts` cases, including a real Chrome persistent-profile/CDP cookie round-trip and the sanitizer boundary.
+
+The repository-wide upstream workflow still fails later at the pre-existing dependency `bun audit` advisories.
+
+A fresh downstream exact-pin validation is required before another owner-machine live packet.
