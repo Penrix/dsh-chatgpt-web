@@ -27,7 +27,7 @@ Current code facts:
 - the browser transport is lazy; no Codex Web GPT desktop process needs to
   remain resident for the primary path.
 - the upstream transport source is pinned at exact Git revision
-  `d941429aaee9a6a31f49766c7a004b4f04bd403a` for builds and bundled into
+  `b6c43eb9d452245ff3e4bd7e1347016c1bd3f8ef` for builds and bundled into
   `lib`; the final plugin does not require that Git package at runtime.
 - real ChatGPT Web acceptance is still LIVE UNVERIFIED and must not be run as a
   low-information probe.
@@ -196,6 +196,28 @@ The fail-closed contract is unchanged:
 - no model Send occurs if reuse cannot be proven;
 - derived storage state remains sanitized to ChatGPT/OpenAI scope.
 
-Current pinned upstream repair: `d941429aaee9a6a31f49766c7a004b4f04bd403a`.
+Current pinned upstream repair: `b6c43eb9d452245ff3e4bd7e1347016c1bd3f8ef`.
 
 Evidence remains **CODE VERIFIED, LIVE UNVERIFIED** until fresh downstream CI passes and a later exact Windows acceptance succeeds.
+
+
+## Self-audit verification follow-up
+
+The first rev-4 packet was retired before owner-machine execution because the new legacy-profile CDP behavior had not actually run in a relevant regression test.
+
+Upstream head `b6c43eb9d452245ff3e4bd7e1347016c1bd3f8ef` now includes a Windows CI regression smoke that uses real Google Chrome with a temporary custom user-data-dir and proves:
+
+```text
+normal Chrome
+→ --remote-debugging-port=0
+→ profile-local DevToolsActivePort
+→ Playwright connectOverCDP(127.0.0.1)
+→ live page operation
+→ controlled cleanup
+```
+
+No ChatGPT credentials, login, or model Send are used by that CI smoke.
+
+The production adoption path also now refuses to mark a migrated profile verified when sanitized state contains zero reusable ChatGPT/OpenAI cookies.
+
+A fresh downstream exact-head validation is required after this pin before another owner-machine live packet.
