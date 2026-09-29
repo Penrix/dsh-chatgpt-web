@@ -1,13 +1,38 @@
 # M1 candidate status — embedded transport
 
+> **Current-state entrypoint — 2026-09-29**
+>
+> Exact DSH revision authority is the current head of Draft PR #18 on
+> `m1a-relay-spike`. Do not recover an exact DSH head from historical sections
+> below; a document cannot reliably embed its own commit SHA.
+>
+> Current pinned upstream transport:
+> `Penrix/codex-chatgpt-web@8c6c2aed390d5b0af86e9df19ea711cc98ad3713`.
+>
+> Current evidence class: **CODE VERIFIED, LIVE UNVERIFIED**.
+>
+> Current downstream validation: Actions run `36536058451` — **SUCCESS**.
+>
+> Current upstream Windows pre-audit evidence: run `36535780787` —
+> browser-login regression **PASS** and managed-Chrome storage-state privacy
+> regression **PASS**. The workflow fails later at the already-known repository-wide
+> dependency `bun audit` gate.
+>
+> Live packets rev 1 through rev 5 are retired. No replacement live packet has
+> been issued.
+>
+> Independent CodeRabbit diff review is **UNRESOLVED** because the available
+> terminal environment could not resolve `github.com`; no manual review is
+> represented as CodeRabbit output.
+
 Current owning Draft PR: #18  
 Primary architecture: ADR-0006  
 Upstream reusable transport Draft PR: `Penrix/codex-chatgpt-web#10`
 
-## Current M1 shape — 2026-09-28
+## Current M1 shape
 
-The primary provider path no longer requires the Codex Web GPT desktop
-Launcher or localhost Responses relay:
+The primary provider path does not require the Codex Web GPT desktop Launcher
+or localhost Responses relay:
 
 ```text
 DSH Session / AgentLoop
@@ -16,25 +41,58 @@ DSH Session / AgentLoop
 → ChatGPT Web
 ```
 
-Current code facts:
+Current ownership:
 
 - DSH owns canonical Session/history and tool execution.
 - `dsh-chatgpt-web` owns prompt compilation and final/action parsing.
-- the embedded upstream transport owns ChatGPT-specific browser behavior,
-  model/effort selection, submission evidence, reply binding and completion.
-- first-use login is captured through ordinary Chrome into provider-owned
-  persisted storage state.
+- the embedded upstream transport owns ChatGPT-specific browser lifecycle,
+  model/effort selection, submission evidence, reply binding/completion and
+  post-Send ambiguity.
+- persistent DSH Chrome profiles are durable legacy-login sources;
+  `storage-state.json` is a derived/rebuildable cache.
+- both legacy-profile migration and managed-turn cache refresh use the same
+  ChatGPT/OpenAI storage-state sanitizer.
+- first-party partitioned cookies are retained only when both the cookie host
+  and HTTPS partition-key host remain within the ChatGPT/OpenAI allowlist;
+  cross-site identity-provider partition state remains excluded.
 - the browser transport is lazy; no Codex Web GPT desktop process needs to
-  remain resident for the primary path.
-- the upstream transport source is pinned at exact Git revision
-  `8c6c2aed390d5b0af86e9df19ea711cc98ad3713` for builds and bundled into
-  `lib`; the final plugin does not require that Git package at runtime.
-- real ChatGPT Web acceptance is still LIVE UNVERIFIED and must not be run as a
-  low-information probe.
+  remain resident.
+- the upstream transport is pinned at the exact Git revision shown in the
+  current-state block and bundled into `lib`; the final plugin does not require
+  the Git package at runtime.
+- stale derived login markers cannot authorize a Send by themselves:
+  browser-worker re-proves an authenticated Temporary Chat surface before
+  `onSendActivated`.
+- real ChatGPT Web round-trip acceptance for the current code is still
+  **LIVE UNVERIFIED**.
 
-The historical candidate record below is intentionally retained because it
-documents how the earlier direct-browser/relay path formed and which evidence
-was available at each stage.
+Current verification scope:
+
+- upstream Windows uses real Google Chrome to reopen an independently persisted
+  credential-free profile through the same normal-Chrome/CDP migration boundary,
+  export `BrowserContext.storageState()`, sanitize it, and re-import the
+  sanitized state into a fresh Chrome context;
+- a separate regression proves managed-Chrome turn completion cannot write raw
+  browser state back over the sanitized derived cache;
+- downstream validates install, typecheck, unit tests, live-harness syntax,
+  build, bundle/load, pack inventory and a fresh production-only install/import.
+
+Current explicit deferrals / non-blockers:
+
+- the historical CLI-only `loginToChatGpt()` raw state write is outside the DSH
+  embedded M1 path and has not been broadened into this repair;
+- a verified-marker file can outlive remote authentication, but the real
+  browser surface is checked again before Send; no second auth state machine is
+  added without an observed failure;
+- the repository has no package lock and therefore dependency reproducibility is
+  weaker than an immutable lockfile; this is pre-existing and not expanded into
+  the M1 auth fix without evidence;
+- upstream repo-wide dependency advisories remain real maintenance work but are
+  distinct from the browser-login regressions that execute before the audit gate.
+
+The historical candidate record below is retained only as formation history.
+Any section below that calls itself “current” is current only for that historical
+work unit and must not override this entrypoint.
 
 ---
 
