@@ -26,6 +26,19 @@ jobs:
         run: npm test
       - name: M1 embedded E2E harness syntax
         run: node --check scripts/m1-embedded-e2e-live.mjs
+      - name: Desktop-first PowerShell syntax
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'scripts/m1-local.ps1'),
+            [ref]$null,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
       - name: Build
         run: npm run build
       - name: Bundle/load smoke (no browser login)
