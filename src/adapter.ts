@@ -127,6 +127,11 @@ export class ChatGptWebAdapter extends LlmAdapter {
       headed: this.options.headed,
       turnTimeoutMs: this.options.turnTimeoutMs,
       browserDiagnosticsPath: join(this.options.profileDir, 'diagnostics', 'browser-turns'),
+      loginProfileDir: this.options.profileDir,
+      reusableLoginProfileDirs: [
+        this.options.profileDir,
+        join(this.options.profileDir, 'login-profile'),
+      ],
     })
     return this.transport
   }
@@ -136,9 +141,7 @@ export class ChatGptWebAdapter extends LlmAdapter {
     prompt: string,
   ): Promise<string> {
     const transport = this.embeddedTransport()
-    if (!transport.hasLogin()) {
-      await transport.login(this.options.loginTimeoutMs)
-    }
+    await transport.ensureLogin(this.options.loginTimeoutMs)
     const route = resolveEmbeddedChatGptRoute(options.model)
     return await transport.run({
       model: route.model,
