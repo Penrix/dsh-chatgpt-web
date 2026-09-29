@@ -1,9 +1,7 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { Config } from '../src/index.ts'
 
-const root = fileURLToPath(new URL('..', import.meta.url))
 const localScript = readFileSync(new URL('../scripts/m1-local.ps1', import.meta.url), 'utf8')
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 

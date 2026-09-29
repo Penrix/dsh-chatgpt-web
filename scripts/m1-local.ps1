@@ -1,15 +1,15 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-  [ValidateSet('Stage','VerifyStage','InstallIsolated','RollbackIsolated','DesktopInstallPlan','DesktopReadback','DesktopRollbackPlan')]
+  [ValidateSet('Stage','VerifyStage','InstallIsolated','RollbackIsolated','DesktopInstallPlan','DesktopInstall','DesktopReadback','DesktopRollbackPlan')]
   [string]$Action = 'Stage',
   [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
   [string]$StageRoot,
-  [string]$ExpectedBranch = 'web-m1-live-008',
+  [string]$ExpectedBranch = 'm1a-relay-spike',
   [string]$ExpectedHead,
   [string]$DshHome,
   [string]$DesktopInstallRoot,
   [string]$DesktopExecutableName = 'DeepSeek Harness.exe',
-  [string]$ExpectedDesktopVersion = '0.1.7-rc.2',
+  [string]$ExpectedDesktopVersion,
   [string]$IsolatedDshHome,
   [switch]$SkipRepositoryChecks,
   [switch]$OpenDesktop
@@ -43,6 +43,41 @@ function Get-DefaultDesktopInstallRoot {
 
 function Get-DefaultStageRoot {
   return [IO.Path]::GetFullPath((Join-Path $env:TEMP 'dsh-chatgpt-web-m1-stage'))
+}
+
+function Get-DesktopExecutable {
+  if (-not $DesktopInstallRoot) { throw 'DeepSeek Harness Desktop install root is unavailable.' }
+  $path = Join-Path $DesktopInstallRoot $DesktopExecutableName
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "DeepSeek Harness executable not found: $path" }
+  return [IO.Path]::GetFullPath($path)
+}
+
+function Get-DesktopBundledCli {
+  $path = Join-Path $DesktopInstallRoot 'resources\runtime\cli\bin\dsh.cmd'
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+    throw "Desktop-owned dsh command not found: $path. This Desktop build cannot be mutated through the supported reserved-profile CLI."
+  }
+  return [IO.Path]::GetFullPath($path)
+}
+
+function Assert-DesktopStopped {
+  $processName = [IO.Path]::GetFileNameWithoutExtension($DesktopExecutableName)
+  $running = @(Get-Process -Name $processName -ErrorAction SilentlyContinue)
+  if ($running.Count -gt 0) {
+    throw "DeepSeek Harness Desktop is still running. Fully quit it (including the Windows tray) before changing the reserved desktop profile."
+  }
+}
+
+function Get-ObservedDesktopVersion([string]$DesktopExe) {
+  $info = (Get-Item -LiteralPath $DesktopExe).VersionInfo
+  $versions = @($info.ProductVersion,$info.FileVersion) | Where-Object { $_ } | Select-Object -Unique
+  if ($ExpectedDesktopVersion) {
+    $matching = $versions | Where-Object { $_.StartsWith($ExpectedDesktopVersion,[StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+    if (-not $matching) {
+      throw "Expected DeepSeek Harness Desktop $ExpectedDesktopVersion, observed '$($versions -join ', ')' at $DesktopExe."
+    }
+  }
+  return ($versions | Select-Object -First 1)
 }
 
 function Resolve-NormalizedPath([string]$Path) {
@@ -211,7 +246,7 @@ switch ($Action) {
     $desktopExe = if ($DesktopInstallRoot) { Join-Path $DesktopInstallRoot $DesktopExecutableName } else { $null }
     $stage = [pscustomobject]@{
       schema = 1
-      packet = 'WEB-M1-LIVE-008 rev 1'
+      packet = 'M1-DESKTOP-FIRST candidate'
       packageName = $PackageName
       packageVersion = [string]$manifest.version
       branch = $git.branch
@@ -284,37 +319,76 @@ switch ($Action) {
 
   'DesktopInstallPlan' {
     $resolved = Resolve-StageManifest
-    if (-not $DesktopInstallRoot -or -not (Test-Path -LiteralPath $DesktopInstallRoot -PathType Container)) { throw "DSH Desktop install root not found: $DesktopInstallRoot" }
-    $desktopExe = Join-Path $DesktopInstallRoot $DesktopExecutableName
-    if (-not (Test-Path -LiteralPath $desktopExe -PathType Leaf)) { throw "DeepSeek Harness executable not found: $desktopExe" }
-    $desktopVersionInfo = (Get-Item -LiteralPath $desktopExe).VersionInfo
-    $observedDesktopVersions = @($desktopVersionInfo.ProductVersion,$desktopVersionInfo.FileVersion) | Where-Object { $_ }
-    $observedDesktopVersion = $observedDesktopVersions |
-      Where-Object { $_.StartsWith($ExpectedDesktopVersion,[StringComparison]::OrdinalIgnoreCase) } |
-      Select-Object -First 1
-    if (-not $observedDesktopVersion) {
-      throw "Expected official DeepSeek Harness $ExpectedDesktopVersion, observed '$($observedDesktopVersions -join ', ')' at $desktopExe."
-    }
+    $desktopExe = Get-DesktopExecutable
+    $desktopCli = Get-DesktopBundledCli
+    $observedDesktopVersion = Get-ObservedDesktopVersion $desktopExe
     $before = Get-DesktopProfileSnapshot (Join-Path $StageRoot 'desktop-before-install')
+    $profileManifest = Join-Path $before.profile 'package.json'
+    if (-not (Test-Path -LiteralPath $profileManifest -PathType Leaf)) {
+      throw 'Desktop profile is not initialized. Open DeepSeek Harness Desktop once, then fully quit it before installing the candidate.'
+    }
     $plan = [pscustomobject]@{
       packageName=$PackageName
       candidate=$resolved.candidate
       candidateSha256=$resolved.stage.candidateSha256
       desktopExe=$desktopExe
-      expectedDesktopVersion=$ExpectedDesktopVersion
+      desktopCli=$desktopCli
       desktopVersion=$observedDesktopVersion
       dshHome=$DshHome
       desktopProfile=$before.profile
       backup=$before
-      mutation='Use the official DeepSeek Harness sidebar Plugins page with the candidate absolute tarball path; do not edit profile files or use the public CLI against the reserved desktop profile.'
-      rollback='Use the official DeepSeek Harness sidebar Plugins page to remove/disable the bundle. If startup is fatal, use the application recovery flow to disable third-party bundles.'
+      mutation='With Desktop fully quit, use the Desktop-owned bundled dsh.cmd to run: plugin --profile desktop add <staged-tarball>.'
+      rollback='With Desktop fully quit, use the same Desktop-owned command to remove the package, or use the application Plugins/recovery UI if Host startup remains available.'
       preparedAt=(Get-Date).ToUniversalTime().ToString('o')
     }
     $planPath = Join-Path $StageRoot 'desktop-install-plan.json'
     Write-Json $planPath $plan
     Write-Host "DESKTOP INSTALL PLAN: $planPath"
+    Write-Host "DESKTOP CLI: $desktopCli"
     Write-Host "PLUGIN SPEC: $($resolved.candidate)"
-    Write-Host 'Install the printed local package path from the official DeepSeek Harness sidebar Plugins page. Do not edit profile files or mutate the reserved desktop profile with the CLI.'
+    Write-Host "NEXT: fully quit DeepSeek Harness Desktop, then run .\scripts\m1-local.ps1 -Action DesktopInstall -StageRoot `"$StageRoot`" -ExpectedHead `"$($resolved.stage.head)`""
+    if ($OpenDesktop) { Start-Process -FilePath $desktopExe | Out-Null }
+  }
+
+  'DesktopInstall' {
+    $resolved = Resolve-StageManifest
+    $desktopExe = Get-DesktopExecutable
+    $desktopCli = Get-DesktopBundledCli
+    $observedDesktopVersion = Get-ObservedDesktopVersion $desktopExe
+    Assert-DesktopStopped
+    $profile = Join-Path $DshHome 'profiles\desktop'
+    if (-not (Test-Path -LiteralPath (Join-Path $profile 'package.json') -PathType Leaf)) {
+      throw 'Desktop profile is not initialized. Open DeepSeek Harness Desktop once, then fully quit it before installing the candidate.'
+    }
+    if (-not $PSCmdlet.ShouldProcess($profile,"install staged $PackageName through the Desktop-owned dsh command")) {
+      Write-Host "WHATIF: would run $desktopCli plugin --profile desktop add $($resolved.candidate)"
+      break
+    }
+
+    $before = Get-DesktopProfileSnapshot (Join-Path $StageRoot 'desktop-before-install')
+    Invoke-Checked $desktopCli @('plugin','--profile','desktop','add',$resolved.candidate) $RepoRoot
+
+    $state = Get-DesktopReadback
+    if (-not $state.dependency) { throw "Desktop-owned install returned success but $PackageName is absent from the desktop profile." }
+    if (-not $state.bundleSelected) { throw "Desktop-owned install returned success but $PackageName is not selected as a desktop bundle." }
+
+    $receipt = [pscustomobject]@{
+      packageName=$PackageName
+      candidate=$resolved.candidate
+      candidateSha256=$resolved.stage.candidateSha256
+      sourceHead=$resolved.stage.head
+      desktopExe=$desktopExe
+      desktopCli=$desktopCli
+      desktopVersion=$observedDesktopVersion
+      before=$before
+      after=$state
+      installedAt=(Get-Date).ToUniversalTime().ToString('o')
+    }
+    $receiptPath = Join-Path $StageRoot 'desktop-install-receipt.json'
+    Write-Json $receiptPath $receipt
+    Write-Host "DESKTOP INSTALL COMPLETE: $receiptPath"
+    Write-Host "dependency=$($state.dependency) bundleSelected=$($state.bundleSelected)"
+    Write-Host 'NEXT: reopen DeepSeek Harness Desktop and verify Penrix ChatGPT Web appears in the Desktop model selector before any ChatGPT Web send.'
     if ($OpenDesktop) { Start-Process -FilePath $desktopExe | Out-Null }
   }
 
@@ -335,7 +409,7 @@ switch ($Action) {
       packageName=$PackageName
       candidateSha256=$resolved.stage.candidateSha256
       currentState=$state
-      normalRollback='Official DeepSeek Harness > Plugins: disable/remove @penrix/dsh-chatgpt-web, then restart if requested.'
+      normalRollback='Fully quit DeepSeek Harness Desktop, then use its bundled dsh.cmd: plugin --profile desktop remove @penrix/dsh-chatgpt-web. The application Plugins page is also valid when Host startup remains healthy.'
       fatalRollback='Use official DeepSeek Harness recovery to disable third-party bundles; do not restore backup files by hand.'
       forensicBackup=(Join-Path $StageRoot 'desktop-before-install')
       preparedAt=(Get-Date).ToUniversalTime().ToString('o')
