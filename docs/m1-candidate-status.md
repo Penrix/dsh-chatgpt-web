@@ -27,7 +27,7 @@ Current code facts:
 - the browser transport is lazy; no Codex Web GPT desktop process needs to
   remain resident for the primary path.
 - the upstream transport source is pinned at exact Git revision
-  `fa8105303668d04017312910406d6f246ecc58ef` for builds and bundled into
+  `ac4582bd1b05cc97a8d83a7d69955fa7cb17b465` for builds and bundled into
   `lib`; the final plugin does not require that Git package at runtime.
 - real ChatGPT Web acceptance is still LIVE UNVERIFIED and must not be run as a
   low-information probe.
