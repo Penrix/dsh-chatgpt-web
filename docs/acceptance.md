@@ -19,6 +19,9 @@ These are product invariants, not aspirational prose.
 - If an existing DSH login profile has cookie evidence but cannot be verified/reused,
   the provider fails closed with a reuse blocker; it must not fall through to another
   automatic sign-in prompt.
+- The M1 embedded live harness runs with interactive login explicitly disabled:
+  acceptance may reuse existing profile state or stop, but it may never ask the owner
+  to sign in again as part of the test.
 - A genuinely first-time interactive login captures transport state while the
   Playwright-owned persistent profile is still open; it must not require the owner
   to close Chrome and then reopen the same profile merely to capture session cookies.
