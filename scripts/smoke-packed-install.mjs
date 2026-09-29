@@ -53,6 +53,29 @@ try {
     'packed consumer unexpectedly installed build-only codex-chatgpt-web',
   )
 
+  const installedTree = JSON.parse(npm(['ls', '--all', '--json'], installRoot))
+  const installedNames = new Set()
+  const visitDependencies = dependencies => {
+    if (!dependencies || typeof dependencies !== 'object') return
+    for (const [name, dependency] of Object.entries(dependencies)) {
+      installedNames.add(name)
+      if (dependency && typeof dependency === 'object') visitDependencies(dependency.dependencies)
+    }
+  }
+  visitDependencies(installedTree.dependencies)
+  for (const packageName of [
+    '@modelcontextprotocol/sdk',
+    'hono',
+    'fast-uri',
+    'ip-address',
+  ]) {
+    assert.equal(
+      installedNames.has(packageName),
+      false,
+      `packed M1 consumer unexpectedly installed upstream-only audited dependency ${packageName}`,
+    )
+  }
+
   const probe = spawnSync(process.execPath, [
     '--input-type=module',
     '--eval',
