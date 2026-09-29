@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   CHATGPT_WEB_BACKEND_MODEL,
@@ -34,6 +37,23 @@ describe('embedded mature ChatGPT Web transport', () => {
       expect(transport.hasLogin()).toBe(false)
     } finally {
       await transport.close()
+    }
+  })
+
+  it('runtime transport can refuse interactive login before any browser launch', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-chatgpt-web-no-login-'))
+    const transport = new ManagedChatGptWebTransport({
+      storageStatePath: join(root, 'storage-state.json'),
+      chromeExecutablePath: process.execPath,
+      loginProfileDir: root,
+      reusableLoginProfileDirs: [],
+      allowInteractiveLogin: false,
+    })
+    try {
+      await expect(transport.ensureLogin(1)).rejects.toThrow(/interactive login is disabled/)
+    } finally {
+      await transport.close()
+      rmSync(root, { recursive: true, force: true })
     }
   })
 
