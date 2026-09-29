@@ -14,6 +14,14 @@ These are product invariants, not aspirational prose.
   completion binding and post-Send ambiguity to the reused
   `codex-chatgpt-web` transport. DSH must not add a second production Send
   state machine around it.
+- Existing DSH persistent Chrome login state is reused before any interactive sign-in.
+  A missing `storage-state.json` cache is not evidence that the owner is logged out.
+- If an existing DSH login profile has cookie evidence but cannot be verified/reused,
+  the provider fails closed with a reuse blocker; it must not fall through to another
+  automatic sign-in prompt.
+- A genuinely first-time interactive login captures transport state while the
+  Playwright-owned persistent profile is still open; it must not require the owner
+  to close Chrome and then reopen the same profile merely to capture session cookies.
 - Real-machine acceptance may impose account-wide 30-second Send pacing as a
   **verification-only** guard. That cadence does not become ordinary provider
   behavior.
