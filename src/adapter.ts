@@ -27,6 +27,7 @@ export interface AdapterOptions {
   maxTokens: number
   turnTimeoutMs: number
   onReasoningEnvelopeError?: (diagnostic: { rawText: string; error: unknown }) => void
+  allowInteractiveLogin?: boolean
 }
 
 const MODELS = [
@@ -132,6 +133,9 @@ export class ChatGptWebAdapter extends LlmAdapter {
         this.options.profileDir,
         join(this.options.profileDir, 'login-profile'),
       ],
+      ...(this.options.allowInteractiveLogin === undefined
+        ? {}
+        : { allowInteractiveLogin: this.options.allowInteractiveLogin }),
     })
     return this.transport
   }
