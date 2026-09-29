@@ -29,8 +29,11 @@ See:
 - [`docs/adr/0006-embed-chatgpt-web-transport.md`](docs/adr/0006-embed-chatgpt-web-transport.md) — why the embedded transport supersedes the Launcher-owned relay as the primary path.
 - [`docs/windows-m1-acceptance.md`](docs/windows-m1-acceptance.md) — Windows acceptance material; live execution remains explicitly gated.
 
-The candidate is not M1 completion. Code/package evidence and real ChatGPT Web
-evidence remain separate.
+The candidate is not M1 completion. ADR-0007 makes the real DeepSeek Harness
+Desktop the M1 acceptance entrypoint: install the exact package into the reserved
+Desktop profile, prove provider/model discovery in the Desktop UI, then perform a
+plain Web inference and only then the DSH tool loop. The terminal embedded E2E
+script remains diagnostic only.
 
 ## Status
 
