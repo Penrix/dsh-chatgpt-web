@@ -525,3 +525,74 @@ The current rule is therefore stronger than “reuse codex-chatgpt-web”:
 > **Reuse the one authoritative ChatGPT browser transport through the smallest
 > boundary that preserves its ownership, and delete every relay, wrapper,
 > fallback or test-only state that no longer protects an observed requirement.**
+
+
+---
+
+## Stage 16 — repeated login exposed a second hidden source of truth
+
+The first embedded Windows live acceptance never reached a model Send. It exposed
+an earlier design mistake instead.
+
+The machine already had authenticated ChatGPT state under the historical DSH
+persistent profile:
+
+```text
+~/.dsh-chatgpt-web-penrix/chrome-profile/Default/Network/Cookies
+```
+
+The new embedded transport, however, declared the owner “logged in” only when
+both of these new cache artifacts existed:
+
+```text
+chrome-profile/storage-state.json
+chrome-profile/storage-state.json.verified.json
+```
+
+The live attempt also created a second persistent profile:
+
+```text
+chrome-profile/login-profile/Default/Network/Cookies
+```
+
+The owner signed in there, but the capture flow then required closing that
+normal Chrome and reopening the profile before writing the storage-state cache.
+The reopened page did not expose a visible composer, so the cache was never
+written. On the next run the code would therefore say “not logged in” again even
+though persistent browser cookies existed.
+
+This revealed two separate mistakes:
+
+1. **cache absence had been promoted into authentication truth**;
+2. **the capture flow destroyed the live authenticated browser before persisting
+   the state it needed**.
+
+The corrected ownership is:
+
+```text
+persistent DSH Chrome profile
+= durable login source
+
+storage-state.json
+= derived/rebuildable transport cache
+```
+
+The provider now:
+
+- checks the existing historical DSH profile first;
+- also recognizes the already-created `login-profile` as a migration/reuse
+  candidate so the owner's latest sign-in is not wasted;
+- derives verified transport storage from an authenticated persistent profile
+  without asking the owner to sign in again;
+- writes authentication proof before probing model/effort capabilities, so a
+  capability-UI failure cannot erase a valid login;
+- refuses to fall through to another automatic login prompt when existing
+  profile evidence is present but reuse fails;
+- uses a Playwright-owned persistent profile for a genuinely first login and
+  captures state while that same authenticated browser is still alive.
+
+The broader lesson is:
+
+> **Changing a transport must not silently create a second account/session
+> source of truth. Authentication is user-owned durable state, not disposable
+> migration scaffolding.**
