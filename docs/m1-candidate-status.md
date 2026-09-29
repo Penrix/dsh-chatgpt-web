@@ -22,20 +22,23 @@
 > dependency `bun audit` gate.
 >
 > Live packets rev 1 through rev 5 are retired. No replacement live packet has
-> been issued.
+> been issued. The next product proof is Desktop-first: exact candidate install
+> → Desktop model discovery → one plain Web inference → Desktop tool loop.
 >
 > Independent CodeRabbit diff review is **UNRESOLVED** because the available
 > terminal environment could not resolve `github.com`; no manual review is
 > represented as CodeRabbit output.
 
 Current owning Draft PR: #18  
-Primary architecture: ADR-0006  
+Primary transport architecture: ADR-0006  
+Primary product-acceptance architecture: ADR-0007  
 Upstream reusable transport Draft PR: `Penrix/codex-chatgpt-web#10`
 
 ## Current M1 shape
 
 The primary provider path does not require the Codex Web GPT desktop Launcher
-or localhost Responses relay:
+or localhost Responses relay. ADR-0007 now requires the real DeepSeek Harness
+Desktop to be the product entrypoint for M1 acceptance:
 
 ```text
 DSH Session / AgentLoop

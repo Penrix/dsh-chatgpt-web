@@ -51,3 +51,5 @@ What did we explicitly choose not to do, and why?
 - [ADR-0004 — Delegate ChatGPT Web transport to codex-chatgpt-web](0004-delegate-chatgpt-web-transport.md)
 - [ADR-0005 — Windows relay lifecycle belongs to Codex Web GPT Launcher (superseded)](0005-windows-relay-lifecycle.md)
 - [ADR-0006 — Embed the mature ChatGPT Web transport in the DSH provider](0006-embed-chatgpt-web-transport.md)
+
+- [ADR-0007 — Make the real DSH Desktop the M1 acceptance entrypoint](0007-desktop-first-m1-acceptance.md)
