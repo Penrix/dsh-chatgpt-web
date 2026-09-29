@@ -70,7 +70,7 @@
     "@deepseek-ai/dsh-token-meter": "0.1.7-rc.2",
     "@deepseek-ai/dsh-commands": "0.1.7-rc.2",
     "@deepseek-ai/dsh-llm-retry": "0.1.7-rc.2",
-    "codex-chatgpt-web": "git+https://github.com/Penrix/codex-chatgpt-web.git#4b8328990c6bc4e1df8f533ffe61699ad7fc3325"
+    "codex-chatgpt-web": "git+https://github.com/Penrix/codex-chatgpt-web.git#47aff10422fe26dbb94ba21e830883ea2672e44b"
   },
   "engines": {
     "node": ">=22"
