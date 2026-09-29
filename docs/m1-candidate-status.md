@@ -11,7 +11,9 @@
 >
 > Current evidence class: **CODE VERIFIED, LIVE UNVERIFIED**.
 >
-> Current downstream validation: Actions run `36536058451` — **SUCCESS**.
+> Current downstream validation authority is the latest `M1 candidate validation`
+> check attached to the current Draft PR #18 head. Do not treat a historical
+> run id embedded lower in this document as current evidence.
 >
 > Current upstream Windows pre-audit evidence: run `36536878891` —
 > browser-login regression **PASS** (including persistent + session-cookie restore,
@@ -77,6 +79,9 @@ Current verification scope:
   browser state back over the sanitized derived cache;
 - downstream validates install, typecheck, unit tests, live-harness syntax,
   build, bundle/load, pack inventory and a fresh production-only install/import.
+- the fresh production consumer's actual npm dependency tree is checked to
+  exclude the upstream-only audited packages `@modelcontextprotocol/sdk`,
+  `hono`, `fast-uri` and `ip-address`.
 
 Current explicit deferrals / non-blockers:
 
