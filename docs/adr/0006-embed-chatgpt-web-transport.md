@@ -66,15 +66,21 @@ Rules:
 3. Do not require the localhost Responses server on the primary path.
 4. Launch the embedded browser transport lazily, only when a real inference is
    requested.
-5. Reuse the mature transport's login capture and persisted ChatGPT session.
-6. Keep browser submission/retry/ambiguity authority in the reused transport;
+5. Reuse the owner's existing DSH persistent Chrome profile before requesting any new sign-in.
+   The persistent profile is the durable login source; `storage-state.json` is only a
+   derived/rebuildable transport cache. A missing cache must never be interpreted as
+   proof that the owner is logged out.
+6. If an existing DSH login profile contains browser login evidence but cannot be
+   reused, fail with a reuse/verification blocker instead of silently opening another
+   sign-in flow. Re-authentication must be an explicit repair decision, not a fallback.
+7. Keep browser submission/retry/ambiguity authority in the reused transport;
    DSH must not add a second production Send state machine around it.
-7. DSH host retries remain disabled for this provider.
-8. The old relay remains historical evidence in ADR-0004/ADR-0005 and Git
+8. DSH host retries remain disabled for this provider.
+9. The old relay remains historical evidence in ADR-0004/ADR-0005 and Git
    history; after the embedded path became the primary candidate, the
    complexity-gate removal pass removed it from the production adapter/config
    instead of keeping a legacy diagnostic branch.
-9. Real ChatGPT quota is reserved for a later end-to-end acceptance after code
+10. Real ChatGPT quota is reserved for a later end-to-end acceptance after code
    and packaging evidence are green.
 
 ## Why this supersedes ADR-0005
