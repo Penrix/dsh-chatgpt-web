@@ -27,7 +27,7 @@ Current code facts:
 - the browser transport is lazy; no Codex Web GPT desktop process needs to
   remain resident for the primary path.
 - the upstream transport source is pinned at exact Git revision
-  `71d0450a98fed8d038c106b6bf20166eadf6dec1` for builds and bundled into
+  `8c6c2aed390d5b0af86e9df19ea711cc98ad3713` for builds and bundled into
   `lib`; the final plugin does not require that Git package at runtime.
 - real ChatGPT Web acceptance is still LIVE UNVERIFIED and must not be run as a
   low-information probe.
@@ -196,7 +196,7 @@ The fail-closed contract is unchanged:
 - no model Send occurs if reuse cannot be proven;
 - derived storage state remains sanitized to ChatGPT/OpenAI scope.
 
-Current pinned upstream repair: `71d0450a98fed8d038c106b6bf20166eadf6dec1`.
+Current pinned upstream repair: `8c6c2aed390d5b0af86e9df19ea711cc98ad3713`.
 
 Evidence remains **CODE VERIFIED, LIVE UNVERIFIED** until fresh downstream CI passes and a later exact Windows acceptance succeeds.
 
@@ -205,7 +205,7 @@ Evidence remains **CODE VERIFIED, LIVE UNVERIFIED** until fresh downstream CI pa
 
 The first rev-4 packet was retired before owner-machine execution because the new legacy-profile CDP behavior had not actually run in a relevant regression test.
 
-Upstream head `71d0450a98fed8d038c106b6bf20166eadf6dec1` now includes a Windows CI regression smoke that uses real Google Chrome with a temporary custom user-data-dir and proves:
+Upstream head `8c6c2aed390d5b0af86e9df19ea711cc98ad3713` now includes a Windows CI regression smoke that uses real Google Chrome with a temporary custom user-data-dir and proves:
 
 ```text
 normal Chrome
@@ -239,7 +239,7 @@ persistent Chrome profile already contains a ChatGPT-domain cookie
 
 Chrome 152 / current Playwright can represent a first-party ChatGPT cookie with a `partitionKey`. The previous sanitizer rejected every cookie carrying any partition key, including a key whose top-level site is itself within the approved ChatGPT/OpenAI boundary.
 
-Pinned upstream `71d0450a98fed8d038c106b6bf20166eadf6dec1` now preserves:
+Pinned upstream `8c6c2aed390d5b0af86e9df19ea711cc98ad3713` now preserves:
 
 - unpartitioned cookies on approved ChatGPT/OpenAI hosts;
 - partitioned cookies only when the partition key is also an HTTPS ChatGPT/OpenAI host.
@@ -251,3 +251,33 @@ Fresh upstream Windows pre-audit regression run `36534320958` passed all six `br
 The repository-wide upstream workflow still fails later at the pre-existing dependency `bun audit` advisories.
 
 A fresh downstream exact-pin validation is required before another owner-machine live packet.
+
+
+## Third self-audit: managed-turn auth-cache persistence
+
+A further ownership audit found a second write path to the same derived login cache:
+
+```text
+legacy-profile migration
+→ sanitized storageState
+→ storage-state.json
+
+managed browser turn completion
+→ raw context.storageState()
+→ same storage-state.json
+```
+
+The second path bypassed the sanitizer and could silently widen or corrupt the privacy boundary after the first successful model turn.
+
+Upstream head `8c6c2aed390d5b0af86e9df19ea711cc98ad3713` now applies the existing `sanitizeBrowserLoginStorageState()` policy before every managed-Chrome turn writes the derived cache.
+
+TDD evidence:
+
+- red upstream run `36535642757`: the dedicated privacy-boundary regression failed because browser-worker wrote raw `context.storageState()`;
+- green upstream run `36535780787`: Windows browser-login regression PASS and managed-Chrome storage-state privacy regression PASS before the known repository-wide `bun audit` gate.
+
+The Windows browser-login regression also proves sanitized derived state can be imported into a fresh Chrome context and restores the credential-free ChatGPT-domain test cookie.
+
+The old CLI-only `loginToChatGpt()` raw write remains historical/outside the DSH embedded M1 path and is not changed by this repair.
+
+A fresh downstream exact-pin validation is required before another live packet.
