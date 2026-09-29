@@ -33,6 +33,7 @@ const inner = new ChatGptWebAdapter({
   composerMaxChars: 180_000,
   contextWindow: 90_000,
   maxTokens: 16_384,
+  allowInteractiveLogin: false,
 })
 
 const safety = await SendSafetyLease.acquire()
