@@ -27,7 +27,7 @@ Current code facts:
 - the browser transport is lazy; no Codex Web GPT desktop process needs to
   remain resident for the primary path.
 - the upstream transport source is pinned at exact Git revision
-  `5054a90af29ba1d13fd164b132a16ad5e5f03512` for builds and bundled into
+  `d941429aaee9a6a31f49766c7a004b4f04bd403a` for builds and bundled into
   `lib`; the final plugin does not require that Git package at runtime.
 - real ChatGPT Web acceptance is still LIVE UNVERIFIED and must not be run as a
   low-information probe.
@@ -181,3 +181,21 @@ The following remain **unverified** until Codex runs them on the user's Windows 
 - ambiguous post-Send recovery behavior in the installed runtime.
 
 Do not convert any of these items into pass/fail claims without actual local execution.
+
+
+## Rev 3 Windows blocker follow-up
+
+Windows rev 3 established that the embedded path stays independent of Codex Web GPT Desktop/Launcher, but both existing DSH Chrome profiles failed authentication verification before model Send.
+
+The upstream transport now adopts legacy persistent profiles by starting the existing profile in ordinary Chrome with a bounded loopback CDP endpoint, then attaching Playwright after Chrome owns profile/session restoration. This replaces direct `launchPersistentContext(profileDir)` for the migration path only.
+
+The fail-closed contract is unchanged:
+
+- existing profile reuse must verify automatically;
+- interactive sign-in remains forbidden during M1 acceptance;
+- no model Send occurs if reuse cannot be proven;
+- derived storage state remains sanitized to ChatGPT/OpenAI scope.
+
+Current pinned upstream repair: `d941429aaee9a6a31f49766c7a004b4f04bd403a`.
+
+Evidence remains **CODE VERIFIED, LIVE UNVERIFIED** until fresh downstream CI passes and a later exact Windows acceptance succeeds.
