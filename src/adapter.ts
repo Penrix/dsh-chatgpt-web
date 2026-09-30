@@ -22,7 +22,7 @@ export interface AdapterOptions {
   chromeExecutablePath?: string
   headed: boolean
   loginTimeoutMs: number
-  composerMaxChars: number
+  composerMaxChars?: number
   contextWindow: number
   maxTokens: number
   turnTimeoutMs?: number
