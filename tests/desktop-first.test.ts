@@ -44,13 +44,11 @@ describe('Desktop-first M1 product path', () => {
     expect(localScript).toContain("$branchOutput = & git -C $RepoRoot branch --show-current")
   })
 
-  it('refuses Desktop mutation while the real application is still running', () => {
-    expect(localScript).toContain('Assert-DesktopStopped')
-    const install = localScript.slice(localScript.indexOf("'DesktopInstall'"))
-    expect(install.indexOf('Assert-DesktopStopped')).toBeGreaterThan(-1)
-    expect(install.indexOf("plugin','--profile','desktop','add")).toBeGreaterThan(
-      install.indexOf('Assert-DesktopStopped'),
-    )
+  it('keeps Desktop profile mutation inside the official running Plugins UI', () => {
+    expect(localScript).not.toContain('Assert-DesktopStopped')
+    expect(localScript).not.toContain('Get-DesktopManagedCli')
+    expect(localScript).toContain('desktop-ui-install-plan.json')
+    expect(localScript).toContain('Plugins -> Add plugin')
   })
 
   it('treats the embedded E2E script as a diagnostic rather than the product acceptance entrypoint', () => {
