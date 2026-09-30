@@ -635,14 +635,14 @@ async function main() {
     const freshRequests = freshRecall.requests.filter((request) => request.purpose === undefined)
     assert.equal(freshRequests.length >= 2, true, 'fresh-page recall did not perform a tool-result continuation inference')
     assert.equal(freshRequests[0].ordinal > requestOrdinalBeforeFreshRecall, true, 'provider request ordinal did not advance')
-    freshRecall.freshPageProof = {
+    freshRecall.freshInferenceEvidence = {
       canonicalSessionId: String(mainAgent.session.id),
-      providerInvariant: 'ChatGptWebAdapter opens ChatGptBrowser.newTurnPage() and closes it for every inference.',
+      transportContract: 'Pinned managed-Chrome transport creates and closes one Temporary Chat page per inference.',
       requestOrdinals: freshRequests.map((request) => request.ordinal),
       recalledUpdatedToken: freshRecall.events.some((event) =>
         event.type === 'tool/result' && String(event.text || '').includes(updatedToken)),
     }
-    assert.equal(freshRecall.freshPageProof.recalledUpdatedToken, true, 'updated memory was not returned on later recall')
+    assert.equal(freshRecall.freshInferenceEvidence.recalledUpdatedToken, true, 'updated memory was not returned on later recall')
     finishStage(freshRecall, 'passed')
 
     const compactStage = beginStage('real-dsh-compaction-and-reinjection')

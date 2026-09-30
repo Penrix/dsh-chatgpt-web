@@ -17,12 +17,23 @@
 
 ## M1 candidate
 
-`WEB-M1-001 rev 2` is staged on `web-m1-001-rev2`. See:
+Current owning Draft PR: **#18**.
 
-- [`docs/m1-candidate-status.md`](docs/m1-candidate-status.md) — what is in the candidate and what is still unverified.
-- [`docs/windows-m1-acceptance.md`](docs/windows-m1-acceptance.md) — isolated Windows smoke, normal Desktop installation, and recovery.
+The primary M1 path now embeds the mature managed-Chrome transport from
+`Penrix/codex-chatgpt-web`; it does **not** require the Codex Web GPT desktop
+Launcher or localhost relay to remain alive.
 
-The candidate is not M1 completion; real Desktop + ChatGPT Web tool-loop acceptance remains local-only.
+See:
+
+- [`docs/m1-candidate-status.md`](docs/m1-candidate-status.md) — current code/evidence state plus preserved historical candidate record.
+- [`docs/adr/0006-embed-chatgpt-web-transport.md`](docs/adr/0006-embed-chatgpt-web-transport.md) — why the embedded transport supersedes the Launcher-owned relay as the primary path.
+- [`docs/windows-m1-acceptance.md`](docs/windows-m1-acceptance.md) — Windows acceptance material; live execution remains explicitly gated.
+
+The candidate is not M1 completion. ADR-0007 makes the real DeepSeek Harness
+Desktop the M1 acceptance entrypoint: install the exact `.tgz` through the official
+sidebar **Plugins → Add plugin → Enable now** flow, prove provider/model discovery, then perform a
+plain Web inference and only then the DSH tool loop. The terminal embedded E2E
+script remains diagnostic only.
 
 ## Status
 
@@ -33,7 +44,7 @@ The candidate is not M1 completion; real Desktop + ChatGPT Web tool-loop accepta
   - `Phant0Meow/dsh-meow-memory`：DSH 跨会话长期记忆层
   - `Penrix/webcodex`：本地身体 / durable execution runtime
   - `Penrix/chatgpt-continuity`：原始对话 DVR / evidence
-  - `Penrix/codex-chatgpt-web`：ChatGPT Web provider 与浏览器自动化经验
+  - `Penrix/codex-chatgpt-web`：ChatGPT Web 专用浏览器 transport 的权威实现；本仓库只复用其明确 library 边界
 
 ---
 
@@ -331,7 +342,7 @@ C. negative history
 - 不让旧窗口最后一次 summary 取代完整 DVR。
 - 不把 WebCodex Project Memory / Goal / Session 当成艺术认知的完整替代物。
 - 不先上向量数据库再寻找问题。
-- 不粗暴合并 `webcodex`、`chatgpt-continuity`、`codex-chatgpt-web`。
+- 不粗暴合并 `webcodex`、`chatgpt-continuity`、`codex-chatgpt-web` 的源码树；需要复用时先建立明确、单一 owner 的接口边界。
 - 不把 ChatGPT Web DOM/browser transport 的临时 conversation identity 当成长期 task identity。
 
 ## 必须保留

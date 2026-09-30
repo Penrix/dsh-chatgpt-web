@@ -53,6 +53,37 @@ describe('persisted send safety (no browser or real waits)', () => {
     await second.release()
   })
 
+  it('paces acceptance turns without creating a false pending Send on failure', async () => {
+    const h = await harness()
+    const first = await SendSafetyLease.acquire(h.options)
+    await expect(first.paceAcceptanceTurn(async () => {
+      h.advance(5_000)
+      throw new Error('browser failed before Send')
+    })).rejects.toThrow('browser failed before Send')
+    const failedAt = h.time()
+    await first.release()
+
+    const persisted = JSON.parse(await readFile(join(h.root, 'state.json'), 'utf8'))
+    expect(persisted.pending).toBe(false)
+
+    const second = await SendSafetyLease.acquire(h.options)
+    await second.paceAcceptanceTurn(async () => {
+      expect(h.time() - failedAt).toBeGreaterThanOrEqual(MIN_SEND_INTERVAL_MS)
+    })
+    await second.release()
+  })
+
+  it('fails closed across runs when acceptance records a real unknown submission outcome', async () => {
+    const h = await harness()
+    const first = await SendSafetyLease.acquire(h.options)
+    await first.paceAcceptanceTurn(async () => {})
+    await first.markOutcomeUnknown()
+    await first.release()
+
+    h.advance(600_000)
+    await expect(SendSafetyLease.acquire(h.options)).rejects.toMatchObject({ code: 'PROVIDER_ERROR' })
+  })
+
   it('waits 30s for unknown page history and preserves page spacing across instances', async () => {
     const h = await harness()
     const opens: number[] = []

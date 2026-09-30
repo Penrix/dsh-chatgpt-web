@@ -2,7 +2,7 @@
 
 > Status: working architecture
 >
-> This document describes ownership and seams. It intentionally does not choose a final browser automation stack, retrieval database, or managed-conversation lifetime before experiments.
+> This document describes ownership and seams. ADR-0006 has selected the current primary browser transport: the managed-Chrome transport reused as a library from `Penrix/codex-chatgpt-web`. Retrieval strategy and managed-conversation lifetime remain experimental.
 
 ---
 
@@ -331,7 +331,8 @@ The following projects are relevant references:
 - `WLV-ZEDD/dsh-chatgpt-web`
   - another direct DSH ↔ ChatGPT Web implementation path to compare.
 - `Penrix/codex-chatgpt-web`
-  - hard-won browser automation, compaction and Web-provider experience.
+  - authoritative ChatGPT-specific browser transport implementation reused by this provider through a narrow library boundary;
+  - DSH owns provider/session lifecycle, but does not fork or reimplement its DOM submission/reply machinery.
 - `Penrix/webcodex`
   - local body / durable execution substrate.
 - `Phant0Meow/dsh-meow-memory`

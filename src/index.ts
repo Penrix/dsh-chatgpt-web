@@ -24,6 +24,8 @@ export interface Config {
   composerMaxChars?: number
   contextWindow?: number
   maxTokens?: number
+  /** Explicit repair switch. Normal Desktop operation must reuse existing login or fail closed. */
+  allowInteractiveLogin?: boolean
   webcodexRead?: WebCodexReadConfig
 }
 
@@ -32,10 +34,11 @@ export const Config: z<Config> = z.object({
   chromeExecutablePath: z.string(),
   headed: z.boolean().default(true),
   loginTimeoutMs: z.number().min(1).default(600_000),
-  turnTimeoutMs: z.number().min(1).default(900_000),
-  composerMaxChars: z.number().step(1).min(1).default(180_000),
-  contextWindow: z.number().step(1).min(1).default(90_000),
-  maxTokens: z.number().step(1).min(1).default(16_384),
+  turnTimeoutMs: z.number().min(1),
+  composerMaxChars: z.number().step(1).min(1),
+  contextWindow: z.number().step(1).min(1),
+  maxTokens: z.number().step(1).min(1),
+  allowInteractiveLogin: z.boolean().default(false),
   webcodexRead: z.union([
     z.object({
       baseUrl: z.string().required(),
@@ -51,10 +54,11 @@ export function apply(ctx: Context, config: Config): void {
     ...(config.chromeExecutablePath ? { chromeExecutablePath: config.chromeExecutablePath } : {}),
     headed: config.headed ?? true,
     loginTimeoutMs: config.loginTimeoutMs ?? 600_000,
-    turnTimeoutMs: config.turnTimeoutMs ?? 900_000,
-    composerMaxChars: config.composerMaxChars ?? 180_000,
-    contextWindow: config.contextWindow ?? 90_000,
-    maxTokens: config.maxTokens ?? 16_384,
+    ...(config.turnTimeoutMs === undefined ? {} : { turnTimeoutMs: config.turnTimeoutMs }),
+    ...(config.composerMaxChars === undefined ? {} : { composerMaxChars: config.composerMaxChars }),
+    ...(config.contextWindow === undefined ? {} : { contextWindow: config.contextWindow }),
+    ...(config.maxTokens === undefined ? {} : { maxTokens: config.maxTokens }),
+    allowInteractiveLogin: config.allowInteractiveLogin ?? false,
   })
 
   ctx.llm.registerAdapter([PROVIDER], adapter)
@@ -89,3 +93,4 @@ export type {
   WebCodexReadFilesSeamOptions,
   WebCodexToolResult,
 } from './webcodex/index.ts'
+

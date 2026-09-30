@@ -1,15 +1,15 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-  [ValidateSet('Stage','VerifyStage','InstallIsolated','RollbackIsolated','DesktopInstallPlan','DesktopReadback','DesktopRollbackPlan')]
+  [ValidateSet('Stage','VerifyStage','InstallIsolated','RollbackIsolated','DesktopUiInstallPlan','DesktopReadback','DesktopRollbackPlan')]
   [string]$Action = 'Stage',
   [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
   [string]$StageRoot,
-  [string]$ExpectedBranch = 'web-m1-live-008',
+  [string]$ExpectedBranch = 'm1a-relay-spike',
   [string]$ExpectedHead,
   [string]$DshHome,
   [string]$DesktopInstallRoot,
   [string]$DesktopExecutableName = 'DeepSeek Harness.exe',
-  [string]$ExpectedDesktopVersion = '0.1.7-rc.2',
+  [string]$ExpectedDesktopVersion,
   [string]$IsolatedDshHome,
   [switch]$SkipRepositoryChecks,
   [switch]$OpenDesktop
@@ -45,6 +45,25 @@ function Get-DefaultStageRoot {
   return [IO.Path]::GetFullPath((Join-Path $env:TEMP 'dsh-chatgpt-web-m1-stage'))
 }
 
+function Get-DesktopExecutable {
+  if (-not $DesktopInstallRoot) { throw 'DeepSeek Harness Desktop install root is unavailable.' }
+  $path = Join-Path $DesktopInstallRoot $DesktopExecutableName
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "DeepSeek Harness executable not found: $path" }
+  return [IO.Path]::GetFullPath($path)
+}
+
+function Get-ObservedDesktopVersion([string]$DesktopExe) {
+  $info = (Get-Item -LiteralPath $DesktopExe).VersionInfo
+  $versions = @($info.ProductVersion,$info.FileVersion) | Where-Object { $_ } | Select-Object -Unique
+  if ($ExpectedDesktopVersion) {
+    $matching = $versions | Where-Object { $_.StartsWith($ExpectedDesktopVersion,[StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+    if (-not $matching) {
+      throw "Expected DeepSeek Harness Desktop $ExpectedDesktopVersion, observed '$($versions -join ', ')' at $DesktopExe."
+    }
+  }
+  return ($versions | Select-Object -First 1)
+}
+
 function Resolve-NormalizedPath([string]$Path) {
   return [IO.Path]::GetFullPath($Path).TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)
 }
@@ -73,8 +92,9 @@ function Assert-RepositoryTarget {
     # git worktrees use a .git file rather than a directory.
     if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot '.git') -PathType Leaf)) { throw "RepoRoot is not a git checkout/worktree: $RepoRoot" }
   }
-  $branch = (& git -C $RepoRoot branch --show-current).Trim()
+  $branchOutput = & git -C $RepoRoot branch --show-current
   if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve repository branch.' }
+  $branch = (($branchOutput | Out-String).Trim())
   $head = (& git -C $RepoRoot rev-parse HEAD).Trim()
   if ($LASTEXITCODE -ne 0 -or -not $head) { throw 'Unable to resolve repository HEAD.' }
   if ($branch) {
@@ -211,7 +231,7 @@ switch ($Action) {
     $desktopExe = if ($DesktopInstallRoot) { Join-Path $DesktopInstallRoot $DesktopExecutableName } else { $null }
     $stage = [pscustomobject]@{
       schema = 1
-      packet = 'WEB-M1-LIVE-008 rev 1'
+      packet = 'M1-DESKTOP-FIRST candidate'
       packageName = $PackageName
       packageVersion = [string]$manifest.version
       branch = $git.branch
@@ -231,7 +251,7 @@ switch ($Action) {
     Write-Json (Join-Path $StageRoot $MarkerName) $stage
     Write-Host "STAGED: $candidate"
     Write-Host "SHA256: $($stage.candidateSha256)"
-    Write-Host "NEXT (non-destructive Desktop plan): .\scripts\m1-local.ps1 -Action DesktopInstallPlan -StageRoot `"$StageRoot`""
+    Write-Host "NEXT (non-destructive Desktop UI plan): .\scripts\m1-local.ps1 -Action DesktopUiInstallPlan -StageRoot `"$StageRoot`""
   }
 
   'VerifyStage' {
@@ -282,39 +302,47 @@ switch ($Action) {
     }
   }
 
-  'DesktopInstallPlan' {
+  'DesktopUiInstallPlan' {
     $resolved = Resolve-StageManifest
-    if (-not $DesktopInstallRoot -or -not (Test-Path -LiteralPath $DesktopInstallRoot -PathType Container)) { throw "DSH Desktop install root not found: $DesktopInstallRoot" }
-    $desktopExe = Join-Path $DesktopInstallRoot $DesktopExecutableName
-    if (-not (Test-Path -LiteralPath $desktopExe -PathType Leaf)) { throw "DeepSeek Harness executable not found: $desktopExe" }
-    $desktopVersionInfo = (Get-Item -LiteralPath $desktopExe).VersionInfo
-    $observedDesktopVersions = @($desktopVersionInfo.ProductVersion,$desktopVersionInfo.FileVersion) | Where-Object { $_ }
-    $observedDesktopVersion = $observedDesktopVersions |
-      Where-Object { $_.StartsWith($ExpectedDesktopVersion,[StringComparison]::OrdinalIgnoreCase) } |
-      Select-Object -First 1
-    if (-not $observedDesktopVersion) {
-      throw "Expected official DeepSeek Harness $ExpectedDesktopVersion, observed '$($observedDesktopVersions -join ', ')' at $desktopExe."
-    }
+    $desktopExe = Get-DesktopExecutable
+    $observedDesktopVersion = Get-ObservedDesktopVersion $desktopExe
     $before = Get-DesktopProfileSnapshot (Join-Path $StageRoot 'desktop-before-install')
+    $profileManifest = Join-Path $before.profile 'package.json'
+    if (-not (Test-Path -LiteralPath $profileManifest -PathType Leaf)) {
+      throw 'Desktop profile is not initialized. Open DeepSeek Harness Desktop once, then rerun this read-only plan.'
+    }
+
     $plan = [pscustomobject]@{
       packageName=$PackageName
       candidate=$resolved.candidate
       candidateSha256=$resolved.stage.candidateSha256
       desktopExe=$desktopExe
-      expectedDesktopVersion=$ExpectedDesktopVersion
       desktopVersion=$observedDesktopVersion
       dshHome=$DshHome
       desktopProfile=$before.profile
-      backup=$before
-      mutation='Use the official DeepSeek Harness sidebar Plugins page with the candidate absolute tarball path; do not edit profile files or use the public CLI against the reserved desktop profile.'
-      rollback='Use the official DeepSeek Harness sidebar Plugins page to remove/disable the bundle. If startup is fatal, use the application recovery flow to disable third-party bundles.'
+      before=$before
+      installSurface='DeepSeek Harness sidebar -> Plugins -> Add plugin'
+      installSpec=$resolved.candidate
+      enableAction='Enable now'
+      steps=@(
+        'Open the official DeepSeek Harness Desktop.',
+        'Open Plugins in the sidebar.',
+        'Choose Add plugin.',
+        'Paste the exact absolute .tgz path from installSpec.',
+        'Install the inspected bundle.',
+        'Choose Enable now when installation succeeds.',
+        'Verify Penrix ChatGPT Web appears in the model selector before any ChatGPT Web Send.'
+      )
+      rollback='Use the official Desktop Plugins page to disable/uninstall the bundle; do not edit the profile by hand.'
       preparedAt=(Get-Date).ToUniversalTime().ToString('o')
     }
-    $planPath = Join-Path $StageRoot 'desktop-install-plan.json'
+    $planPath = Join-Path $StageRoot 'desktop-ui-install-plan.json'
     Write-Json $planPath $plan
-    Write-Host "DESKTOP INSTALL PLAN: $planPath"
+    Write-Host "DESKTOP UI INSTALL PLAN: $planPath"
     Write-Host "PLUGIN SPEC: $($resolved.candidate)"
-    Write-Host 'Install the printed local package path from the official DeepSeek Harness sidebar Plugins page. Do not edit profile files or mutate the reserved desktop profile with the CLI.'
+    Write-Host "SHA256: $($resolved.stage.candidateSha256)"
+    Write-Host 'UI: Plugins -> Add plugin -> paste the exact .tgz path -> Install -> Enable now.'
+    Write-Host 'Do not spend ChatGPT Web quota until the provider/model is visible in the Desktop model selector.'
     if ($OpenDesktop) { Start-Process -FilePath $desktopExe | Out-Null }
   }
 
@@ -335,7 +363,7 @@ switch ($Action) {
       packageName=$PackageName
       candidateSha256=$resolved.stage.candidateSha256
       currentState=$state
-      normalRollback='Official DeepSeek Harness > Plugins: disable/remove @penrix/dsh-chatgpt-web, then restart if requested.'
+      normalRollback='Use the official DeepSeek Harness sidebar Plugins page to disable or uninstall @penrix/dsh-chatgpt-web.'
       fatalRollback='Use official DeepSeek Harness recovery to disable third-party bundles; do not restore backup files by hand.'
       forensicBackup=(Join-Path $StageRoot 'desktop-before-install')
       preparedAt=(Get-Date).ToUniversalTime().ToString('o')

@@ -1,5 +1,52 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+
+const packedPackage = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+assert.equal(
+  Object.prototype.hasOwnProperty.call(packedPackage.dependencies ?? {}, 'codex-chatgpt-web'),
+  false,
+  'embedded transport must not remain a runtime package dependency',
+)
+const upstreamRuntimeImport = /(?:from\s*|import\s*\(|require\s*\()\s*['"]codex-chatgpt-web(?:\/[^'"]*)?['"]/
+for (const builtPath of ['../lib/index.js', '../lib/index.d.ts']) {
+  const built = readFileSync(new URL(builtPath, import.meta.url), 'utf8')
+  assert.equal(
+    upstreamRuntimeImport.test(built),
+    false,
+    `built artifact still imports codex-chatgpt-web at runtime: ${builtPath}`,
+  )
+}
+
+const runtimeSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+const importSpecifiers = new Set()
+for (const pattern of [
+  /^\s*import\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/gm,
+  /^\s*export\s+[^'"]*?\s+from\s+['"]([^'"]+)['"]/gm,
+  /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+]) {
+  for (const match of runtimeSource.matchAll(pattern)) importSpecifiers.add(match[1])
+}
+const packageRoot = (specifier) => specifier.startsWith('@')
+  ? specifier.split('/').slice(0, 2).join('/')
+  : specifier.split('/')[0]
+const declaredRuntimePackages = new Set([
+  ...Object.keys(packedPackage.dependencies ?? {}),
+  ...Object.keys(packedPackage.peerDependencies ?? {}),
+  ...Object.keys(packedPackage.optionalDependencies ?? {}),
+])
+const undeclaredRuntimePackages = [...importSpecifiers]
+  .filter(specifier => !specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('node:'))
+  .map(packageRoot)
+  .filter(packageName => !declaredRuntimePackages.has(packageName))
+  .filter((packageName, index, all) => all.indexOf(packageName) === index)
+  .sort()
+assert.deepEqual(
+  undeclaredRuntimePackages,
+  [],
+  'built plugin has undeclared runtime package imports',
+)
 
 const npmArgs = ['pack', '--dry-run', '--json']
 const npmExecPath = process.env.npm_execpath

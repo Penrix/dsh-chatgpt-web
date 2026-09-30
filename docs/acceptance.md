@@ -10,9 +10,25 @@ These are product invariants, not aspirational prose.
   Unicode and escapes) through parsing and native tool-call emission. Offline
   DOM coverage is opt-in with `RUN_OFFLINE_DOM_TESTS=1 npm test`; it uses an empty
   nonpersistent local browser with all page network requests blocked.
-- Updated adapters share persisted Send spacing and ChatGPT page-open spacing
-  of at least 30 seconds under one exclusive account-wide turn lock. Browser
-  startup pages count. Rate limits stop the run; automatic retries are disabled.
+- The primary embedded provider delegates ChatGPT browser submission,
+  completion binding and post-Send ambiguity to the reused
+  `codex-chatgpt-web` transport. DSH must not add a second production Send
+  state machine around it.
+- Existing DSH persistent Chrome login state is reused before any interactive sign-in.
+  A missing `storage-state.json` cache is not evidence that the owner is logged out.
+- If an existing DSH login profile has cookie evidence but cannot be verified/reused,
+  the provider fails closed with a reuse blocker; it must not fall through to another
+  automatic sign-in prompt.
+- The real DSH Desktop plugin defaults to interactive login disabled. Product acceptance
+  may reuse existing profile state or stop, but it may never ask the owner to sign in
+  again as an automatic fallback.
+- A genuinely first-time interactive login captures transport state while the
+  Playwright-owned persistent profile is still open; it must not require the owner
+  to close Chrome and then reopen the same profile merely to capture session cookies.
+- Real-machine acceptance may impose account-wide 30-second Send pacing as a
+  **verification-only** guard. That cadence does not become ordinary provider
+  behavior.
+- Rate limits stop the run; automatic DSH host retries are disabled.
 - Repository live-test entrypoints reject any ChatGPT route below High.
 - `contextWindow` is an operator budget cap bounded by the route catalog value,
   not a claim of verified Web capacity. The composer character cap is separate;
@@ -62,7 +78,7 @@ Examples:
 
 ```text
 kill Web page → continue same DSH session
-restart browser daemon → continue same DSH session
+restart embedded browser transport → continue same DSH session
 compact DSH context → memory reinjects
 replace ChatGPT inference page → same task identity
 lose provider response after possible Send → no blind duplicate
@@ -72,7 +88,10 @@ A test that keeps every component alive does not prove durable continuity.
 
 ## F. First end-to-end acceptance scenario
 
-1. Start one DSH Session using the ChatGPT Web provider.
+Before any ChatGPT Web Send, install the exact candidate through the running official Desktop sidebar **Plugins → Add plugin**, choose **Enable now**, and verify the ChatGPT Web provider/models appear in the Desktop model selector.
+Then:
+
+1. Start one **real DSH Desktop Session** using the ChatGPT Web provider.
 2. meow-memory injects long-term context.
 3. User asks for a small fact/project-memory operation.
 4. ChatGPT proposes `memory_search`.
