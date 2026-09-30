@@ -43,7 +43,7 @@ Required:
 - never make ChatGPT Web execute local effects directly;
 - keep post-Send ambiguity fail-closed.
 
-Exit condition: the exact candidate is installed into the real DSH Desktop profile through Desktop's own package manager; the Desktop model selector discovers the ChatGPT Web provider; one plain Desktop Web inference succeeds; then the same real Desktop product path can call a harmless DSH tool through ChatGPT Web and continue after the result.
+Exit condition: the exact candidate is installed through the official Desktop **Plugins → Add plugin → Enable now** flow; the Desktop model selector discovers the ChatGPT Web provider; one plain Desktop Web inference succeeds; then the same real Desktop product path can call a harmless DSH tool through ChatGPT Web and continue after the result.
 
 ## Milestone 2 — meow-memory end-to-end
 

@@ -21,9 +21,7 @@
 > regression **PASS**. The workflow fails later at the already-known repository-wide
 > dependency `bun audit` gate.
 >
-> Live packets rev 1 through rev 5 are retired. No replacement live packet has
-> been issued. The next product proof is Desktop-first: exact candidate install
-> → Desktop model discovery → one plain Web inference → Desktop tool loop.
+> Live packets rev 1 through rev 5 are retired. The CLI-carrier repair packet is also retired as unnecessary. The next product proof is Desktop-first: exact staged `.tgz` → official Plugins UI → model discovery → one plain Web inference → Desktop tool loop.
 >
 > Independent CodeRabbit diff review is **UNRESOLVED** because the available
 > terminal environment could not resolve `github.com`; no manual review is
@@ -39,6 +37,8 @@ Upstream reusable transport Draft PR: `Penrix/codex-chatgpt-web#10`
 The primary provider path does not require the Codex Web GPT desktop Launcher
 or localhost Responses relay. ADR-0007 now requires the real DeepSeek Harness
 Desktop to be the product entrypoint for M1 acceptance:
+
+The Desktop sidebar **Plugins → Add plugin** flow is the primary install boundary; the Desktop-managed `dsh` CLI is optional maintenance tooling and is not an acceptance prerequisite.
 
 ```text
 DSH Session / AgentLoop

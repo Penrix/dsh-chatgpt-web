@@ -1,6 +1,6 @@
 # Windows M1 Desktop-first acceptance
 
-> Current authority: ADR-0007. The real DeepSeek Harness Desktop is the M1 product entrypoint. The terminal embedded E2E script is diagnostic only.
+> Current authority: ADR-0007. The official DeepSeek Harness Desktop **Plugins** page is the M1 installation authority. The terminal embedded E2E script is diagnostic only.
 
 ## 1. Stage the exact candidate
 
@@ -11,66 +11,68 @@ $Head = (git rev-parse HEAD).Trim()
 .\scripts\m1-local.ps1 -Action Stage -ExpectedHead $Head
 ```
 
-Staging is non-destructive. It runs repository checks, builds and packs the plugin, records the exact source head and tarball SHA-256, and takes a forensic readback of Desktop profile metadata.
+When CI already owns repository validation, a local handoff may use `-SkipRepositoryChecks` after the exact head has built successfully.
 
-## 2. Prepare the Desktop-owned install
+Staging records the exact source head, absolute tarball path and SHA-256.
 
-DeepSeek Harness Desktop must have been opened at least once so its reserved profile exists.
-
-```powershell
-.\scripts\m1-local.ps1 -Action DesktopInstallPlan -ExpectedHead $Head
-```
-
-The plan resolves the installed Desktop executable and the `dsh` command currently available on PATH. On Windows, install or repair the official carrier first from **DeepSeek Harness → Manage dsh Command…**, then open a new PowerShell. An ordinary npm-installed `dsh` is not permitted to mutate `profiles/desktop`.
-
-## 3. Install into the real Desktop profile
-
-Fully quit DeepSeek Harness Desktop, including its Windows tray process. Then:
+## 2. Emit the non-destructive Desktop UI install plan
 
 ```powershell
-.\scripts\m1-local.ps1 -Action DesktopInstall -ExpectedHead $Head
+.\scripts\m1-local.ps1 -Action DesktopUiInstallPlan -ExpectedHead $Head
 ```
 
-The script fails if Desktop is still running and never kills it automatically. Its mutation boundary is:
+This does not mutate the Desktop profile. It prints and records:
+
+- exact local `.tgz` path;
+- SHA-256;
+- observed Desktop executable/version;
+- read-only profile snapshot;
+- the official UI steps.
+
+## 3. Install through the real Desktop
+
+Keep the official Desktop running.
+
+In the sidebar:
 
 ```text
-dsh plugin --profile desktop add <exact staged tarball>
+Plugins
+→ Add plugin
+→ paste the exact absolute .tgz path
+→ Install
+→ Enable now
 ```
 
-The `dsh` command must be the carrier installed or repaired by the official Desktop's **Manage dsh Command…** surface. That upstream-supported carrier owns the Desktop profile lock, bundled package runtime, compatibility checks and bundle reconciliation. If a different CLI has PATH precedence, the official CLI contract rejects the reserved `desktop` profile instead of letting this script bypass the guard.
+The Desktop Host owns spec inspection, compatibility checks, package/profile mutation, rollback on failure and bundle activation.
 
-A successful action must read back:
+Do not hand-edit the profile and do not require the CLI carrier for this path.
+
+After installation, optional readback is:
+
+```powershell
+.\scripts\m1-local.ps1 -Action DesktopReadback
+```
+
+Expected:
 
 ```text
 dependency != null
 bundleSelected = true
 ```
 
-and writes `desktop-install-receipt.json`.
+## 4. Prove provider discovery before any Web Send
 
-## 4. Prove Desktop provider discovery before any Web Send
+In the actual Desktop model selector, verify the Penrix ChatGPT Web provider/models are present, including `chatgpt-web/high`.
 
-Reopen the real Desktop. Before sending anything to ChatGPT Web, verify in the Desktop conversation model selector that the Penrix ChatGPT Web provider/models are present, including `chatgpt-web/high`.
-
-This proves:
-
-```text
-real Desktop
-→ reserved desktop profile
-→ @penrix/dsh-chatgpt-web loaded
-→ ctx.llm catalog
-→ Desktop model selector
-```
-
-If the provider/models are absent, stop there. Do not spend ChatGPT Web quota diagnosing a Desktop composition failure.
+If absent, stop. This is a Desktop composition problem and must consume **0 ChatGPT Web inferences**.
 
 ## 5. One plain Desktop inference
 
-Select `chatgpt-web/high` in the real Desktop and send one simple non-tool prompt.
+Select `chatgpt-web/high` and send one simple non-tool prompt.
 
-The real plugin defaults to `allowInteractiveLogin=false`. Acceptance may reuse the existing DSH ChatGPT login or fail closed. It must not ask the owner to sign in again automatically.
+The real plugin defaults to `allowInteractiveLogin=false`. Existing login must be reused automatically or the run stops before Send.
 
-PASS for this layer is:
+PASS:
 
 ```text
 Desktop Session
@@ -82,22 +84,20 @@ Desktop Session
 → same Desktop Session
 ```
 
-If login reuse fails before Send, stop with zero model inferences.
-
 ## 6. Desktop tool-loop acceptance
 
-Only after the plain Desktop inference works, exercise one harmless DSH tool from the same product surface.
+Only after the plain inference works, exercise one harmless/read-only DSH tool from the same product surface.
 
-PASS requires:
+PASS:
 
 ```text
 Desktop Session
 → ChatGPT Web inference #1
-→ exact DSH tool proposal
-→ DSH ToolRuntime executes exactly once
+→ one DSH tool proposal
+→ ToolRuntime executes exactly once
 → tool/call + tool/result persist in the same Session
 → ChatGPT Web inference #2
-→ final assistant answer in Desktop
+→ final answer in Desktop
 ```
 
 No blind resend is allowed after a possibly-sent turn. Automatic DSH host retries remain disabled.
@@ -108,12 +108,10 @@ No blind resend is allowed after a possibly-sent turn. Automatic DSH host retrie
 npm run m1:diagnostic:e2e-live
 ```
 
-This remains useful to isolate provider/tool-loop defects without Desktop UI. It is not the M1 product acceptance entrypoint and cannot establish Desktop LIVE VERIFIED.
+This is diagnostic only and cannot establish Desktop LIVE VERIFIED.
 
 ## Evidence class
 
 Until the current exact candidate completes the real Desktop flow above:
 
 **CODE VERIFIED, LIVE UNVERIFIED**
-
-A future LIVE VERIFIED receipt must bind the exact DSH commit, Desktop/runtime version, installation receipt, provider/model discovery, actual Web inference count and actual DSH tool execution count.

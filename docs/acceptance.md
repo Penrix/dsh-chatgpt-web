@@ -88,8 +88,7 @@ A test that keeps every component alive does not prove durable continuity.
 
 ## F. First end-to-end acceptance scenario
 
-Before any ChatGPT Web Send, install the exact candidate through the Desktop-owned package manager,
-reopen the real Desktop, and verify the ChatGPT Web provider/models appear in the Desktop model selector.
+Before any ChatGPT Web Send, install the exact candidate through the running official Desktop sidebar **Plugins → Add plugin**, choose **Enable now**, and verify the ChatGPT Web provider/models appear in the Desktop model selector.
 Then:
 
 1. Start one **real DSH Desktop Session** using the ChatGPT Web provider.

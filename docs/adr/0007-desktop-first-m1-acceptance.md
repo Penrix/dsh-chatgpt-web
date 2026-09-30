@@ -1,22 +1,27 @@
 # ADR-0007 — Make the real DSH Desktop the M1 acceptance entrypoint
 
-Status: Accepted
-Date: 2026-09-29
+Status: Accepted  
+Date: 2026-09-29  
+Updated: 2026-09-30
 
 ## Context
 
-The embedded ChatGPT Web transport and DSH tool-loop harness became useful for isolating browser and provider failures, but that harness creates its own Cordis/DSH runtime in a terminal process. It proves real DSH libraries can drive the provider; it does not prove the product the owner actually uses.
+The embedded ChatGPT Web transport and DSH tool-loop harness are useful diagnostics, but they create their own DSH runtime in a terminal process. They cannot prove the product the owner actually uses.
 
-DeepSeek Harness Desktop owns the reserved `$DSH_HOME/profiles/desktop`. The official Desktop exposes **Manage dsh Command…** to install or repair its own `dsh` command on PATH; that Desktop-managed carrier may manage the reserved profile while Desktop is fully quit. An ordinary npm-installed `dsh` must not mutate it.
+Official DeepSeek Harness Desktop already owns package installation for its live profile through the sidebar **Plugins** page. **Add plugin** accepts a package name, Git address, tarball, or absolute local path; the Host inspects the spec, owns package/profile mutation and compatibility checks, rolls back failed installs, and offers **Enable now** after success.
+
+A previous acceptance path inserted the Desktop-managed `dsh` CLI between the candidate tarball and Desktop. That added a carrier/preference problem which is not part of the product goal and already consumed an unnecessary owner-machine run.
 
 ## Decision
 
-M1 acceptance is Desktop-first:
+M1 acceptance is Desktop-first and Plugins-UI-first:
 
 ```text
 exact candidate tarball
-→ Desktop-managed `dsh` installs into profiles/desktop
-→ reopen real Desktop
+→ official Desktop sidebar Plugins
+→ Add plugin with exact local .tgz path
+→ Install
+→ Enable now
 → Desktop model selector discovers chatgpt-web/*
 → one plain Desktop ChatGPT Web inference
 → same real Desktop path performs the DSH tool round-trip
@@ -25,22 +30,25 @@ exact candidate tarball
 Rules:
 
 1. `m1-embedded-e2e-live.mjs` remains an internal diagnostic only.
-2. Desktop profile mutation uses only Desktop-owned package-management surfaces: the Desktop Plugins UI or the `dsh` command installed or repaired through **Manage dsh Command…**.
-3. Scripted installation fails if Desktop is still running; it never kills the app automatically.
-4. The real plugin defaults to `allowInteractiveLogin=false`; existing login is reused or the provider fails closed. Re-authentication is an explicit repair action, not a fallback.
-5. Provider/model discovery is proved before spending any ChatGPT Web model quota.
-6. The first Web Send for M1 product acceptance originates from the real Desktop.
-7. ADR-0006 transport ownership, post-Send ambiguity, DSH Session authority, tool validation and retry boundaries remain unchanged.
+2. The official Desktop **Plugins** page is the primary package/profile mutation authority for M1 acceptance.
+3. `scripts/m1-local.ps1` may stage, verify, emit the exact UI install plan, and read back profile state; it must not install the Desktop plugin itself.
+4. The Desktop-managed `dsh` command is an optional maintenance surface, not a prerequisite for M1 acceptance.
+5. The real plugin defaults to `allowInteractiveLogin=false`; existing login is reused or the provider fails closed.
+6. Provider/model discovery is proved before spending any ChatGPT Web model quota.
+7. The first Web Send for M1 product acceptance originates from the real Desktop.
+8. ADR-0006 transport ownership, post-Send ambiguity, DSH Session authority, tool validation and retry boundaries remain unchanged.
 
 ## Consequences
 
-The acceptance evidence now matches the actual product entrypoint. Installation/composition failure is separated from browser/provider failure, and repeated sign-in prompts cannot silently reappear merely because execution moved from the diagnostic harness into Desktop.
+Installation/composition failures are now separated cleanly from Web transport failures without introducing a CLI-carrier prerequisite.
 
-The current candidate remains CODE VERIFIED, LIVE UNVERIFIED until the owner's real Desktop completes this flow.
+The owner should not spend local Codex/model quota on CI-owned checks or on proving a command carrier when the Desktop UI already owns installation.
+
+The current candidate remains **CODE VERIFIED, LIVE UNVERIFIED** until the owner's real Desktop completes this flow.
 
 ## Rejected alternatives
 
 - Keep the terminal harness as primary acceptance: it bypasses Desktop composition and UI.
 - Hand-edit `profiles/desktop`: Desktop already owns package management, locking and reconciliation.
-- Use an ordinary npm-installed `dsh` for the Desktop profile: upstream explicitly reserves that profile for the Desktop-managed command.
-- Automatically kill Desktop before install: expose the lifecycle violation as a blocker instead of taking an unrelated destructive action.
+- Require the Desktop-managed `dsh` CLI before installation: unnecessary indirection for the M1 product path.
+- Use an ordinary npm-installed `dsh` for the Desktop profile: official DSH correctly refuses the Electron-owned profile.
