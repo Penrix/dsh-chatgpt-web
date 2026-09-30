@@ -21,6 +21,11 @@ describe('Desktop-first M1 product path', () => {
     expect(config.composerMaxChars).toBeUndefined()
   })
 
+  it('does not override model-specific context windows by default', () => {
+    const config = Config({})
+    expect(config.contextWindow).toBeUndefined()
+  })
+
   it('uses the Desktop-owned bundled CLI for the reserved desktop profile', () => {
     expect(localScript).toContain("'DesktopInstall'")
     expect(localScript).toContain("resources\\runtime\\cli\\bin\\dsh.cmd")
