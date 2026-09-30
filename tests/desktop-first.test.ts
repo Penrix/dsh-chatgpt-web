@@ -31,11 +31,11 @@ describe('Desktop-first M1 product path', () => {
     expect(config.maxTokens).toBeUndefined()
   })
 
-  it('uses the Desktop-owned bundled CLI for the reserved desktop profile', () => {
+  it('uses the official Desktop-managed dsh command contract instead of a private install path', () => {
     expect(localScript).toContain("'DesktopInstall'")
-    expect(localScript).toContain("resources\\runtime\\cli\\bin\\dsh.cmd")
+    expect(localScript).toContain("Get-Command dsh -CommandType Application")
     expect(localScript).toContain("@('plugin','--profile','desktop','add',$resolved.candidate)")
-    expect(localScript).not.toContain("dsh @('plugin','--profile','desktop','add'")
+    expect(localScript).not.toContain("resources\\runtime\\cli\\bin\\dsh.cmd")
   })
 
   it('refuses Desktop mutation while the real application is still running', () => {
