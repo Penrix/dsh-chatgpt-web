@@ -218,3 +218,9 @@ acceptance + tests
 ```
 
 When these disagree, stop and reconcile them explicitly rather than choosing whichever file is convenient.
+
+## 13. Penrix AI coding overlay
+
+Before production-code changes, also read [`PENRIX-CODING.md`](PENRIX-CODING.md).
+
+The overlay adds the general Penrix coding gates that are intentionally broader than this repository's continuity architecture: collect current project / official / upstream / real-user operational evidence before coding when those facts can affect correctness, and run a second Reality Audit against the actual final diff before completion. It supplements §§1–12 above; it does not weaken the repository's cognition, authority, send/retry, ADR, or acceptance rules.
