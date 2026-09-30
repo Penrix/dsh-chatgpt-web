@@ -52,10 +52,17 @@ function Get-DesktopExecutable {
   return [IO.Path]::GetFullPath($path)
 }
 
-function Get-DesktopBundledCli {
-  $path = Join-Path $DesktopInstallRoot 'resources\runtime\cli\bin\dsh.cmd'
-  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-    throw "Desktop-owned dsh command not found: $path. This Desktop build cannot be mutated through the supported reserved-profile CLI."
+function Get-DesktopManagedCli {
+  $command = Get-Command dsh -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  if (-not $command) {
+    throw 'The Desktop-managed dsh command is not available on PATH. In DeepSeek Harness Desktop use Manage dsh Command... -> Install (or Repair), then open a new PowerShell.'
+  }
+  $path = [string]$command.Source
+  if (-not $path -and $command.PSObject.Properties.Name -contains 'Path') {
+    $path = [string]$command.Path
+  }
+  if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) {
+    throw "The resolved dsh command is not a readable application: $path"
   }
   return [IO.Path]::GetFullPath($path)
 }
@@ -320,7 +327,7 @@ switch ($Action) {
   'DesktopInstallPlan' {
     $resolved = Resolve-StageManifest
     $desktopExe = Get-DesktopExecutable
-    $desktopCli = Get-DesktopBundledCli
+    $desktopCli = Get-DesktopManagedCli
     $observedDesktopVersion = Get-ObservedDesktopVersion $desktopExe
     $before = Get-DesktopProfileSnapshot (Join-Path $StageRoot 'desktop-before-install')
     $profileManifest = Join-Path $before.profile 'package.json'
@@ -337,7 +344,7 @@ switch ($Action) {
       dshHome=$DshHome
       desktopProfile=$before.profile
       backup=$before
-      mutation='With Desktop fully quit, use the Desktop-owned bundled dsh.cmd to run: plugin --profile desktop add <staged-tarball>.'
+      mutation='With Desktop fully quit, use the Desktop-managed dsh command installed by Manage dsh Command... to run: plugin --profile desktop add <staged-tarball>.'
       rollback='With Desktop fully quit, use the same Desktop-owned command to remove the package, or use the application Plugins/recovery UI if Host startup remains available.'
       preparedAt=(Get-Date).ToUniversalTime().ToString('o')
     }
@@ -353,7 +360,7 @@ switch ($Action) {
   'DesktopInstall' {
     $resolved = Resolve-StageManifest
     $desktopExe = Get-DesktopExecutable
-    $desktopCli = Get-DesktopBundledCli
+    $desktopCli = Get-DesktopManagedCli
     $observedDesktopVersion = Get-ObservedDesktopVersion $desktopExe
     Assert-DesktopStopped
     $profile = Join-Path $DshHome 'profiles\desktop'
@@ -366,7 +373,11 @@ switch ($Action) {
     }
 
     $before = Get-DesktopProfileSnapshot (Join-Path $StageRoot 'desktop-before-install')
-    Invoke-Checked $desktopCli @('plugin','--profile','desktop','add',$resolved.candidate) $RepoRoot
+    try {
+      Invoke-Checked $desktopCli @('plugin','--profile','desktop','add',$resolved.candidate) $RepoRoot
+    } catch {
+      throw "Desktop plugin install failed through '$desktopCli'. If dsh reports that the desktop profile is Electron-managed, open DeepSeek Harness Desktop -> Manage dsh Command... and Install/Repair the Desktop command, then open a new PowerShell. $($_.Exception.Message)"
+    }
 
     $state = Get-DesktopReadback
     if (-not $state.dependency) { throw "Desktop-owned install returned success but $PackageName is absent from the desktop profile." }
@@ -409,7 +420,7 @@ switch ($Action) {
       packageName=$PackageName
       candidateSha256=$resolved.stage.candidateSha256
       currentState=$state
-      normalRollback='Fully quit DeepSeek Harness Desktop, then use its bundled dsh.cmd: plugin --profile desktop remove @penrix/dsh-chatgpt-web. The application Plugins page is also valid when Host startup remains healthy.'
+      normalRollback='Fully quit DeepSeek Harness Desktop, then use the Desktop-managed dsh command: plugin --profile desktop remove @penrix/dsh-chatgpt-web. The application Plugins page is also valid when Host startup remains healthy.'
       fatalRollback='Use official DeepSeek Harness recovery to disable third-party bundles; do not restore backup files by hand.'
       forensicBackup=(Join-Path $StageRoot 'desktop-before-install')
       preparedAt=(Get-Date).ToUniversalTime().ToString('o')
