@@ -25,7 +25,7 @@ export interface AdapterOptions {
   composerMaxChars: number
   contextWindow: number
   maxTokens: number
-  turnTimeoutMs: number
+  turnTimeoutMs?: number
   onReasoningEnvelopeError?: (diagnostic: { rawText: string; error: unknown }) => void
   allowInteractiveLogin?: boolean
 }
@@ -126,7 +126,7 @@ export class ChatGptWebAdapter extends LlmAdapter {
         ? { chromeExecutablePath: this.options.chromeExecutablePath }
         : {}),
       headed: this.options.headed,
-      turnTimeoutMs: this.options.turnTimeoutMs,
+      ...(this.options.turnTimeoutMs === undefined ? {} : { turnTimeoutMs: this.options.turnTimeoutMs }),
       browserDiagnosticsPath: join(this.options.profileDir, 'diagnostics', 'browser-turns'),
       loginProfileDir: this.options.profileDir,
       reusableLoginProfileDirs: [
