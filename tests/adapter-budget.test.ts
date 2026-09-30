@@ -28,8 +28,10 @@ describe('provider budget and retry metadata (no browser)', () => {
       .toBe(1_050_000)
     expect((await uncapped.resolveModel('chatgpt-web', 'chatgpt-web/high')).context?.contextWindow)
       .toBe(90_000)
+    expect((await uncapped.resolveModel('chatgpt-web', 'chatgpt-web/extra-high')).context?.contextWindow)
+      .toBe(111_193)
     expect((await uncapped.resolveModel('chatgpt-web', 'chatgpt-web/pro')).context?.contextWindow)
-      .toBe(112_001)
+      .toBe(112_193)
     await uncapped.dispose()
   })
   it('disables host automatic retries for the web route', () => {

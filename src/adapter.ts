@@ -1,7 +1,12 @@
 import { join } from 'node:path'
 import {
   CHATGPT_WEB_BACKEND_MODEL,
+  CHATGPT_WEB_INSTANT_CONTEXT_WINDOW,
   CHATGPT_WEB_LUNA_BACKEND_MODEL,
+  CHATGPT_WEB_LUNA_CONTEXT_WINDOW,
+  CHATGPT_WEB_MEDIUM_HIGH_CONTEXT_WINDOW,
+  CHATGPT_WEB_PRO_MODEL_CONTEXT_WINDOW,
+  CHATGPT_WEB_PRO_STANDARD_CONTEXT_WINDOW,
   ManagedChatGptWebTransport,
   type ManagedChatGptWebEffort,
   type ManagedChatGptWebModel,
@@ -31,13 +36,13 @@ export interface AdapterOptions {
 }
 
 const MODELS = [
-  { id: 'chatgpt-web/luna', name: 'ChatGPT Web Luna', contextWindow: 1_050_000 },
-  { id: 'chatgpt-web/think', name: 'ChatGPT Web Think', contextWindow: 1_050_000 },
-  { id: 'chatgpt-web/light', name: 'ChatGPT Web Instant', contextWindow: 41_000 },
-  { id: 'chatgpt-web/medium', name: 'ChatGPT Web Medium', contextWindow: 90_000 },
-  { id: 'chatgpt-web/high', name: 'ChatGPT Web High', contextWindow: 90_000 },
-  { id: 'chatgpt-web/extra-high', name: 'ChatGPT Web Extra High', contextWindow: 112_001 },
-  { id: 'chatgpt-web/pro', name: 'ChatGPT Web Pro', contextWindow: 112_001 },
+  { id: 'chatgpt-web/luna', name: 'ChatGPT Web Luna', contextWindow: CHATGPT_WEB_LUNA_CONTEXT_WINDOW },
+  { id: 'chatgpt-web/think', name: 'ChatGPT Web Think', contextWindow: CHATGPT_WEB_LUNA_CONTEXT_WINDOW },
+  { id: 'chatgpt-web/light', name: 'ChatGPT Web Instant', contextWindow: CHATGPT_WEB_INSTANT_CONTEXT_WINDOW },
+  { id: 'chatgpt-web/medium', name: 'ChatGPT Web Medium', contextWindow: CHATGPT_WEB_MEDIUM_HIGH_CONTEXT_WINDOW },
+  { id: 'chatgpt-web/high', name: 'ChatGPT Web High', contextWindow: CHATGPT_WEB_MEDIUM_HIGH_CONTEXT_WINDOW },
+  { id: 'chatgpt-web/extra-high', name: 'ChatGPT Web Extra High', contextWindow: CHATGPT_WEB_PRO_STANDARD_CONTEXT_WINDOW },
+  { id: 'chatgpt-web/pro', name: 'ChatGPT Web Pro', contextWindow: CHATGPT_WEB_PRO_MODEL_CONTEXT_WINDOW },
 ] as const
 
 export interface EmbeddedChatGptRoute {

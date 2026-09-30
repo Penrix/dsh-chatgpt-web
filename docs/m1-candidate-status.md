@@ -7,7 +7,7 @@
 > below; a document cannot reliably embed its own commit SHA.
 >
 > Current pinned upstream transport:
-> `Penrix/codex-chatgpt-web@c2e0b9df805a7978c2abf983750c56e721b0c86e`.
+> `Penrix/codex-chatgpt-web@6b924ba63b9af7fa494595d8b510bb424a15774c`.
 >
 > Current evidence class: **CODE VERIFIED, LIVE UNVERIFIED**.
 >
@@ -267,7 +267,7 @@ The fail-closed contract is unchanged:
 - no model Send occurs if reuse cannot be proven;
 - derived storage state remains sanitized to ChatGPT/OpenAI scope.
 
-Current pinned upstream repair: `c2e0b9df805a7978c2abf983750c56e721b0c86e`.
+Current pinned upstream repair: `6b924ba63b9af7fa494595d8b510bb424a15774c`.
 
 Evidence remains **CODE VERIFIED, LIVE UNVERIFIED** until fresh downstream CI passes and a later exact Windows acceptance succeeds.
 
@@ -276,7 +276,7 @@ Evidence remains **CODE VERIFIED, LIVE UNVERIFIED** until fresh downstream CI pa
 
 The first rev-4 packet was retired before owner-machine execution because the new legacy-profile CDP behavior had not actually run in a relevant regression test.
 
-Upstream head `c2e0b9df805a7978c2abf983750c56e721b0c86e` now includes a Windows CI regression smoke that uses real Google Chrome with a temporary custom user-data-dir and proves:
+Upstream head `6b924ba63b9af7fa494595d8b510bb424a15774c` now includes a Windows CI regression smoke that uses real Google Chrome with a temporary custom user-data-dir and proves:
 
 ```text
 normal Chrome
@@ -310,7 +310,7 @@ persistent Chrome profile already contains a ChatGPT-domain cookie
 
 Chrome 152 / current Playwright can represent a first-party ChatGPT cookie with a `partitionKey`. The previous sanitizer rejected every cookie carrying any partition key, including a key whose top-level site is itself within the approved ChatGPT/OpenAI boundary.
 
-Pinned upstream `c2e0b9df805a7978c2abf983750c56e721b0c86e` now preserves:
+Pinned upstream `6b924ba63b9af7fa494595d8b510bb424a15774c` now preserves:
 
 - unpartitioned cookies on approved ChatGPT/OpenAI hosts;
 - partitioned cookies only when the partition key is also an HTTPS ChatGPT/OpenAI host.
@@ -340,7 +340,7 @@ managed browser turn completion
 
 The second path bypassed the sanitizer and could silently widen or corrupt the privacy boundary after the first successful model turn.
 
-Upstream head `c2e0b9df805a7978c2abf983750c56e721b0c86e` now applies the existing `sanitizeBrowserLoginStorageState()` policy before every managed-Chrome turn writes the derived cache.
+Upstream head `6b924ba63b9af7fa494595d8b510bb424a15774c` now applies the existing `sanitizeBrowserLoginStorageState()` policy before every managed-Chrome turn writes the derived cache.
 
 TDD evidence:
 
