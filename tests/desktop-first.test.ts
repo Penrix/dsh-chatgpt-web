@@ -11,6 +11,11 @@ describe('Desktop-first M1 product path', () => {
     expect(config.allowInteractiveLogin).toBe(false)
   })
 
+  it('does not impose an absolute ChatGPT Web turn timeout by default', () => {
+    const config = Config({})
+    expect(config.turnTimeoutMs).toBeUndefined()
+  })
+
   it('uses the Desktop-owned bundled CLI for the reserved desktop profile', () => {
     expect(localScript).toContain("'DesktopInstall'")
     expect(localScript).toContain("resources\\runtime\\cli\\bin\\dsh.cmd")
