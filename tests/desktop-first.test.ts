@@ -31,11 +31,17 @@ describe('Desktop-first M1 product path', () => {
     expect(config.maxTokens).toBeUndefined()
   })
 
-  it('uses the official Desktop-managed dsh command contract instead of a private install path', () => {
-    expect(localScript).toContain("'DesktopInstall'")
-    expect(localScript).toContain("Get-Command dsh -CommandType Application")
-    expect(localScript).toContain("@('plugin','--profile','desktop','add',$resolved.candidate)")
-    expect(localScript).not.toContain("resources\\runtime\\cli\\bin\\dsh.cmd")
+  it('uses the official Desktop Plugins UI as the primary install boundary', () => {
+    expect(localScript).toContain("'DesktopUiInstallPlan'")
+    expect(localScript).toContain('Plugins -> Add plugin')
+    expect(localScript).toContain('Enable now')
+    expect(localScript).not.toContain("'DesktopInstall'")
+    expect(localScript).not.toContain("@('plugin','--profile','desktop','add',$resolved.candidate)")
+  })
+
+  it('accepts an exact detached HEAD without dereferencing an empty branch name', () => {
+    expect(localScript).not.toContain("branch --show-current).Trim()")
+    expect(localScript).toContain("$branchOutput = & git -C $RepoRoot branch --show-current")
   })
 
   it('refuses Desktop mutation while the real application is still running', () => {
