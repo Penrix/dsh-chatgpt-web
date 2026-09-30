@@ -36,7 +36,7 @@ export const Config: z<Config> = z.object({
   loginTimeoutMs: z.number().min(1).default(600_000),
   turnTimeoutMs: z.number().min(1),
   composerMaxChars: z.number().step(1).min(1),
-  contextWindow: z.number().step(1).min(1).default(90_000),
+  contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1).default(16_384),
   allowInteractiveLogin: z.boolean().default(false),
   webcodexRead: z.union([
@@ -56,7 +56,7 @@ export function apply(ctx: Context, config: Config): void {
     loginTimeoutMs: config.loginTimeoutMs ?? 600_000,
     ...(config.turnTimeoutMs === undefined ? {} : { turnTimeoutMs: config.turnTimeoutMs }),
     ...(config.composerMaxChars === undefined ? {} : { composerMaxChars: config.composerMaxChars }),
-    contextWindow: config.contextWindow ?? 90_000,
+    ...(config.contextWindow === undefined ? {} : { contextWindow: config.contextWindow }),
     maxTokens: config.maxTokens ?? 16_384,
     allowInteractiveLogin: config.allowInteractiveLogin ?? false,
   })

@@ -23,7 +23,7 @@ export interface AdapterOptions {
   headed: boolean
   loginTimeoutMs: number
   composerMaxChars?: number
-  contextWindow: number
+  contextWindow?: number
   maxTokens: number
   turnTimeoutMs?: number
   onReasoningEnvelopeError?: (diagnostic: { rawText: string; error: unknown }) => void
@@ -105,7 +105,11 @@ export class ChatGptWebAdapter extends LlmAdapter {
       id: model,
       name: entry.name,
       inputModalities: ['text'],
-      context: { contextWindow: Math.min(this.options.contextWindow, entry.contextWindow) },
+      context: {
+        contextWindow: this.options.contextWindow === undefined
+          ? entry.contextWindow
+          : Math.min(this.options.contextWindow, entry.contextWindow),
+      },
       defaultMaxTokens: this.options.maxTokens,
     })
   }
