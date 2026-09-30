@@ -24,7 +24,7 @@ export interface AdapterOptions {
   loginTimeoutMs: number
   composerMaxChars?: number
   contextWindow?: number
-  maxTokens: number
+  maxTokens?: number
   turnTimeoutMs?: number
   onReasoningEnvelopeError?: (diagnostic: { rawText: string; error: unknown }) => void
   allowInteractiveLogin?: boolean
@@ -110,7 +110,7 @@ export class ChatGptWebAdapter extends LlmAdapter {
           ? entry.contextWindow
           : Math.min(this.options.contextWindow, entry.contextWindow),
       },
-      defaultMaxTokens: this.options.maxTokens,
+      ...(this.options.maxTokens === undefined ? {} : { defaultMaxTokens: this.options.maxTokens }),
     })
   }
 

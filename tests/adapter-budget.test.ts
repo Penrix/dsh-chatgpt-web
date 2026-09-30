@@ -7,6 +7,16 @@ describe('provider budget and retry metadata (no browser)', () => {
   it('honors the operator context budget rather than always taking the catalog value', async () => {
     expect((await adapter.resolveModel('chatgpt-web', 'chatgpt-web/high')).context?.contextWindow).toBe(12_000)
   })
+  it('does not advertise an output cap when no operator cap is configured', async () => {
+    const uncapped = new ChatGptWebAdapter({
+      profileDir: 'unused',
+      headed: false,
+      loginTimeoutMs: 1,
+    })
+    await expect(uncapped.resolveModel('chatgpt-web', 'chatgpt-web/high'))
+      .resolves.not.toHaveProperty('defaultMaxTokens')
+    await uncapped.dispose()
+  })
   it('uses each route\'s own context window when no operator cap is configured', async () => {
     const uncapped = new ChatGptWebAdapter({
       profileDir: 'unused',
