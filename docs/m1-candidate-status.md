@@ -1,6 +1,6 @@
-# M1 candidate status — embedded transport
+# M1 candidate status — Desktop-first ChatGPT Web
 
-> **Current-state entrypoint — 2026-09-29**
+> **Current-state entrypoint — 2026-09-30**
 >
 > Exact DSH revision authority is the current head of Draft PR #18 on
 > `m1a-relay-spike`. Do not recover an exact DSH head from historical sections
@@ -71,6 +71,7 @@ Current ownership:
   `onSendActivated`.
 - real ChatGPT Web round-trip acceptance for the current code is still
   **LIVE UNVERIFIED**.
+- DSH-side `turnTimeoutMs`, `composerMaxChars`, `contextWindow`, and `maxTokens` are operator-only overrides; normal operation no longer invents fixed defaults ahead of upstream/model-specific limits.
 
 Current verification scope:
 
@@ -98,6 +99,9 @@ Current explicit deferrals / non-blockers:
   the M1 auth fix without evidence;
 - upstream repo-wide dependency advisories remain real maintenance work but are
   distinct from the browser-login regressions that execute before the audit gate.
+- managed Chrome next-turn self-healing after an unexpected browser-process disconnect remains deferred until owner-machine evidence justifies it; current turns fail closed and are never automatically resent.
+- explicit caller `maxTokens` is not natively enforceable by ChatGPT Web; the false 16,384 adapter default is gone, but caller-supplied caps remain a recorded semantic limitation.
+- sanitized derived `storage-state.json` remains intentional until owner-live evidence shows real account auth needs state it cannot carry.
 
 The historical candidate record below is retained only as formation history.
 Any section below that calls itself “current” is current only for that historical
