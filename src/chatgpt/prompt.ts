@@ -107,7 +107,7 @@ function hasCompletedToolEvidence(messages: readonly RequestMessage[]): boolean 
   return false
 }
 
-export function compilePrompt(options: GenerateOptions, maxChars: number): CompiledPrompt {
+export function compilePrompt(options: GenerateOptions, maxChars?: number): CompiledPrompt {
   if (options.temperature !== undefined) {
     throw new LlmError('Phase 1 ChatGPT Web provider does not support temperature.', 'UNSUPPORTED')
   }
@@ -190,7 +190,7 @@ export function compilePrompt(options: GenerateOptions, maxChars: number): Compi
       : []),
   ].join('\n')
 
-  if (text.length > maxChars) {
+  if (maxChars !== undefined && text.length > maxChars) {
     throw new LlmError(
       `ChatGPT Web prompt is ${text.length} chars, over the configured ${maxChars}-char composer budget. Let DSH compact or project less history.`,
       'CONTEXT_WINDOW_EXCEEDED',
