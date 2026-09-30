@@ -21,8 +21,7 @@ DeepSeek Harness Desktop must have been opened at least once so its reserved pro
 .\scripts\m1-local.ps1 -Action DesktopInstallPlan -ExpectedHead $Head
 ```
 
-The plan resolves both the installed Desktop executable and Desktop's own
-`resources\runtime\cli\bin\dsh.cmd`. The npm-installed public `dsh` is not permitted to mutate `profiles/desktop`.
+The plan resolves the installed Desktop executable and the `dsh` command currently available on PATH. On Windows, install or repair the official carrier first from **DeepSeek Harness → Manage dsh Command…**, then open a new PowerShell. An ordinary npm-installed `dsh` is not permitted to mutate `profiles/desktop`.
 
 ## 3. Install into the real Desktop profile
 
@@ -35,11 +34,10 @@ Fully quit DeepSeek Harness Desktop, including its Windows tray process. Then:
 The script fails if Desktop is still running and never kills it automatically. Its mutation boundary is:
 
 ```text
-<Desktop install>\resources\runtime\cli\bin\dsh.cmd
-  plugin --profile desktop add <exact staged tarball>
+dsh plugin --profile desktop add <exact staged tarball>
 ```
 
-That upstream-supported command owns the Desktop profile lock, bundled pnpm runtime, compatibility checks and bundle reconciliation.
+The `dsh` command must be the carrier installed or repaired by the official Desktop's **Manage dsh Command…** surface. That upstream-supported carrier owns the Desktop profile lock, bundled package runtime, compatibility checks and bundle reconciliation. If a different CLI has PATH precedence, the official CLI contract rejects the reserved `desktop` profile instead of letting this script bypass the guard.
 
 A successful action must read back:
 
