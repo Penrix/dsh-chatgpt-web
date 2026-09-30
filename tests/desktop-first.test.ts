@@ -16,6 +16,11 @@ describe('Desktop-first M1 product path', () => {
     expect(config.turnTimeoutMs).toBeUndefined()
   })
 
+  it('does not duplicate the upstream model-specific composer limit by default', () => {
+    const config = Config({})
+    expect(config.composerMaxChars).toBeUndefined()
+  })
+
   it('uses the Desktop-owned bundled CLI for the reserved desktop profile', () => {
     expect(localScript).toContain("'DesktopInstall'")
     expect(localScript).toContain("resources\\runtime\\cli\\bin\\dsh.cmd")
