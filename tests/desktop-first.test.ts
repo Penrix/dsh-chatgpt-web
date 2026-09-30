@@ -26,6 +26,11 @@ describe('Desktop-first M1 product path', () => {
     expect(config.contextWindow).toBeUndefined()
   })
 
+  it('does not claim a Web output-token cap that the browser cannot enforce', () => {
+    const config = Config({})
+    expect(config.maxTokens).toBeUndefined()
+  })
+
   it('uses the Desktop-owned bundled CLI for the reserved desktop profile', () => {
     expect(localScript).toContain("'DesktopInstall'")
     expect(localScript).toContain("resources\\runtime\\cli\\bin\\dsh.cmd")
